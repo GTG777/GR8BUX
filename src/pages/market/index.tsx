@@ -33,14 +33,14 @@ interface MiniChartProps {
   label: string;
 }
 
-function MiniChart({ symbol, label }: MiniChartProps) {
+function MiniChart({ symbol }: MiniChartProps) {
   const ref = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
   useTradingViewScript(() => {
     if (initialized.current || !ref.current) return;
     initialized.current = true;
-    // @ts-ignore
+    // @ts-expect-error
     new window.TradingView.MiniWidget({
       container_id: ref.current.id,
       symbol,
@@ -77,7 +77,7 @@ function SectorHeatmap() {
   useTradingViewScript(() => {
     if (initialized.current || !ref.current) return;
     initialized.current = true;
-    // @ts-ignore
+    // @ts-expect-error
     new window.TradingView.widget({
       container_id: 'tv-heatmap',
       width: '100%',
@@ -130,7 +130,7 @@ function HotlistsWidget() {
   useTradingViewScript(() => {
     if (initialized.current || !ref.current) return;
     initialized.current = true;
-    // @ts-ignore
+    // @ts-expect-error
     new window.TradingView.widget({
       container_id: 'tv-hotlists',
       width: '100%',
