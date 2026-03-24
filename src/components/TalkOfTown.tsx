@@ -45,6 +45,15 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
   const fetchSentiment = async () => {
     setLoading(true);
     setError(null);
+    
+    // If no symbols, clear data and return
+    if (!symbols || symbols.length === 0) {
+      setSummary([]);
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const symbolString = symbols.join(',');
       const params: any = { symbols: symbolString };
@@ -105,6 +114,15 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
+
+  if (!symbols || symbols.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600 mb-2">No symbols selected</p>
+        <p className="text-sm text-gray-500">Add symbols above to view community sentiment</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
