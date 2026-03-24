@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // Use getSupabaseClient() which lazily creates the client on first call.
 
 let _client: SupabaseClient | null = null;
+let _serviceRoleClient: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient | null {
   if (_client) return _client;
@@ -24,6 +25,37 @@ export function getSupabaseClient(): SupabaseClient | null {
     return _client;
   } catch (err) {
     console.error('[Supabase] Failed to create client:', err);
+    return null;
+  }
+}
+
+/**
+ * Get Supabase service role client for server-side operations that need to bypass RLS
+ * Only use this on the server side - never expose the service role key to the client!
+ */
+export function getSupabaseServiceRoleClient(): SupabaseClient | null {
+  if (_serviceRoleClient) return _serviceRoleClient;
+
+  let url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim();
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
+
+  if (!url || !serviceRoleKey) return null;
+
+  // Normalize: add https:// if the user omitted the scheme
+  if (!url.match(/^https?:\/\//i)) {
+    url = 'https://' + url;
+  }
+
+  try {
+    _serviceRoleClient = createClient(url, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+    return _serviceRoleClient;
+  } catch (err) {
+    console.error('[Supabase Service Role] Failed to create client:', err);
     return null;
   }
 }

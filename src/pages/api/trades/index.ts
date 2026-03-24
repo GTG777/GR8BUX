@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
 
 /**
@@ -82,7 +82,8 @@ async function handleCreateTrade(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
-  const supabase = getSupabaseClient()!;
+  // Use service role client for API operations to bypass RLS
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseClient()!;
   const trade = req.body;
 
   // Validation
