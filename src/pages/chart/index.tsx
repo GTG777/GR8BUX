@@ -136,29 +136,30 @@ function computeIndicators(candles: Candle[]): Indicators {
 ───────────────────────────────────────────── */
 function AdvancedChart({ symbol, interval }: { symbol: string; interval: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const scriptRef = useRef<HTMLScriptElement | null>(null);
+
+  const CHART_H = 560;
 
   useEffect(() => {
     if (!containerRef.current) return;
-    // Remove old widget script/iframe
     containerRef.current.innerHTML = '';
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'tradingview-widget-container__widget';
-    wrapper.style.height = '100%';
-    containerRef.current.appendChild(wrapper);
+    const widgetDiv = document.createElement('div');
+    widgetDiv.className = 'tradingview-widget-container__widget';
+    widgetDiv.style.cssText = `height:${CHART_H}px;width:100%`;
+    containerRef.current.appendChild(widgetDiv);
 
     const script = document.createElement('script');
     script.type = 'text/javascript';
     script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
     script.async = true;
     script.innerHTML = JSON.stringify({
-      autosize: true,
+      width: '100%',
+      height: CHART_H,
       symbol: `NASDAQ:${symbol}`,
       interval,
       timezone: 'America/New_York',
       theme: 'light',
-      style: '1', // candlesticks
+      style: '1',
       locale: 'en',
       enable_publishing: false,
       allow_symbol_change: false,
@@ -167,24 +168,23 @@ function AdvancedChart({ symbol, interval }: { symbol: string; interval: string 
       save_image: false,
       show_popup_button: false,
       studies: [
-        'MASimple@tv-basicstudies',   // MA 9
-        'MASimple@tv-basicstudies',   // MA 21
-        'MASimple@tv-basicstudies',   // MA 50
-        'MASimple@tv-basicstudies',   // MA 200
+        'MASimple@tv-basicstudies',
+        'MASimple@tv-basicstudies',
+        'MASimple@tv-basicstudies',
+        'MASimple@tv-basicstudies',
         'RSI@tv-basicstudies',
         'TSI@tv-basicstudies',
         'Volume@tv-basicstudies',
       ],
     });
     containerRef.current.appendChild(script);
-    scriptRef.current = script;
   }, [symbol, interval]);
 
   return (
     <div
       className="tradingview-widget-container"
       ref={containerRef}
-      style={{ height: 540 }}
+      style={{ height: CHART_H, width: '100%' }}
     />
   );
 }
