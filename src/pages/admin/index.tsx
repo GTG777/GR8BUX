@@ -35,7 +35,7 @@ export default function AdminPage() {
     }
   }, [authLoading, isAdmin, router]);
 
-  // Load users
+  // Load users via the authenticated API route (server enforces admin check)
   useEffect(() => {
     if (!isAdmin()) return;
 
@@ -47,27 +47,24 @@ export default function AdminPage() {
           setError('Database not configured');
           return;
         }
-        const { data, error: queryError } = await supabase
-          .from('users')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (queryError) {
-          setError('Failed to load users');
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) {
+          setError('Not authenticated');
           return;
         }
 
-        setUsers(
-          data.map((u: any) => ({
-            id: u.id,
-            email: u.email,
-            displayName: u.display_name || 'N/A',
-            role: u.role,
-            emailVerified: u.email_verified,
-            createdAt: u.created_at,
-            lastSignIn: u.last_sign_in,
-          }))
-        );
+        const res = await fetch('/api/admin/users', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+
+        if (!res.ok) {
+          setError(json.error || 'Failed to load users');
+          return;
+        }
+
+        setUsers(json.data);
       } catch (err) {
         setError('Error loading users');
       } finally {
@@ -88,15 +85,25 @@ export default function AdminPage() {
         setError('Database not configured');
         return;
       }
-      const { data, error: updateError } = await supabase
-        .from('users')
-        .update({ role: newRole })
-        .eq('id', selectedUser.id)
-        .select()
-        .single();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        setError('Not authenticated');
+        return;
+      }
 
-      if (updateError) {
-        setError('Failed to update role');
+      const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role: newRole }),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setError(json.error || 'Failed to update role');
         return;
       }
 

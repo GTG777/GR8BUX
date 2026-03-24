@@ -32,8 +32,15 @@ export default function SignUpPage() {
       return false;
     }
 
-    if (formData.password.length < 6) {
-      setFormError('Password must be at least 6 characters');
+    if (formData.password.length < 8) {
+      setFormError('Password must be at least 8 characters');
+      return false;
+    }
+
+    const hasLetter = /[a-zA-Z]/.test(formData.password);
+    const hasNumber = /[0-9]/.test(formData.password);
+    if (!hasLetter || !hasNumber) {
+      setFormError('Password must contain at least one letter and one number');
       return false;
     }
 

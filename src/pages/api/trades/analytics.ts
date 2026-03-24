@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Trade, TradeAnalytics, ApiResponse } from '@/types';
 import { convertTradeFromDatabase } from '@/lib/tradeConverters';
+import { requireAuth } from '@/lib/apiAuth';
 import {
   calculateTradePnL,
   calculateWinRate,
@@ -32,6 +33,9 @@ export default async function handler(
     });
   }
 
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
   try {
     const { symbol, startDate, endDate } = req.query;
 
@@ -40,8 +44,8 @@ export default async function handler(
       return res.status(503).json({ success: false, error: 'Database not configured' });
     }
 
-    // Fetch trades from database
-    let query = supabase.from('trades').select('*');
+    // Fetch only the authenticated user's trades
+    let query = supabase.from('trades').select('*').eq('user_id', user.id);
 
     // Apply filters
     if (symbol) {

@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { symbols, apiKey } = req.query;
+    const { symbols } = req.query;
 
     // Handle empty symbols gracefully
     if (!symbols || typeof symbols !== 'string' || symbols.trim() === '') {
@@ -27,8 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const symbolList = symbols.split(',').map((s) => s.trim().toUpperCase()).filter((s) => s !== '');
 
-    const newsApiKey = apiKey && typeof apiKey === 'string' ? apiKey : undefined;
-    const news = await newsService.aggregateNews(symbolList, { newsApiKey });
+    const news = await newsService.aggregateNews(symbolList, {});
 
     res.status(200).json({
       success: true,

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
 import { convertTradeFromDatabase } from '@/lib/tradeConverters';
+import { requireAuth } from '@/lib/apiAuth';
 
 /**
  * GET: Fetch all trades for authenticated user
@@ -11,9 +12,9 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade | Trade[]>>
 ) {
-  // TODO: Add proper authentication middleware
-  // For now, we'll skip auth but you should add it later
-  
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
   const supabase = getSupabaseClient();
   if (!supabase) {
     return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -23,9 +24,9 @@ export default async function handler(
 
   try {
     if (method === 'GET') {
-      return handleGetTrades(req, res);
+      return handleGetTrades(req, res, user.id);
     } else if (method === 'POST') {
-      return handleCreateTrade(req, res);
+      return handleCreateTrade(req, res, user.id);
     } else {
       return res.status(405).json({
         success: false,
@@ -43,12 +44,17 @@ export default async function handler(
 
 async function handleGetTrades(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<Trade[]>>
+  res: NextApiResponse<ApiResponse<Trade[]>>,
+  userId: string
 ) {
   const supabase = getSupabaseClient()!;
   const { symbol, status, limit = 50, offset = 0 } = req.query;
 
-  let query = supabase.from('trades').select('*').order('created_at', { ascending: false });
+  let query = supabase
+    .from('trades')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
 
   // Apply filters
   if (symbol) {
@@ -81,7 +87,8 @@ async function handleGetTrades(
 
 async function handleCreateTrade(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<Trade>>
+  res: NextApiResponse<ApiResponse<Trade>>,
+  userId: string
 ) {
   // Use service role client for API operations to bypass RLS
   const supabase = getSupabaseServiceRoleClient() || getSupabaseClient()!;
@@ -102,25 +109,7 @@ async function handleCreateTrade(
     });
   }
 
-  const testUserId = 'a0000000-0000-0000-0000-000000000001';
-
   try {
-    // Ensure test user exists (for development/testing)
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', testUserId)
-      .single();
-
-    if (!existingUser) {
-      // Create test user if it doesn't exist
-      await supabase.from('users').insert([{
-        id: testUserId,
-        email: 'test@example.com',
-        display_name: 'Test User',
-      }]);
-    }
-
     // 1. Insert base trade record
     // Convert tags from comma-separated string to array if needed
     let tagsArray: string[] = [];
@@ -142,7 +131,7 @@ async function handleCreateTrade(
       notes: trade.notes || '',
       plan_notes: trade.planNotes || '', 
       tags: tagsArray,
-      user_id: testUserId,
+      user_id: userId,
     };
 
     const { data: tradeData, error: tradeError } = await supabase

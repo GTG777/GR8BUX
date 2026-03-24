@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
 import { convertTradeFromDatabase } from '@/lib/tradeConverters';
+import { requireAuth } from '@/lib/apiAuth';
 
 /**
  * GET: Fetch a specific trade by ID
@@ -12,6 +13,9 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
   const { id } = req.query;
   const { method } = req;
 
@@ -28,11 +32,11 @@ export default async function handler(
       return res.status(503).json({ success: false, error: 'Database not configured' });
     }
     if (method === 'GET') {
-      return handleGetTrade(id, res);
+      return handleGetTrade(id, user.id, res);
     } else if (method === 'PUT') {
-      return handleUpdateTrade(id, req, res);
+      return handleUpdateTrade(id, user.id, req, res);
     } else if (method === 'DELETE') {
-      return handleDeleteTrade(id, res);
+      return handleDeleteTrade(id, user.id, res);
     } else {
       return res.status(405).json({
         success: false,
@@ -50,6 +54,7 @@ export default async function handler(
 
 async function handleGetTrade(
   id: string,
+  userId: string,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
   const supabase = getSupabaseClient()!;
@@ -57,6 +62,7 @@ async function handleGetTrade(
     .from('trades')
     .select('*')
     .eq('id', id)
+    .eq('user_id', userId)
     .single();
 
   if (error) {
@@ -74,6 +80,7 @@ async function handleGetTrade(
 
 async function handleUpdateTrade(
   id: string,
+  userId: string,
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
@@ -89,6 +96,7 @@ async function handleUpdateTrade(
     .from('trades')
     .update(updates)
     .eq('id', id)
+    .eq('user_id', userId)
     .select()
     .single();
 
@@ -107,10 +115,11 @@ async function handleUpdateTrade(
 
 async function handleDeleteTrade(
   id: string,
+  userId: string,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
   const supabase = getSupabaseClient()!;
-  const { error } = await supabase.from('trades').delete().eq('id', id);
+  const { error } = await supabase.from('trades').delete().eq('id', id).eq('user_id', userId);
 
   if (error) {
     return res.status(400).json({
