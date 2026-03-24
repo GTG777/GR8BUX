@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Trade, TradeAnalytics } from '@/types';
 import axios from 'axios';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface TradeFilter {
   symbol?: string;
@@ -22,6 +23,20 @@ interface TradeState {
   clearError: () => void;
 }
 
+/** Returns the current session's Bearer token, or null if not signed in. */
+async function getAuthToken(): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token ?? null;
+}
+
+/** Returns axios headers with Authorization if a session exists. */
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export const useTradeStore = create<TradeState>((set, get) => ({
   trades: [],
   analytics: null,
@@ -37,7 +52,9 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       params.append('limit', limit.toString());
       params.append('offset', offset.toString());
 
-      const response = await axios.get(`/api/trades?${params.toString()}`);
+      const response = await axios.get(`/api/trades?${params.toString()}`, {
+        headers: await authHeaders(),
+      });
       if (response.data.success) {
         set({ trades: response.data.data, isLoading: false });
       } else {
@@ -52,7 +69,9 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   fetchAnalytics: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get('/api/trades/analytics');
+      const response = await axios.get('/api/trades/analytics', {
+        headers: await authHeaders(),
+      });
       if (response.data.success) {
         set({ analytics: response.data.data, isLoading: false });
       } else {
@@ -67,9 +86,10 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   createTrade: async (trade: Partial<Trade>) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post('/api/trades', trade);
+      const response = await axios.post('/api/trades', trade, {
+        headers: await authHeaders(),
+      });
       if (response.data.success) {
-        // Add new trade to list
         const newTrade = response.data.data;
         set((state) => ({
           trades: [newTrade, ...state.trades],
@@ -90,7 +110,9 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   updateTrade: async (id: string, updates: Partial<Trade>) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.put(`/api/trades/${id}`, updates);
+      const response = await axios.put(`/api/trades/${id}`, updates, {
+        headers: await authHeaders(),
+      });
       if (response.data.success) {
         const updatedTrade = response.data.data;
         set((state) => ({
@@ -112,7 +134,9 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   deleteTrade: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.delete(`/api/trades/${id}`);
+      const response = await axios.delete(`/api/trades/${id}`, {
+        headers: await authHeaders(),
+      });
       if (response.data.success) {
         set((state) => ({
           trades: state.trades.filter((t) => t.id !== id),
