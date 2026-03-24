@@ -9,13 +9,25 @@ export interface AuthResponse {
   user?: AuthUser;
 }
 
+function requireSupabase() {
+  if (!supabase) {
+    throw new Error(
+      'Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
+    );
+  }
+
+  return supabase;
+}
+
 /**
  * Sign up new user with email and password
  */
 export async function signUp(input: SignUpInput): Promise<AuthResponse> {
   try {
+    const client = requireSupabase();
+
     // Create auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await client.auth.signUp({
       email: input.email,
       password: input.password,
       options: {
@@ -33,7 +45,7 @@ export async function signUp(input: SignUpInput): Promise<AuthResponse> {
     }
 
     // Insert user profile with default 'user' role
-    const { data: userData, error: userError } = await supabase
+    const { data: userData, error: userError } = await client
       .from('users')
       .insert({
         id: authData.user.id,
@@ -47,7 +59,7 @@ export async function signUp(input: SignUpInput): Promise<AuthResponse> {
 
     if (userError) {
       // Clean up auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(authData.user.id);
+      await client.auth.admin.deleteUser(authData.user.id);
       return {
         success: false,
         error: userError.message || 'Failed to create user profile',
@@ -71,7 +83,9 @@ export async function signUp(input: SignUpInput): Promise<AuthResponse> {
  */
 export async function signIn(input: SignInInput): Promise<AuthResponse> {
   try {
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    const client = requireSupabase();
+
+    const { data: authData, error: authError } = await client.auth.signInWithPassword({
       email: input.email,
       password: input.password,
     });
@@ -84,7 +98,7 @@ export async function signIn(input: SignInInput): Promise<AuthResponse> {
     }
 
     // Fetch user profile with role
-    const { data: userData, error: userError } = await supabase
+    const { data: userData, error: userError } = await client
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
@@ -121,7 +135,8 @@ export async function signIn(input: SignInInput): Promise<AuthResponse> {
  */
 export async function signOut(): Promise<AuthResponse> {
   try {
-    const { error } = await supabase.auth.signOut();
+    const client = requireSupabase();
+    const { error } = await client.auth.signOut();
 
     if (error) {
       return {
@@ -144,14 +159,15 @@ export async function signOut(): Promise<AuthResponse> {
  */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const client = requireSupabase();
+    const { data, error } = await client.auth.getUser();
 
     if (error || !data.user) {
       return null;
     }
 
     // Fetch user profile with role
-    const { data: userData, error: userError } = await supabase
+    const { data: userData, error: userError } = await client
       .from('users')
       .select('*')
       .eq('id', data.user.id)
@@ -172,7 +188,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
  */
 export async function requestPasswordReset(email: string): Promise<AuthResponse> {
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const client = requireSupabase();
+    const { error } = await client.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     });
 
@@ -205,7 +222,8 @@ export async function requestPasswordReset(email: string): Promise<AuthResponse>
  */
 export async function updatePassword(newPassword: string): Promise<AuthResponse> {
   try {
-    const { error } = await supabase.auth.updateUser({
+    const client = requireSupabase();
+    const { error } = await client.auth.updateUser({
       password: newPassword,
     });
 
@@ -230,7 +248,8 @@ export async function updatePassword(newPassword: string): Promise<AuthResponse>
  */
 export async function verifyEmail(token: string): Promise<AuthResponse> {
   try {
-    const { error } = await supabase.auth.verifyOtp({
+    const client = requireSupabase();
+    const { error } = await client.auth.verifyOtp({
       token_hash: token,
       type: 'email',
     });
@@ -245,7 +264,7 @@ export async function verifyEmail(token: string): Promise<AuthResponse> {
     // Get current user and mark email as verified
     const user = await getCurrentUser();
     if (user) {
-      await supabase
+      await client
         .from('users')
         .update({ email_verified: true })
         .eq('id', user.id);
@@ -272,7 +291,8 @@ export async function verifyEmail(token: string): Promise<AuthResponse> {
  */
 export async function updateUserRole(userId: string, newRole: 'admin' | 'manager' | 'user'): Promise<AuthResponse> {
   try {
-    const { data, error } = await supabase
+    const client = requireSupabase();
+    const { data, error } = await client
       .from('users')
       .update({ role: newRole })
       .eq('id', userId)
@@ -310,7 +330,8 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'manager
  */
 export async function getUserById(userId: string): Promise<AuthUser | null> {
   try {
-    const { data, error } = await supabase
+    const client = requireSupabase();
+    const { data, error } = await client
       .from('users')
       .select('*')
       .eq('id', userId)
@@ -354,10 +375,12 @@ async function logAuthEvent({
   eventType: 'sign_up' | 'sign_in' | 'sign_out' | 'password_reset' | 'email_verified' | 'role_changed';
 }): Promise<void> {
   try {
+    const client = requireSupabase();
+
     // Get user agent and IP if possible
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
 
-    await supabase.from('auth_logs').insert({
+    await client.from('auth_logs').insert({
       user_id: userId,
       email,
       event_type: eventType,

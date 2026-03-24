@@ -15,8 +15,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const { initializeAuth, isLoading } = useAuthStore();
 
   useEffect(() => {
-    initializeAuth();
-  }, []);
+    let mounted = true;
+
+    const initialize = async () => {
+      const timeout = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          if (mounted) {
+            useAuthStore.setState({ isLoading: false });
+          }
+          resolve();
+        }, 8000);
+      });
+
+      await Promise.race([initializeAuth(), timeout]);
+    };
+
+    initialize();
+
+    return () => {
+      mounted = false;
+    };
+  }, [initializeAuth]);
 
   // Show loading state while initializing auth
   if (isLoading) {
