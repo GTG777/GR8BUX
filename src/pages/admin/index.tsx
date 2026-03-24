@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/types';
 import { getSupabaseClient } from '@/lib/supabase';
+import { Layout } from '@/components/Layout';
 
 interface User {
   id: string;
@@ -117,22 +118,19 @@ export default function AdminPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading users...</p>
+      <Layout title="Admin Panel">
+        <div className="flex items-center justify-center py-24">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-600">Loading users...</p>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">Admin Panel</h1>
-          <p className="text-gray-600 mt-2">Manage user roles and permissions</p>
-        </div>
+    <Layout title="Admin Panel">
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -247,7 +245,6 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Layout>
   );
 }

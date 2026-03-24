@@ -98,18 +98,39 @@ export async function signIn(input: SignInInput): Promise<AuthResponse> {
       };
     }
 
-    // Fetch user profile with role
-    const { data: userData, error: userError } = await client
+    // Fetch user profile with role — upsert if missing (handles orphaned auth users)
+    const selectResult = await client
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
       .single();
+    const userError = selectResult.error;
+    let userData = selectResult.data;
 
     if (userError || !userData) {
-      return {
-        success: false,
-        error: 'Failed to load user profile',
-      };
+      // Profile row doesn't exist yet — create it now from auth metadata
+      const { data: created, error: createError } = await client
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: authData.user.email,
+          display_name:
+            authData.user.user_metadata?.display_name ||
+            authData.user.email?.split('@')[0] ||
+            'Trader',
+          role: 'user',
+          email_verified: authData.user.email_confirmed_at != null,
+        })
+        .select()
+        .single();
+
+      if (createError || !created) {
+        return {
+          success: false,
+          error: 'Failed to load user profile',
+        };
+      }
+      userData = created;
     }
 
     // Log sign-in event
@@ -355,6 +376,7 @@ function mapDatabaseUserToAuthUser(data: any): AuthUser {
   return {
     id: data.id,
     email: data.email,
+    displayName: data.display_name || undefined,
     role: data.role || 'user',
     emailVerified: data.email_verified || false,
     lastSignIn: data.last_sign_in,

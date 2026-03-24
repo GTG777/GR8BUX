@@ -161,6 +161,7 @@ export type UserRole = 'admin' | 'manager' | 'user';
 export interface AuthUser {
   id: string;
   email: string;
+  displayName?: string;
   role: UserRole;
   emailVerified: boolean;
   lastSignIn?: string;
