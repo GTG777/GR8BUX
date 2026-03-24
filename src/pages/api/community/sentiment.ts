@@ -61,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           text: post.text.substring(0, 200),
           author: post.author,
           symbol: post.symbol,
-          engagement: post.engagement,
+          engagement: typeof post.engagement === 'object' ? post.engagement?.total ?? 0 : (post.engagement ?? 0),
           sentiment: post.sentiment,
           createdAt: post.createdAt.toISOString(),
           url: post.url,
