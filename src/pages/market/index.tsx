@@ -40,7 +40,7 @@ function MiniChart({ symbol }: MiniChartProps) {
   useTradingViewScript(() => {
     if (initialized.current || !ref.current) return;
     initialized.current = true;
-    // @ts-expect-error
+    // @ts-expect-error -- TradingView is loaded via external script, not typed
     new window.TradingView.MiniWidget({
       container_id: ref.current.id,
       symbol,
@@ -77,7 +77,7 @@ function SectorHeatmap() {
   useTradingViewScript(() => {
     if (initialized.current || !ref.current) return;
     initialized.current = true;
-    // @ts-expect-error
+    // @ts-expect-error -- TradingView is loaded via external script, not typed
     new window.TradingView.widget({
       container_id: 'tv-heatmap',
       width: '100%',
@@ -130,7 +130,7 @@ function HotlistsWidget() {
   useTradingViewScript(() => {
     if (initialized.current || !ref.current) return;
     initialized.current = true;
-    // @ts-expect-error
+    // @ts-expect-error -- TradingView is loaded via external script, not typed
     new window.TradingView.widget({
       container_id: 'tv-hotlists',
       width: '100%',
