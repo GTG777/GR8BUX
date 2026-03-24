@@ -7,7 +7,7 @@ interface SentimentSummary {
   negative: number;
   neutral: number;
   overallSentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-  engagementScore: number;
+  engagementScore?: number | null;
 }
 
 interface CommunityPost {
@@ -166,7 +166,7 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-600">Engagement Score</p>
-                    <p className="text-2xl font-bold text-blue-600">{item.engagementScore.toFixed(1)}</p>
+                    <p className="text-2xl font-bold text-blue-600">{(item.engagementScore ?? 0).toFixed(1)}</p>
                   </div>
                 </div>
 

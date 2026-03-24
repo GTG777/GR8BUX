@@ -10,26 +10,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { symbols, source } = req.query;
+    let { symbols, source } = req.query;
 
-    if (!symbols || typeof symbols !== 'string') {
+    // Handle symbols parameter
+    if (!symbols) {
       return res.status(400).json({
         success: false,
         error: 'symbols query parameter is required (comma-separated)',
       });
     }
 
-    const symbolList = symbols.split(',').map((s) => s.trim().toUpperCase());
+    // Ensure symbols is a string (in case it's an array)
+    const symbolString = Array.isArray(symbols) ? symbols[0] : String(symbols);
+    const symbolList = symbolString.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+
+    if (symbolList.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one valid symbol is required',
+      });
+    }
+
+    // Ensure source is a string
+    const sourceString = Array.isArray(source) ? source[0] : (source ? String(source) : undefined);
 
     const posts: any[] = [];
 
     // Fetch from specific source or both
-    if (!source || source === 'reddit') {
+    if (!sourceString || sourceString === 'all' || sourceString === 'reddit') {
       const redditPosts = await communityService.fetchRedditSentiment(symbolList);
       posts.push(...redditPosts);
     }
 
-    if (!source || source === 'stocktwits') {
+    if (!sourceString || sourceString === 'all' || sourceString === 'stocktwits') {
       const stocktwitsPosts = await communityService.fetchStockTwitsSentiment(symbolList);
       posts.push(...stocktwitsPosts);
     }
@@ -56,6 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
   } catch (error) {
+    console.error('Community sentiment error:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch community sentiment',
