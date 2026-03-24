@@ -112,7 +112,7 @@ async function handleCreateTrade(
       notes: trade.notes || '',
       plan_notes: trade.planNotes || '', 
       tags: trade.tags || [],
-      user_id: 'temp-user-id',
+      user_id: '00000000-0000-0000-0000-000000000000', // Temporary user UUID
     };
 
     const { data: tradeData, error: tradeError } = await supabase
