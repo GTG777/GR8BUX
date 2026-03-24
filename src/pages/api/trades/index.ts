@@ -120,6 +120,16 @@ async function handleCreateTrade(
     }
 
     // 1. Insert base trade record
+    // Convert tags from comma-separated string to array if needed
+    let tagsArray: string[] = [];
+    if (trade.tags) {
+      if (typeof trade.tags === 'string') {
+        tagsArray = trade.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+      } else if (Array.isArray(trade.tags)) {
+        tagsArray = trade.tags;
+      }
+    }
+
     const baseTradeData = {
       symbol: trade.symbol,
       type: trade.type,
@@ -129,7 +139,7 @@ async function handleCreateTrade(
       commission: trade.commission || 0,
       notes: trade.notes || '',
       plan_notes: trade.planNotes || '', 
-      tags: trade.tags || [],
+      tags: tagsArray,
       user_id: testUserId,
     };
 
