@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 interface NewsArticle {
@@ -27,17 +27,7 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'positive' | 'negative' | 'neutral'>('all');
 
-  useEffect(() => {
-    // Don't fetch if no symbols are selected
-    if (symbols && symbols.length > 0) {
-      fetchNews();
-    } else {
-      setArticles([]);
-      setError(null);
-    }
-  }, [symbols]);
-
-  const fetchNews = async () => {
+  const fetchNews = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -63,7 +53,17 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [symbols, maxArticles]);
+
+  useEffect(() => {
+    // Don't fetch if no symbols are selected
+    if (symbols && symbols.length > 0) {
+      fetchNews();
+    } else {
+      setArticles([]);
+      setError(null);
+    }
+  }, [symbols, fetchNews]);
 
   const filteredArticles = articles.filter(
     (article) => filter === 'all' || article.sentiment === filter

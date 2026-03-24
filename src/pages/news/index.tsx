@@ -8,9 +8,12 @@ const NewsPage: React.FC = () => {
 
   const handleAddSymbol = () => {
     const sym = symbolInput.toUpperCase().trim();
-    if (sym && !selectedSymbols.includes(sym)) {
+    // Validate symbol format: 1-5 uppercase letters
+    if (sym && /^[A-Z]{1,5}$/.test(sym) && !selectedSymbols.includes(sym)) {
       setSelectedSymbols([...selectedSymbols, sym]);
       setSymbolInput('');
+    } else if (sym && !/^[A-Z]{1,5}$/.test(sym)) {
+      alert('Invalid symbol format. Use 1-5 uppercase letters (e.g., AAPL)');
     }
   };
 
