@@ -100,48 +100,97 @@ async function handleCreateTrade(
     });
   }
 
-  // Add defaults and flatten structure - convert camelCase to snake_case for database
-  const newTrade = {
-    symbol: trade.symbol,
-    type: trade.type,
-    entry_date: trade.entryDate,
-    exit_date: trade.exitDate || null,
-    status: trade.status || 'open',
-    commission: trade.commission || 0,
-    notes: trade.notes || '',
-    plan_notes: trade.planNotes || '', 
-    tags: trade.tags || [],
-    // Stock fields
-    ...(trade.type === 'stock' && {
-      quantity: trade.quantity || null,
-      entry_price: trade.entryPrice || null,
-      exit_price: trade.exitPrice || null,
-    }),
-    // Option fields
-    ...(trade.type === 'option' && {
-      strategy: trade.strategy || null,
-      strike_price: trade.strikePrice || null,
-      option_type: trade.optionType || null,
-      expiration_date: trade.expirationDate || null,
-      total_premium: trade.totalPremium || null,
-      total_cost: trade.totalCost || null,
-    }),
-    // TODO: Add userId when authentication is implemented
-    user_id: 'temp-user-id', 
-  };
+  try {
+    // 1. Insert base trade record
+    const baseTradeData = {
+      symbol: trade.symbol,
+      type: trade.type,
+      entry_date: trade.entryDate,
+      exit_date: trade.exitDate || null,
+      status: trade.status || 'open',
+      commission: trade.commission || 0,
+      notes: trade.notes || '',
+      plan_notes: trade.planNotes || '', 
+      tags: trade.tags || [],
+      user_id: 'temp-user-id',
+    };
 
-  const { data, error } = await supabase.from('trades').insert([newTrade]).select();
+    const { data: tradeData, error: tradeError } = await supabase
+      .from('trades')
+      .insert([baseTradeData])
+      .select();
 
-  if (error) {
-    console.error('[Create Trade Error]', error);
-    return res.status(400).json({
+    if (tradeError) {
+      console.error('[Create Trade Error]', tradeError);
+      return res.status(400).json({
+        success: false,
+        error: tradeError.message,
+      });
+    }
+
+    const tradeId = tradeData[0].id;
+
+    // 2. Insert type-specific data
+    if (trade.type === 'stock') {
+      const { error: stockError } = await supabase
+        .from('stock_trades')
+        .insert([{
+          trade_id: tradeId,
+          quantity: trade.quantity || null,
+          entry_price: trade.entryPrice || null,
+          exit_price: trade.exitPrice || null,
+        }]);
+
+      if (stockError) {
+        console.error('[Create Stock Trade Error]', stockError);
+        return res.status(400).json({
+          success: false,
+          error: stockError.message,
+        });
+      }
+    } else if (trade.type === 'option') {
+      const { error: optionError } = await supabase
+        .from('option_trades')
+        .insert([{
+          trade_id: tradeId,
+          strategy: trade.strategy || null,
+          total_premium: trade.totalPremium || null,
+          total_cost: trade.totalCost || null,
+        }]);
+
+      if (optionError) {
+        console.error('[Create Option Trade Error]', optionError);
+        return res.status(400).json({
+          success: false,
+          error: optionError.message,
+        });
+      }
+    }
+
+    // 3. Fetch complete trade record
+    const { data: completeTradeData, error: fetchError } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('id', tradeId)
+      .single();
+
+    if (fetchError) {
+      console.error('[Fetch Trade Error]', fetchError);
+      return res.status(400).json({
+        success: false,
+        error: fetchError.message,
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: completeTradeData as Trade,
+    });
+  } catch (error: any) {
+    console.error('[Trade Creation Exception]', error);
+    return res.status(500).json({
       success: false,
-      error: error.message,
+      error: error.message || 'Internal server error',
     });
   }
-
-  return res.status(201).json({
-    success: true,
-    data: data[0] as Trade,
-  });
 }
