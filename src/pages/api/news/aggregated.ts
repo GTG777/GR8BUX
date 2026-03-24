@@ -12,14 +12,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { symbols, apiKey } = req.query;
 
-    if (!symbols || typeof symbols !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: 'symbols query parameter is required (comma-separated)',
+    // Handle empty symbols gracefully
+    if (!symbols || typeof symbols !== 'string' || symbols.trim() === '') {
+      return res.status(200).json({
+        success: true,
+        data: {
+          symbols: [],
+          count: 0,
+          articles: [],
+          message: 'No symbols selected. Add symbols to see related news.',
+        },
       });
     }
 
-    const symbolList = symbols.split(',').map((s) => s.trim().toUpperCase());
+    const symbolList = symbols.split(',').map((s) => s.trim().toUpperCase()).filter((s) => s !== '');
 
     const newsApiKey = apiKey && typeof apiKey === 'string' ? apiKey : undefined;
     const news = await newsService.aggregateNews(symbolList, { newsApiKey });

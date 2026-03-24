@@ -28,13 +28,26 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
   const [filter, setFilter] = useState<'all' | 'positive' | 'negative' | 'neutral'>('all');
 
   useEffect(() => {
-    fetchNews();
+    // Don't fetch if no symbols are selected
+    if (symbols && symbols.length > 0) {
+      fetchNews();
+    } else {
+      setArticles([]);
+      setError(null);
+    }
   }, [symbols]);
 
   const fetchNews = async () => {
     setLoading(true);
     setError(null);
     try {
+      // Guard against empty symbols
+      if (!symbols || symbols.length === 0) {
+        setArticles([]);
+        setLoading(false);
+        return;
+      }
+
       const symbolString = symbols.join(',');
       const response = await axios.get('/api/news/aggregated', {
         params: { symbols: symbolString },
@@ -81,6 +94,16 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
         return '📰';
     }
   };
+
+  // Show helpful message when no symbols are selected
+  if (!symbols || symbols.length === 0) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+        <p className="text-gray-700 font-medium">📰 No symbols selected</p>
+        <p className="text-gray-500 text-sm mt-1">Add stock symbols above to see related news articles</p>
+      </div>
+    );
+  }
 
   if (loading)
     return (
