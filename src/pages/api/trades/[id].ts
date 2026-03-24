@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
+import { convertTradeFromDatabase } from '@/lib/tradeConverters';
 
 /**
  * GET: Fetch a specific trade by ID
@@ -67,7 +68,7 @@ async function handleGetTrade(
 
   return res.status(200).json({
     success: true,
-    data: data as Trade,
+    data: convertTradeFromDatabase(data),
   });
 }
 
@@ -100,7 +101,7 @@ async function handleUpdateTrade(
 
   return res.status(200).json({
     success: true,
-    data: data as Trade,
+    data: convertTradeFromDatabase(data),
   });
 }
 

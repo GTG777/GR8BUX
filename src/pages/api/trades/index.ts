@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
+import { convertTradeFromDatabase } from '@/lib/tradeConverters';
 
 /**
  * GET: Fetch all trades for authenticated user
@@ -74,7 +75,7 @@ async function handleGetTrades(
   res.setHeader('X-Total-Count', count || 0);
   return res.status(200).json({
     success: true,
-    data: (data as Trade[]) || [],
+    data: (data as any[])?.map(convertTradeFromDatabase) || [],
   });
 }
 
@@ -213,7 +214,7 @@ async function handleCreateTrade(
 
     return res.status(201).json({
       success: true,
-      data: completeTradeData as Trade,
+      data: convertTradeFromDatabase(completeTradeData),
     });
   } catch (error: any) {
     console.error('[Trade Creation Exception]', error);
