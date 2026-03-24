@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Trade, TradeAnalytics, ApiResponse } from '@/types';
+import { convertTradeFromDatabase } from '@/lib/tradeConverters';
 import {
   calculateTradePnL,
   calculateWinRate,
@@ -48,11 +49,11 @@ export default async function handler(
     }
 
     if (startDate) {
-      query = query.gte('entryDate', startDate as string);
+      query = query.gte('entry_date', startDate as string);
     }
 
     if (endDate) {
-      query = query.lte('entryDate', endDate as string);
+      query = query.lte('entry_date', endDate as string);
     }
 
     const { data: trades, error } = await query;
@@ -61,8 +62,11 @@ export default async function handler(
       throw error;
     }
 
+    // Convert database records to camelCase
+    const convertedTrades = (trades || []).map(convertTradeFromDatabase);
+
     // Calculate analytics
-    const analytics = calculateAnalytics(trades as Trade[]);
+    const analytics = calculateAnalytics(convertedTrades);
 
     return res.status(200).json({
       success: true,
