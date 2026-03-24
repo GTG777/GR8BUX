@@ -16,22 +16,7 @@ const AdvancedWatchlist: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [symbolInput, setSymbolInput] = useState('');
 
-  // Load watchlist from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('advancedWatchlist');
-    if (saved) {
-      try {
-        const symbols = JSON.parse(saved) as string[];
-        initializeWatchlist(symbols);
-      } catch {
-        initializeWatchlist(['AAPL', 'MSFT', 'GOOGL']);
-      }
-    } else {
-      initializeWatchlist(['AAPL', 'MSFT', 'GOOGL']);
-    }
-  }, []);
-
-  const initializeWatchlist = (symbols: string[]) => {
+  const initializeWatchlist = React.useCallback((symbols: string[]) => {
     const items = symbols.map(symbol => ({
       symbol,
       tsi: null,
@@ -43,16 +28,10 @@ const AdvancedWatchlist: React.FC = () => {
       error: null,
     }));
     setWatchlist(items);
-    fetchDataForSymbols(items);
-  };
+    symbols.forEach(sym => fetchSymbolData(sym));
+  }, []);
 
-  const fetchDataForSymbols = async (items: WatchlistItem[]) => {
-    for (const item of items) {
-      fetchSymbolData(item.symbol);
-    }
-  };
-
-  const fetchSymbolData = async (symbol: string) => {
+  const fetchSymbolData = React.useCallback(async (symbol: string) => {
     setWatchlist(prev =>
       prev.map(item =>
         item.symbol === symbol ? { ...item, loading: true, error: null } : item
@@ -111,7 +90,22 @@ const AdvancedWatchlist: React.FC = () => {
         )
       );
     }
-  };
+  }, []);
+
+  // Load watchlist from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('advancedWatchlist');
+    if (saved) {
+      try {
+        const symbols = JSON.parse(saved) as string[];
+        initializeWatchlist(symbols);
+      } catch {
+        initializeWatchlist(['AAPL', 'MSFT', 'GOOGL']);
+      }
+    } else {
+      initializeWatchlist(['AAPL', 'MSFT', 'GOOGL']);
+    }
+  }, [initializeWatchlist]);
 
   const addSymbol = () => {
     const sym = symbolInput.toUpperCase().trim();
