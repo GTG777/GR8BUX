@@ -8,6 +8,7 @@ interface WatchlistItem {
   change: number | null;
   changePercent: string | null;
   isCoiling: boolean | null;
+  coilingStrength: number | null;
   loading: boolean;
   error: string | null;
 }
@@ -24,6 +25,7 @@ const AdvancedWatchlist: React.FC = () => {
       change: null,
       changePercent: null,
       isCoiling: null,
+      coilingStrength: null,
       loading: true,
       error: null,
     }));
@@ -76,6 +78,7 @@ const AdvancedWatchlist: React.FC = () => {
                 changePercent: quoteData.changePercent,
                 tsi: tsiData.tsi,
                 isCoiling: coilingData.isCoiling,
+                coilingStrength: coilingData.strength ?? null,
                 loading: false,
               }
             : item
@@ -110,7 +113,7 @@ const AdvancedWatchlist: React.FC = () => {
   const addSymbol = () => {
     const sym = symbolInput.toUpperCase().trim();
     if (sym && /^[A-Z]{1,5}$/.test(sym) && !watchlist.some(w => w.symbol === sym)) {
-      setWatchlist(prev => [...prev, { symbol: sym, tsi: null, price: null, change: null, changePercent: null, isCoiling: null, loading: true, error: null }]);
+      setWatchlist(prev => [...prev, { symbol: sym, tsi: null, price: null, change: null, changePercent: null, isCoiling: null, coilingStrength: null, loading: true, error: null }]);
       setSymbolInput('');
       localStorage.setItem('advancedWatchlist', JSON.stringify([...watchlist.map(w => w.symbol), sym]));
       fetchSymbolData(sym);
@@ -171,6 +174,7 @@ const AdvancedWatchlist: React.FC = () => {
                   <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Day Change</th>
                   <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">True Strength Index</th>
                   <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Coiling</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Coiling Strength</th>
                   <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Action</th>
                 </tr>
               </thead>
@@ -212,6 +216,27 @@ const AdvancedWatchlist: React.FC = () => {
                         </span>
                       ) : (
                         <span className="text-gray-500">No</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center text-sm">
+                      {item.loading ? (
+                        <span className="text-gray-400">Loading...</span>
+                      ) : item.coilingStrength !== null ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-12 bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full ${
+                                item.coilingStrength > 0.7 ? 'bg-red-500' : item.coilingStrength > 0.4 ? 'bg-yellow-500' : 'bg-blue-500'
+                              }`}
+                              style={{ width: `${item.coilingStrength * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="font-semibold text-gray-900 text-xs">
+                            {(item.coilingStrength * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center text-sm">
