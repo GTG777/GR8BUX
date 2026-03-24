@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { Trade, TradeAnalytics, ApiResponse } from '@/types';
 import {
   calculateTradePnL,
@@ -33,6 +33,11 @@ export default async function handler(
 
   try {
     const { symbol, startDate, endDate } = req.query;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
 
     // Fetch trades from database
     let query = supabase.from('trades').select('*');

@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface User {
   id: string;
@@ -41,6 +41,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
 
     const token = authHeader.substring(7);
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
 
     // Verify token with Supabase
     const { data: authData, error: authError } = await supabase.auth.getUser(token);

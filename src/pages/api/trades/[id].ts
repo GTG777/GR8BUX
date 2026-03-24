@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
 
 /**
@@ -22,6 +22,10 @@ export default async function handler(
   }
 
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
     if (method === 'GET') {
       return handleGetTrade(id, res);
     } else if (method === 'PUT') {
@@ -47,6 +51,7 @@ async function handleGetTrade(
   id: string,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
+  const supabase = getSupabaseClient()!;
   const { data, error } = await supabase
     .from('trades')
     .select('*')
@@ -71,6 +76,7 @@ async function handleUpdateTrade(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
+  const supabase = getSupabaseClient()!;
   const updates = req.body;
 
   // Don't allow updating id or timestamps
@@ -102,6 +108,7 @@ async function handleDeleteTrade(
   id: string,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
+  const supabase = getSupabaseClient()!;
   const { error } = await supabase.from('trades').delete().eq('id', id);
 
   if (error) {

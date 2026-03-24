@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
 
 /**
@@ -13,6 +13,11 @@ export default async function handler(
   // TODO: Add proper authentication middleware
   // For now, we'll skip auth but you should add it later
   
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return res.status(503).json({ success: false, error: 'Database not configured' });
+  }
+
   const { method } = req;
 
   try {
@@ -39,6 +44,7 @@ async function handleGetTrades(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade[]>>
 ) {
+  const supabase = getSupabaseClient()!;
   const { symbol, status, limit = 50, offset = 0 } = req.query;
 
   let query = supabase.from('trades').select('*').order('created_at', { ascending: false });
@@ -76,6 +82,7 @@ async function handleCreateTrade(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
+  const supabase = getSupabaseClient()!;
   const trade = req.body;
 
   // Validation

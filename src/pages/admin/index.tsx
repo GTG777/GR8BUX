@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/types';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface User {
   id: string;
@@ -41,6 +41,11 @@ export default function AdminPage() {
     const loadUsers = async () => {
       try {
         setIsLoading(true);
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          setError('Database not configured');
+          return;
+        }
         const { data, error: queryError } = await supabase
           .from('users')
           .select('*')
@@ -77,6 +82,11 @@ export default function AdminPage() {
 
     try {
       setError('');
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        setError('Database not configured');
+        return;
+      }
       const { data, error: updateError } = await supabase
         .from('users')
         .update({ role: newRole })

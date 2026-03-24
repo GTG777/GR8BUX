@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabaseClient } from './supabase';
 import { AuthUser, SignUpInput, SignInInput } from '@/types';
 
 export type { SignUpInput, SignInInput, AuthUser };
@@ -10,13 +10,14 @@ export interface AuthResponse {
 }
 
 function requireSupabase() {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error(
       'Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
     );
   }
 
-  return supabase;
+  return client;
 }
 
 /**
