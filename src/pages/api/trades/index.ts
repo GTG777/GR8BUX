@@ -100,33 +100,34 @@ async function handleCreateTrade(
     });
   }
 
-  // Add defaults and flatten structure
+  // Add defaults and flatten structure - convert camelCase to snake_case for database
   const newTrade = {
     symbol: trade.symbol,
     type: trade.type,
-    entryDate: trade.entryDate,
+    entry_date: trade.entryDate,
+    exit_date: trade.exitDate || null,
     status: trade.status || 'open',
     commission: trade.commission || 0,
     notes: trade.notes || '',
-    planNotes: trade.planNotes || '', 
+    plan_notes: trade.planNotes || '', 
     tags: trade.tags || [],
     // Stock fields
     ...(trade.type === 'stock' && {
       quantity: trade.quantity || null,
-      entryPrice: trade.entryPrice || null,
-      exitPrice: trade.exitPrice || null,
+      entry_price: trade.entryPrice || null,
+      exit_price: trade.exitPrice || null,
     }),
     // Option fields
     ...(trade.type === 'option' && {
       strategy: trade.strategy || null,
-      strikePrice: trade.strikePrice || null,
-      optionType: trade.optionType || null,
-      expirationDate: trade.expirationDate || null,
-      totalPremium: trade.totalPremium || null,
-      totalCost: trade.totalCost || null,
+      strike_price: trade.strikePrice || null,
+      option_type: trade.optionType || null,
+      expiration_date: trade.expirationDate || null,
+      total_premium: trade.totalPremium || null,
+      total_cost: trade.totalCost || null,
     }),
     // TODO: Add userId when authentication is implemented
-    userId: 'temp-user-id', 
+    user_id: 'temp-user-id', 
   };
 
   const { data, error } = await supabase.from('trades').insert([newTrade]).select();
