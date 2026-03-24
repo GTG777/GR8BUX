@@ -5,6 +5,7 @@ import { useTradeStore } from '@/store/tradeStore';
 import { TradeAnalytics } from '@/types';
 import Link from 'next/link';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { WatchlistWidget } from './WatchlistWidget';
 
 export function Dashboard() {
   const { analytics, isLoading, error, fetchAnalytics, fetchTrades } = useTradeStore();
@@ -231,6 +232,9 @@ export function Dashboard() {
           View All Trades
         </Link>
       </div>
+
+      {/* Live Market Watchlist */}
+      <WatchlistWidget />
     </div>
   );
 }

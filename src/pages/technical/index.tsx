@@ -26,29 +26,15 @@ const TechnicalPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // For demo purposes, generate sample price data
-      // In production, this would fetch real price data from an API
-      const data: PriceData[] = [];
-      const basePrice = Math.random() * 100 + 100;
-      const now = new Date();
+      const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(symbol)}`);
+      const json = await res.json();
 
-      for (let i = 59; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
-        const dailyChange = (Math.random() - 0.5) * 5;
-        const price = basePrice + dailyChange * i * 0.5;
-
-        data.push({
-          date: date.toISOString().split('T')[0],
-          open: price * (1 + (Math.random() - 0.5) * 0.02),
-          high: price * (1 + Math.abs(Math.random() * 0.03)),
-          low: price * (1 - Math.abs(Math.random() * 0.03)),
-          close: price,
-          volume: Math.floor(Math.random() * 5000000) + 1000000,
-        });
+      if (!res.ok) {
+        setError(json.error || 'Failed to load price data');
+        return;
       }
 
-      setPriceData(data);
+      setPriceData(json.candles);
     } catch (err) {
       setError('Failed to load price data');
     } finally {
