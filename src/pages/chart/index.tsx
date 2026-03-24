@@ -1,4 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+  Legend,
+} from 'recharts';
 import { Layout } from '@/components/Layout';
 
 /* ─────────────────────────────────────────────
@@ -84,6 +95,35 @@ function calcTSI(closes: number[], fast = 13, slow = 25): number {
   return (100 * sm2[sm2.length - 1]) / sa2[sa2.length - 1];
 }
 
+// Returns full TSI series aligned to candle dates (offset by slow+fast warmup)
+function calcTSIArr(candles: Candle[], fast = 13, slow = 25): { date: string; tsi: number; signal: number }[] {
+  const closes = candles.map((c) => c.close);
+  const momentum = closes.slice(1).map((c, i) => c - closes[i]);
+  const absMom = momentum.map(Math.abs);
+  const sm1 = calcEMAArr(momentum, slow);
+  const sm2 = calcEMAArr(sm1, fast);
+  const sa1 = calcEMAArr(absMom, slow);
+  const sa2 = calcEMAArr(sa1, fast);
+  if (sa2.length === 0) return [];
+
+  // Signal line = EMA(7) of TSI
+  const tsiRaw = sm2.map((v, i) => (sa2[i] !== 0 ? (100 * v) / sa2[i] : 0));
+  const signalArr = calcEMAArr(tsiRaw, 7);
+  const signalOffset = tsiRaw.length - signalArr.length;
+
+  // Align dates: momentum starts at candle index 1, sm1 starts at momentum index (slow-1), sm2 at sm1 index (fast-1)
+  const dateOffset = 1 + (slow - 1) + (fast - 1); // candle index where sm2[0] corresponds
+  return sm2.map((_, i) => {
+    const candleIdx = dateOffset + i;
+    const sigIdx = i - signalOffset;
+    return {
+      date: candles[candleIdx]?.date ?? '',
+      tsi: parseFloat(tsiRaw[i].toFixed(2)),
+      signal: sigIdx >= 0 ? parseFloat(signalArr[sigIdx].toFixed(2)) : tsiRaw[i],
+    };
+  }).filter((d) => d.date);
+}
+
 function calcPivots(h: number, l: number, c: number) {
   const pp = (h + l + c) / 3;
   return {
@@ -128,6 +168,111 @@ function computeIndicators(candles: Candle[]): Indicators {
     change,
     changePct,
   };
+}
+
+/* ─────────────────────────────────────────────
+   Custom TSI Chart (Recharts)
+───────────────────────────────────────────── */
+interface TSIPoint { date: string; tsi: number; signal: number; }
+
+function TSIChart({ data }: { data: TSIPoint[] }) {
+  // Only show last 120 data points for clarity
+  const visible = data.slice(-120);
+
+  const tsiColor  = '#6366f1'; // indigo
+  const sigColor  = '#f59e0b'; // amber
+  const bullColor = '#22c55e';
+  const bearColor = '#ef4444';
+
+  const lastTSI = visible[visible.length - 1]?.tsi ?? 0;
+  const lastSig = visible[visible.length - 1]?.signal ?? 0;
+  const isBull  = lastTSI > lastSig;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-semibold text-gray-900">True Strength Index (25, 13, 7)</h3>
+          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+            isBull ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+          }`}>
+            {isBull ? '▲ Bullish' : '▼ Bearish'}
+          </span>
+        </div>
+        <div className="flex gap-4 text-xs font-mono">
+          <span>TSI <span className="font-bold" style={{ color: tsiColor }}>{lastTSI.toFixed(1)}</span></span>
+          <span>Signal <span className="font-bold" style={{ color: sigColor }}>{lastSig.toFixed(1)}</span></span>
+          <span className={`font-bold ${
+            lastTSI > 25 ? 'text-green-600' : lastTSI < -25 ? 'text-red-600' : 'text-gray-500'
+          }`}>
+            {lastTSI > 25 ? 'Overbought' : lastTSI < -25 ? 'Oversold' : 'Neutral'}
+          </span>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={visible} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            interval={Math.floor(visible.length / 8)}
+            tickFormatter={(d: string) => d.slice(5)} // show MM-DD
+          />
+          <YAxis
+            domain={['auto', 'auto']}
+            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            width={36}
+          />
+          <Tooltip
+            contentStyle={{ fontSize: 11, padding: '4px 8px' }}
+            formatter={(val: number, name: string) => [val.toFixed(2), name.toUpperCase()]}
+            labelFormatter={(label: string) => label}
+          />
+          <Legend
+            iconType="line"
+            wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+            formatter={(v: string) => v === 'tsi' ? 'TSI (25,13)' : 'Signal (7)'}
+          />
+          {/* Key threshold lines */}
+          <ReferenceLine y={0}   stroke="#374151" strokeWidth={1.5} strokeDasharray="0" />
+          <ReferenceLine y={25}  stroke={bullColor} strokeDasharray="4 3" strokeWidth={1} label={{ value: '+25', position: 'right', fontSize: 9, fill: bullColor }} />
+          <ReferenceLine y={-25} stroke={bearColor} strokeDasharray="4 3" strokeWidth={1} label={{ value: '-25', position: 'right', fontSize: 9, fill: bearColor }} />
+          {/* TSI line — filled area approximated via stroke */}
+          <Line
+            type="monotone"
+            dataKey="tsi"
+            stroke={tsiColor}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 3 }}
+            isAnimationActive={false}
+          />
+          {/* Signal line */}
+          <Line
+            type="monotone"
+            dataKey="signal"
+            stroke={sigColor}
+            strokeWidth={1.5}
+            strokeDasharray="5 3"
+            dot={false}
+            activeDot={{ r: 3 }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+
+      {/* Interpretation guide */}
+      <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-500 border-t pt-3">
+        <span>📈 <strong>TSI crosses above Signal</strong> → Buy signal</span>
+        <span>📉 <strong>TSI crosses below Signal</strong> → Sell signal</span>
+        <span>⬆️ <strong>Above +25</strong> → Strong bullish momentum</span>
+        <span>⬇️ <strong>Below −25</strong> → Strong bearish momentum</span>
+        <span>⚡ <strong>Zero-line cross</strong> → Trend change</span>
+      </div>
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────
@@ -414,6 +559,7 @@ export default function ChartPage() {
   const [interval, setInterval] = useState('D');
   const [candles, setCandles]   = useState<Candle[]>([]);
   const [indicators, setIndicators] = useState<Indicators | null>(null);
+  const [tsiSeries, setTsiSeries]   = useState<TSIPoint[]>([]);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
@@ -427,6 +573,7 @@ export default function ChartPage() {
       if (!res.ok) { setError(json.error ?? 'Failed to fetch data'); return; }
       setCandles(json.candles);
       setIndicators(computeIndicators(json.candles));
+      setTsiSeries(calcTSIArr(json.candles));
     } catch {
       setError('Network error — please try again.');
     } finally {
@@ -510,6 +657,15 @@ export default function ChartPage() {
           {/* key forces full remount when symbol/interval changes */}
           <AdvancedChart key={`${symbol}-${interval}`} symbol={symbol} interval={interval} />
         </div>
+
+        {/* ── TSI Chart ── */}
+        {tsiSeries.length > 0 && <TSIChart data={tsiSeries} />}
+        {loading && tsiSeries.length === 0 && (
+          <div className="bg-white rounded-lg shadow p-4 animate-pulse">
+            <div className="h-3 bg-gray-200 rounded w-48 mb-4" />
+            <div className="h-[180px] bg-gray-100 rounded" />
+          </div>
+        )}
 
         {/* ── Indicator panels ── */}
         {indicators ? (
