@@ -1,0 +1,554 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Layout } from '@/components/Layout';
+
+/* ─────────────────────────────────────────────
+   Types
+───────────────────────────────────────────── */
+interface Candle {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+interface Indicators {
+  // EMAs
+  ema9: number;
+  ema21: number;
+  ema50: number;
+  ema200: number;
+  // Momentum
+  rsi: number;
+  tsi: number;
+  // Pivot points (classic floor method)
+  pp: number;
+  r1: number; r2: number; r3: number;
+  s1: number; s2: number; s3: number;
+  // 52-week
+  high52w: number;
+  low52w: number;
+  // Price
+  price: number;
+  change: number;
+  changePct: number;
+}
+
+/* ─────────────────────────────────────────────
+   Pure calc helpers (client-side, no API calls)
+───────────────────────────────────────────── */
+function calcEMA(closes: number[], period: number): number {
+  if (closes.length < period) return closes[closes.length - 1] ?? 0;
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < closes.length; i++) {
+    ema = closes[i] * k + ema * (1 - k);
+  }
+  return ema;
+}
+
+function calcRSI(closes: number[], period = 14): number {
+  if (closes.length < period + 1) return 50;
+  let gains = 0, losses = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  const rs = losses === 0 ? 100 : gains / losses;
+  return 100 - 100 / (1 + rs);
+}
+
+function calcEMAArr(data: number[], period: number): number[] {
+  if (data.length < period) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [];
+  let ema = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  result.push(ema);
+  for (let i = period; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+    result.push(ema);
+  }
+  return result;
+}
+
+function calcTSI(closes: number[], fast = 13, slow = 25): number {
+  if (closes.length < slow + fast + 2) return 0;
+  const momentum = closes.slice(1).map((c, i) => c - closes[i]);
+  const absMom = momentum.map(Math.abs);
+  const sm1 = calcEMAArr(momentum, slow);
+  const sm2 = calcEMAArr(sm1, fast);
+  const sa1 = calcEMAArr(absMom, slow);
+  const sa2 = calcEMAArr(sa1, fast);
+  if (sa2.length === 0 || sa2[sa2.length - 1] === 0) return 0;
+  return (100 * sm2[sm2.length - 1]) / sa2[sa2.length - 1];
+}
+
+function calcPivots(h: number, l: number, c: number) {
+  const pp = (h + l + c) / 3;
+  return {
+    pp,
+    r1: 2 * pp - l,
+    r2: pp + (h - l),
+    r3: h + 2 * (pp - l),
+    s1: 2 * pp - h,
+    s2: pp - (h - l),
+    s3: l - 2 * (h - pp),
+  };
+}
+
+function computeIndicators(candles: Candle[]): Indicators {
+  const closes = candles.map((c) => c.close);
+  const last = candles[candles.length - 1];
+  const prev = candles[candles.length - 2];
+
+  const change = last.close - prev.close;
+  const changePct = (change / prev.close) * 100;
+
+  // Use last completed day's H/L/C for pivot points
+  const pivotCandle = candles[candles.length - 2] ?? last;
+  const pivots = calcPivots(pivotCandle.high, pivotCandle.low, pivotCandle.close);
+
+  // 52-week window (max 252 trading days)
+  const window52 = candles.slice(-252);
+  const high52w = Math.max(...window52.map((c) => c.high));
+  const low52w = Math.min(...window52.map((c) => c.low));
+
+  return {
+    ema9: calcEMA(closes, 9),
+    ema21: calcEMA(closes, 21),
+    ema50: calcEMA(closes, 50),
+    ema200: calcEMA(closes, 200),
+    rsi: calcRSI(closes),
+    tsi: calcTSI(closes),
+    ...pivots,
+    high52w,
+    low52w,
+    price: last.close,
+    change,
+    changePct,
+  };
+}
+
+/* ─────────────────────────────────────────────
+   TradingView Advanced Chart
+   Uses the official embed-widget-advanced-chart
+───────────────────────────────────────────── */
+function AdvancedChart({ symbol, interval }: { symbol: string; interval: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scriptRef = useRef<HTMLScriptElement | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    // Remove old widget script/iframe
+    containerRef.current.innerHTML = '';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tradingview-widget-container__widget';
+    wrapper.style.height = '100%';
+    containerRef.current.appendChild(wrapper);
+
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      autosize: true,
+      symbol: `NASDAQ:${symbol}`,
+      interval,
+      timezone: 'America/New_York',
+      theme: 'light',
+      style: '1', // candlesticks
+      locale: 'en',
+      enable_publishing: false,
+      allow_symbol_change: false,
+      hide_side_toolbar: false,
+      withdateranges: true,
+      save_image: false,
+      show_popup_button: false,
+      studies: [
+        'MASimple@tv-basicstudies',   // MA 9
+        'MASimple@tv-basicstudies',   // MA 21
+        'MASimple@tv-basicstudies',   // MA 50
+        'MASimple@tv-basicstudies',   // MA 200
+        'RSI@tv-basicstudies',
+        'TSI@tv-basicstudies',
+        'Volume@tv-basicstudies',
+      ],
+    });
+    containerRef.current.appendChild(script);
+    scriptRef.current = script;
+  }, [symbol, interval]);
+
+  return (
+    <div
+      className="tradingview-widget-container"
+      ref={containerRef}
+      style={{ height: 540 }}
+    />
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Indicator panels
+───────────────────────────────────────────── */
+function fmt(n: number, dec = 2) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+function PivotPanel({ ind }: { ind: Indicators }) {
+  const rows: { label: string; value: number; type: 'r' | 'pp' | 's' }[] = [
+    { label: 'R3', value: ind.r3, type: 'r' },
+    { label: 'R2', value: ind.r2, type: 'r' },
+    { label: 'R1', value: ind.r1, type: 'r' },
+    { label: 'PP', value: ind.pp, type: 'pp' },
+    { label: 'S1', value: ind.s1, type: 's' },
+    { label: 'S2', value: ind.s2, type: 's' },
+    { label: 'S3', value: ind.s3, type: 's' },
+  ];
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pivot Points</h3>
+      <div className="space-y-1.5">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center justify-between">
+            <span className={`text-xs font-bold w-8 ${r.type === 'r' ? 'text-red-600' : r.type === 's' ? 'text-green-600' : 'text-blue-700'}`}>
+              {r.label}
+            </span>
+            <div className="flex-1 mx-2 h-1 rounded" style={{ background: r.type === 'r' ? '#fee2e2' : r.type === 's' ? '#dcfce7' : '#dbeafe' }} />
+            <span className={`text-xs font-mono font-semibold ${r.type === 'r' ? 'text-red-700' : r.type === 's' ? 'text-green-700' : 'text-blue-800'}`}>
+              ${fmt(r.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 border-t pt-3 space-y-1">
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>52W High</span><span className="font-mono text-red-600">${fmt(ind.high52w)}</span>
+        </div>
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>52W Low</span><span className="font-mono text-green-600">${fmt(ind.low52w)}</span>
+        </div>
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>% from 52W High</span>
+          <span className="font-mono text-gray-700">{fmt(((ind.price - ind.high52w) / ind.high52w) * 100)}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MomentumBar({ value, min, max, color }: { value: number; min: number; max: number; color: string }) {
+  const pct = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+  return (
+    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+    </div>
+  );
+}
+
+function MomentumPanel({ ind }: { ind: Indicators }) {
+  const rsiColor = ind.rsi > 70 ? '#ef4444' : ind.rsi < 30 ? '#22c55e' : '#3b82f6';
+  const tsiColor = ind.tsi > 25 ? '#22c55e' : ind.tsi < -25 ? '#ef4444' : '#f59e0b';
+  const rsiLabel = ind.rsi > 70 ? 'Overbought' : ind.rsi < 30 ? 'Oversold' : 'Neutral';
+  const tsiLabel = ind.tsi > 25 ? 'Bullish' : ind.tsi < -25 ? 'Bearish' : 'Neutral';
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Momentum</h3>
+      <div className="space-y-4">
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs text-gray-600 font-medium">RSI (14)</span>
+            <span className="text-xs font-mono font-bold" style={{ color: rsiColor }}>{fmt(ind.rsi, 1)}</span>
+          </div>
+          <MomentumBar value={ind.rsi} min={0} max={100} color={rsiColor} />
+          <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+            <span>0</span>
+            <span className="font-medium" style={{ color: rsiColor }}>{rsiLabel}</span>
+            <span>100</span>
+          </div>
+        </div>
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs text-gray-600 font-medium">TSI (25,13)</span>
+            <span className="text-xs font-mono font-bold" style={{ color: tsiColor }}>{fmt(ind.tsi, 1)}</span>
+          </div>
+          <MomentumBar value={ind.tsi} min={-100} max={100} color={tsiColor} />
+          <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+            <span>-100</span>
+            <span className="font-medium" style={{ color: tsiColor }}>{tsiLabel}</span>
+            <span>+100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EMAPanel({ ind }: { ind: Indicators }) {
+  const emas = [
+    { label: 'EMA 9',   value: ind.ema9   },
+    { label: 'EMA 21',  value: ind.ema21  },
+    { label: 'EMA 50',  value: ind.ema50  },
+    { label: 'EMA 200', value: ind.ema200 },
+  ];
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">EMA Stack</h3>
+      <div className="space-y-2">
+        {emas.map(({ label, value }) => {
+          const above = ind.price >= value;
+          return (
+            <div key={label} className="flex items-center justify-between gap-2">
+              <span className="text-xs text-gray-600 w-14">{label}</span>
+              <div className={`flex-1 h-1 rounded ${above ? 'bg-green-200' : 'bg-red-200'}`} />
+              <span className="text-xs font-mono font-semibold text-gray-700">${fmt(value)}</span>
+              <span className={`text-xs font-bold w-6 text-right ${above ? 'text-green-600' : 'text-red-500'}`}>
+                {above ? '▲' : '▼'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 border-t pt-3">
+        {(() => {
+          const aboveAll = ind.price > ind.ema9 && ind.ema9 > ind.ema21 && ind.ema21 > ind.ema50 && ind.ema50 > ind.ema200;
+          const belowAll = ind.price < ind.ema9 && ind.ema9 < ind.ema21 && ind.ema21 < ind.ema50 && ind.ema50 < ind.ema200;
+          if (aboveAll) return <p className="text-xs text-green-700 font-semibold">✅ Full bullish alignment</p>;
+          if (belowAll) return <p className="text-xs text-red-600 font-semibold">❌ Full bearish alignment</p>;
+          return <p className="text-xs text-yellow-700 font-semibold">⚡ Mixed EMA signals</p>;
+        })()}
+      </div>
+    </div>
+  );
+}
+
+function SignalsPanel({ ind }: { ind: Indicators }) {
+  const signals: { icon: string; text: string; color: string }[] = [];
+
+  // Golden / Death cross (price vs EMA alignment proxy)
+  if (ind.ema50 > ind.ema200 && ind.price > ind.ema50) {
+    signals.push({ icon: '🌟', text: 'Price above EMA50 > EMA200 (bullish)', color: 'text-green-700' });
+  } else if (ind.ema50 < ind.ema200 && ind.price < ind.ema50) {
+    signals.push({ icon: '💀', text: 'Price below EMA50 < EMA200 (bearish)', color: 'text-red-600' });
+  }
+
+  // TSI cross zero
+  if (ind.tsi > 0) {
+    signals.push({ icon: '📈', text: `TSI positive (${fmt(ind.tsi, 1)}) — momentum up`, color: 'text-green-700' });
+  } else {
+    signals.push({ icon: '📉', text: `TSI negative (${fmt(ind.tsi, 1)}) — momentum down`, color: 'text-red-600' });
+  }
+
+  // RSI extremes
+  if (ind.rsi > 70) signals.push({ icon: '🔴', text: `RSI overbought (${fmt(ind.rsi, 0)})`, color: 'text-red-600' });
+  else if (ind.rsi < 30) signals.push({ icon: '🟢', text: `RSI oversold (${fmt(ind.rsi, 0)})`, color: 'text-green-700' });
+  else signals.push({ icon: '🔵', text: `RSI neutral (${fmt(ind.rsi, 0)})`, color: 'text-blue-600' });
+
+  // Near S/R levels
+  const nearR1 = Math.abs(ind.price - ind.r1) / ind.price < 0.005;
+  const nearS1 = Math.abs(ind.price - ind.s1) / ind.price < 0.005;
+  if (nearR1) signals.push({ icon: '⚡', text: 'Price near R1 resistance', color: 'text-orange-600' });
+  if (nearS1) signals.push({ icon: '⚡', text: 'Price near S1 support', color: 'text-orange-600' });
+
+  // 52W proximity
+  const pct52h = ((ind.price - ind.high52w) / ind.high52w) * 100;
+  if (pct52h > -3) signals.push({ icon: '🏆', text: `Near 52W high (${fmt(pct52h, 1)}%)`, color: 'text-purple-700' });
+  if (pct52h < -30) signals.push({ icon: '📦', text: `${fmt(Math.abs(pct52h), 0)}% off 52W high`, color: 'text-gray-500' });
+
+  // Price vs PP
+  if (ind.price > ind.pp) {
+    signals.push({ icon: '🔼', text: `Above daily pivot (${fmt(ind.pp)})`, color: 'text-green-600' });
+  } else {
+    signals.push({ icon: '🔽', text: `Below daily pivot (${fmt(ind.pp)})`, color: 'text-red-500' });
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Signals</h3>
+      <div className="space-y-2">
+        {signals.map((s, i) => (
+          <div key={i} className="flex gap-2 items-start">
+            <span className="text-sm leading-tight">{s.icon}</span>
+            <p className={`text-xs leading-tight ${s.color}`}>{s.text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Status bar (below ticker input)
+───────────────────────────────────────────── */
+function StatusBar({ symbol, ind }: { symbol: string; ind: Indicators }) {
+  const up = ind.change >= 0;
+  return (
+    <div className="flex flex-wrap gap-4 items-center bg-gray-900 text-white rounded-lg px-4 py-2 text-xs font-mono">
+      <span className="font-bold text-base text-white">{symbol}</span>
+      <span className="text-lg font-bold">${fmt(ind.price)}</span>
+      <span className={`font-semibold ${up ? 'text-green-400' : 'text-red-400'}`}>
+        {up ? '+' : ''}{fmt(ind.change)} ({up ? '+' : ''}{fmt(ind.changePct, 2)}%)
+      </span>
+      <span className="text-gray-400">|</span>
+      <span>EMA9 <span className="text-yellow-300">${fmt(ind.ema9)}</span></span>
+      <span>EMA21 <span className="text-orange-300">${fmt(ind.ema21)}</span></span>
+      <span>EMA50 <span className="text-pink-300">${fmt(ind.ema50)}</span></span>
+      <span>EMA200 <span className="text-purple-300">${fmt(ind.ema200)}</span></span>
+      <span className="text-gray-400">|</span>
+      <span>RSI <span className={ind.rsi > 70 ? 'text-red-400' : ind.rsi < 30 ? 'text-green-400' : 'text-blue-300'}>{fmt(ind.rsi, 0)}</span></span>
+      <span>TSI <span className={ind.tsi > 0 ? 'text-green-400' : 'text-red-400'}>{fmt(ind.tsi, 1)}</span></span>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Timeframe button row
+───────────────────────────────────────────── */
+const INTERVALS: { label: string; value: string }[] = [
+  { label: '1m',  value: '1'   },
+  { label: '5m',  value: '5'   },
+  { label: '15m', value: '15'  },
+  { label: '1H',  value: '60'  },
+  { label: '4H',  value: '240' },
+  { label: '1D',  value: 'D'   },
+  { label: '1W',  value: 'W'   },
+];
+
+const QUICK_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'GOOGL', 'AMZN', 'SPY', 'QQQ'];
+
+/* ─────────────────────────────────────────────
+   Page
+───────────────────────────────────────────── */
+export default function ChartPage() {
+  const [input, setInput]       = useState('');
+  const [symbol, setSymbol]     = useState('AAPL');
+  const [interval, setInterval] = useState('D');
+  const [candles, setCandles]   = useState<Candle[]>([]);
+  const [indicators, setIndicators] = useState<Indicators | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+
+  const fetchCandles = useCallback(async (sym: string) => {
+    setLoading(true);
+    setError('');
+    setIndicators(null);
+    try {
+      const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`);
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? 'Failed to fetch data'); return; }
+      setCandles(json.candles);
+      setIndicators(computeIndicators(json.candles));
+    } catch {
+      setError('Network error — please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Load default on mount
+  useEffect(() => { fetchCandles('AAPL'); }, [fetchCandles]);
+
+  const handleSubmit = () => {
+    const sym = input.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
+    if (!sym) return;
+    setSymbol(sym);
+    setInput('');
+    fetchCandles(sym);
+  };
+
+  return (
+    <Layout>
+      <div className="space-y-4">
+        {/* ── Header ── */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <h1 className="text-xl font-bold text-gray-900 mr-2">Chart</h1>
+
+          {/* Symbol input */}
+          <div className="flex gap-2 flex-1 min-w-[200px] max-w-xs">
+            <input
+              className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Ticker…"
+              value={input}
+              onChange={(e) => setInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            />
+            <button
+              onClick={handleSubmit}
+              className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? '…' : 'Go'}
+            </button>
+          </div>
+
+          {/* Quick picks */}
+          <div className="flex flex-wrap gap-1">
+            {QUICK_TICKERS.map((t) => (
+              <button
+                key={t}
+                onClick={() => { setSymbol(t); setInput(''); fetchCandles(t); }}
+                className={`px-2 py-1 rounded text-xs font-mono font-semibold border transition-colors ${symbol === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* Interval buttons */}
+          <div className="flex gap-1 ml-auto">
+            {INTERVALS.map((iv) => (
+              <button
+                key={iv.value}
+                onClick={() => setInterval(iv.value)}
+                className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${interval === iv.value ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-600'}`}
+              >
+                {iv.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Error ── */}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-300 text-red-700 rounded text-sm">{error}</div>
+        )}
+
+        {/* ── Status bar ── */}
+        {indicators && <StatusBar symbol={symbol} ind={indicators} />}
+
+        {/* ── TradingView chart ── */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {/* key forces full remount when symbol/interval changes */}
+          <AdvancedChart key={`${symbol}-${interval}`} symbol={symbol} interval={interval} />
+        </div>
+
+        {/* ── Indicator panels ── */}
+        {indicators ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <PivotPanel  ind={indicators} />
+            <MomentumPanel ind={indicators} />
+            <EMAPanel    ind={indicators} />
+            <SignalsPanel ind={indicators} />
+          </div>
+        ) : loading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[0,1,2,3].map((i) => (
+              <div key={i} className="bg-white rounded-lg shadow p-4 animate-pulse">
+                <div className="h-3 bg-gray-200 rounded w-1/2 mb-3" />
+                {[0,1,2,3,4].map((j) => <div key={j} className="h-2 bg-gray-100 rounded mb-2" />)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {/* ── Footer note ── */}
+        <p className="text-xs text-gray-400 text-center">
+          Chart powered by TradingView. Indicators (EMA, RSI, TSI, Pivots) calculated from Alpha Vantage daily data.
+          For informational purposes only — not financial advice.
+        </p>
+      </div>
+    </Layout>
+  );
+}
