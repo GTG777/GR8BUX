@@ -2,7 +2,6 @@
 
 [build]
   command = "npm run build"
-  functions = "netlify/functions"
   publish = ".next"
 
 [build.environment]
@@ -10,24 +9,10 @@
   NEXT_PUBLIC_SUPABASE_URL = "https://bsqrrbtdvybgqufoanta.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcXJyYnRkdnliZ3F1Zm9hbnRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMzA1MTEsImV4cCI6MjA4OTkwNjUxMX0.4Mr8tDST7uVdZk6xkcdHvkPHMlW3lkPDp0EOBPwCx20"
   SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcXJyYnRkdnliZ3F1Zm9hbnRhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDMzMDUxMSwiZXhwIjoyMDg5OTA2NTExfQ.eHggajf8bOhz2BiSe5le2b-guPiKggGNL6K34MnD_9g"
+  ALPHAVANTAGE_API_KEY = "FCFNQ0KFUQIRIWX8"
 
-# Redirect all trailing slashes to non-trailing version
-[[redirects]]
-  from = "/:path*/"
-  to = "/:path*"
-  status = 301
-
-# API routes - pass through to Next.js
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
-# Fallback to index for SPA routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # Security headers
 [[headers]]
@@ -39,24 +24,10 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
 
-# CSP Header
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://reddit.com https://api.stocktwits.com https://newsapi.org https://allorigins.win; frame-ancestors 'none';"
-
 # Cache Control for static assets
 [[headers]]
   for = "/_next/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/*.{js,css,jpg,jpeg,png,gif,svg,webp,woff,woff2}"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000"
-
-[[headers]]
-  for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
