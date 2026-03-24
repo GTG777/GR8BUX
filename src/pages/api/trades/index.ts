@@ -100,7 +100,25 @@ async function handleCreateTrade(
     });
   }
 
+  const testUserId = 'a0000000-0000-0000-0000-000000000001';
+
   try {
+    // Ensure test user exists (for development/testing)
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', testUserId)
+      .single();
+
+    if (!existingUser) {
+      // Create test user if it doesn't exist
+      await supabase.from('users').insert([{
+        id: testUserId,
+        email: 'test@example.com',
+        display_name: 'Test User',
+      }]);
+    }
+
     // 1. Insert base trade record
     const baseTradeData = {
       symbol: trade.symbol,
@@ -112,7 +130,7 @@ async function handleCreateTrade(
       notes: trade.notes || '',
       plan_notes: trade.planNotes || '', 
       tags: trade.tags || [],
-      user_id: '00000000-0000-0000-0000-000000000000', // Temporary user UUID
+      user_id: testUserId,
     };
 
     const { data: tradeData, error: tradeError } = await supabase
