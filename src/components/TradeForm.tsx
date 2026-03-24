@@ -60,33 +60,20 @@ export function TradeForm() {
       if (data.type === 'stock') {
         tradePayload = {
           ...basePayload,
-          stockData: {
-            quantity: parseFloat(data.quantity?.toString() || '0'),
-            entryPrice: parseFloat(data.entryPrice?.toString() || '0'),
-            exitPrice: data.exitPrice ? parseFloat(data.exitPrice.toString()) : null,
-          },
+          quantity: parseFloat(data.quantity?.toString() || '0'),
+          entryPrice: parseFloat(data.entryPrice?.toString() || '0'),
+          exitPrice: data.exitPrice ? parseFloat(data.exitPrice.toString()) : null,
         };
       } else {
         // Option trade
         tradePayload = {
           ...basePayload,
-          optionData: {
-            strategy: data.strategy || 'single',
-            totalPremium: parseFloat(data.totalPremium?.toString() || '0'),
-            totalCost: data.totalCost ? parseFloat(data.totalCost.toString()) : null,
-            legs: [
-              {
-                symbol: data.symbol.toUpperCase(),
-                type: data.optionType || 'call',
-                strikePrice: parseFloat(data.strikePrice?.toString() || '0'),
-                expirationDate: data.expirationDate,
-                direction: 'long',
-                quantity: 1,
-                entryPrice: parseFloat(data.totalPremium?.toString() || '0'),
-                exitPrice: null,
-              },
-            ],
-          },
+          strategy: data.strategy || 'single',
+          strikePrice: parseFloat(data.strikePrice?.toString() || '0'),
+          optionType: data.optionType || 'call',
+          expirationDate: data.expirationDate,
+          totalPremium: parseFloat(data.totalPremium?.toString() || '0'),
+          totalCost: data.totalCost ? parseFloat(data.totalCost.toString()) : null,
         };
       }
 

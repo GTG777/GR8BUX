@@ -100,17 +100,33 @@ async function handleCreateTrade(
     });
   }
 
-  // Add defaults
+  // Add defaults and flatten structure
   const newTrade = {
-    ...trade,
+    symbol: trade.symbol,
+    type: trade.type,
+    entryDate: trade.entryDate,
     status: trade.status || 'open',
     commission: trade.commission || 0,
-    pnl: trade.pnl || null,
     notes: trade.notes || '',
-    planNotes: trade.planNotes || '',
+    planNotes: trade.planNotes || '', 
     tags: trade.tags || [],
+    // Stock fields
+    ...(trade.type === 'stock' && {
+      quantity: trade.quantity || null,
+      entryPrice: trade.entryPrice || null,
+      exitPrice: trade.exitPrice || null,
+    }),
+    // Option fields
+    ...(trade.type === 'option' && {
+      strategy: trade.strategy || null,
+      strikePrice: trade.strikePrice || null,
+      optionType: trade.optionType || null,
+      expirationDate: trade.expirationDate || null,
+      totalPremium: trade.totalPremium || null,
+      totalCost: trade.totalCost || null,
+    }),
     // TODO: Add userId when authentication is implemented
-    userId: 'temp-user-id',
+    userId: 'temp-user-id', 
   };
 
   const { data, error } = await supabase.from('trades').insert([newTrade]).select();
