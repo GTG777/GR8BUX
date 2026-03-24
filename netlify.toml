@@ -6,10 +6,15 @@
 
 [build.environment]
   NODE_VERSION = "18.17.0"
-  NEXT_PUBLIC_SUPABASE_URL = "https://bsqrrbtdvybgqufoanta.supabase.co"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcXJyYnRkdnliZ3F1Zm9hbnRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMzA1MTEsImV4cCI6MjA4OTkwNjUxMX0.4Mr8tDST7uVdZk6xkcdHvkPHMlW3lkPDp0EOBPwCx20"
-  SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcXJyYnRkdnliZ3F1Zm9hbnRhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDMzMDUxMSwiZXhwIjoyMDg5OTA2NTExfQ.eHggajf8bOhz2BiSe5le2b-guPiKggGNL6K34MnD_9g"
-  ALPHAVANTAGE_API_KEY = "FCFNQ0KFUQIRIWX8"
+  # All secrets and API keys must be set via the Netlify dashboard:
+  # Site settings → Environment variables
+  # DO NOT hardcode secrets here — this file is committed to source control.
+  #
+  # Required variables to configure in Netlify dashboard:
+  #   NEXT_PUBLIC_SUPABASE_URL
+  #   NEXT_PUBLIC_SUPABASE_ANON_KEY
+  #   SUPABASE_SERVICE_ROLE_KEY   ← rotate this key immediately (was exposed on GitHub)
+  #   ALPHAVANTAGE_API_KEY
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
