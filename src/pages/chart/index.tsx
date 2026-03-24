@@ -300,7 +300,7 @@ function AdvancedChart({ symbol, interval }: { symbol: string; interval: string 
     script.innerHTML = JSON.stringify({
       width: '100%',
       height: CHART_H,
-      symbol: `NASDAQ:${symbol}`,
+      symbol,
       interval,
       timezone: 'America/New_York',
       theme: 'light',
