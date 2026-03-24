@@ -10,10 +10,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    let { symbols, source } = req.query;
+    const { symbols: symbolsParam, source: sourceParam } = req.query;
 
     // Handle symbols parameter
-    if (!symbols) {
+    if (!symbolsParam) {
       return res.status(400).json({
         success: false,
         error: 'symbols query parameter is required (comma-separated)',
@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Ensure symbols is a string (in case it's an array)
-    const symbolString = Array.isArray(symbols) ? symbols[0] : String(symbols);
+    const symbolString = Array.isArray(symbolsParam) ? symbolsParam[0] : String(symbolsParam);
     const symbolList = symbolString.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 
     if (symbolList.length === 0) {
@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Ensure source is a string
-    const sourceString = Array.isArray(source) ? source[0] : (source ? String(source) : undefined);
+    const sourceString = Array.isArray(sourceParam) ? sourceParam[0] : (sourceParam ? String(sourceParam) : undefined);
 
     const posts: any[] = [];
 
