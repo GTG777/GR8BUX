@@ -172,7 +172,6 @@ function AdvancedChart({ symbol, interval }: { symbol: string; interval: string 
         { id: 'MAExp@tv-basicstudies',             inputs: { length: 21  } },
         { id: 'MAExp@tv-basicstudies',             inputs: { length: 50  } },
         { id: 'MAExp@tv-basicstudies',             inputs: { length: 200 } },
-        { id: 'RSI@tv-basicstudies',               inputs: { length: 14  } },
         { id: 'TrueStrengthIndicator@tv-basicstudies', inputs: { first_length: 25, second_length: 13 } },
         { id: 'Volume@tv-basicstudies'             },
       ],
@@ -248,27 +247,13 @@ function MomentumBar({ value, min, max, color }: { value: number; min: number; m
 }
 
 function MomentumPanel({ ind }: { ind: Indicators }) {
-  const rsiColor = ind.rsi > 70 ? '#ef4444' : ind.rsi < 30 ? '#22c55e' : '#3b82f6';
   const tsiColor = ind.tsi > 25 ? '#22c55e' : ind.tsi < -25 ? '#ef4444' : '#f59e0b';
-  const rsiLabel = ind.rsi > 70 ? 'Overbought' : ind.rsi < 30 ? 'Oversold' : 'Neutral';
   const tsiLabel = ind.tsi > 25 ? 'Bullish' : ind.tsi < -25 ? 'Bearish' : 'Neutral';
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Momentum</h3>
       <div className="space-y-4">
-        <div>
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-xs text-gray-600 font-medium">RSI (14)</span>
-            <span className="text-xs font-mono font-bold" style={{ color: rsiColor }}>{fmt(ind.rsi, 1)}</span>
-          </div>
-          <MomentumBar value={ind.rsi} min={0} max={100} color={rsiColor} />
-          <div className="flex justify-between text-xs text-gray-400 mt-0.5">
-            <span>0</span>
-            <span className="font-medium" style={{ color: rsiColor }}>{rsiLabel}</span>
-            <span>100</span>
-          </div>
-        </div>
         <div>
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-gray-600 font-medium">TSI (25,13)</span>
@@ -280,6 +265,10 @@ function MomentumPanel({ ind }: { ind: Indicators }) {
             <span className="font-medium" style={{ color: tsiColor }}>{tsiLabel}</span>
             <span>+100</span>
           </div>
+        </div>
+        <div className="mt-4 border-t pt-4 space-y-2 text-xs text-gray-500">
+          <p className="font-semibold text-gray-700">What is TSI?</p>
+          <p>True Strength Index measures momentum using double-smoothed price changes. Values above +25 indicate bullish momentum; below −25 indicate bearish momentum. Zero-line crossovers are key signals.</p>
         </div>
       </div>
     </div>
@@ -341,10 +330,9 @@ function SignalsPanel({ ind }: { ind: Indicators }) {
     signals.push({ icon: '📉', text: `TSI negative (${fmt(ind.tsi, 1)}) — momentum down`, color: 'text-red-600' });
   }
 
-  // RSI extremes
-  if (ind.rsi > 70) signals.push({ icon: '🔴', text: `RSI overbought (${fmt(ind.rsi, 0)})`, color: 'text-red-600' });
-  else if (ind.rsi < 30) signals.push({ icon: '🟢', text: `RSI oversold (${fmt(ind.rsi, 0)})`, color: 'text-green-700' });
-  else signals.push({ icon: '🔵', text: `RSI neutral (${fmt(ind.rsi, 0)})`, color: 'text-blue-600' });
+  // TSI extremes
+  if (ind.tsi > 50) signals.push({ icon: '🔴', text: `TSI strongly overbought (${fmt(ind.tsi, 1)})`, color: 'text-red-600' });
+  else if (ind.tsi < -50) signals.push({ icon: '🟢', text: `TSI strongly oversold (${fmt(ind.tsi, 1)})`, color: 'text-green-700' });
 
   // Near S/R levels
   const nearR1 = Math.abs(ind.price - ind.r1) / ind.price < 0.005;
@@ -397,8 +385,7 @@ function StatusBar({ symbol, ind }: { symbol: string; ind: Indicators }) {
       <span>EMA50 <span className="text-pink-300">${fmt(ind.ema50)}</span></span>
       <span>EMA200 <span className="text-purple-300">${fmt(ind.ema200)}</span></span>
       <span className="text-gray-400">|</span>
-      <span>RSI <span className={ind.rsi > 70 ? 'text-red-400' : ind.rsi < 30 ? 'text-green-400' : 'text-blue-300'}>{fmt(ind.rsi, 0)}</span></span>
-      <span>TSI <span className={ind.tsi > 0 ? 'text-green-400' : 'text-red-400'}>{fmt(ind.tsi, 1)}</span></span>
+      <span>TSI <span className={ind.tsi > 25 ? 'text-green-400' : ind.tsi < -25 ? 'text-red-400' : 'text-yellow-300'}>{fmt(ind.tsi, 1)}</span></span>
     </div>
   );
 }
