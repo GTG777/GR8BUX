@@ -1,0 +1,61 @@
+# Netlify Configuration for Trading Journal App
+
+[build]
+  command = "npm run build"
+  functions = "netlify/functions"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "18.17.0"
+  NEXT_PUBLIC_SUPABASE_URL = "TODO_SET_IN_NETLIFY_UI"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "TODO_SET_IN_NETLIFY_UI"
+
+# Redirect all trailing slashes to non-trailing version
+[[redirects]]
+  from = "/:path*/"
+  to = "/:path*"
+  status = 301
+
+# API routes - pass through to Next.js
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Fallback to index for SPA routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# CSP Header
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://reddit.com https://api.stocktwits.com https://newsapi.org https://allorigins.win; frame-ancestors 'none';"
+
+# Cache Control for static assets
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.{js,css,jpg,jpeg,png,gif,svg,webp,woff,woff2}"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
