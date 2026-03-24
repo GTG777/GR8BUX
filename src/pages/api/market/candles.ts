@@ -1,8 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// In-memory cache — Alpha Vantage free tier is 25 req/day
+// In-memory cache — keep hot tickers fast
 const cache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (historical data doesn't change fast)
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+// compact = 6 months (~125 trading days), full = 2 years (enough for EMA-200 + TSI warm-up)
+const YAHOO_RANGE: Record<string, string> = {
+  compact: '6mo',
+  full: '2y',
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -10,18 +16,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const symbol = (req.query.symbol as string)?.toUpperCase().trim();
-  if (!symbol || !/^[A-Z]{1,5}$/.test(symbol)) {
-    return res.status(400).json({ error: 'Invalid symbol. Use 1-5 uppercase letters.' });
+  if (!symbol || !/^[A-Z]{1,10}$/.test(symbol)) {
+    return res.status(400).json({ error: 'Invalid symbol.' });
   }
 
-  const range = (req.query.range as string) || 'compact'; // compact = ~100 days, full = 20+ years
-  if (range !== 'compact' && range !== 'full') {
+  const range = (req.query.range as string) || 'compact';
+  if (!YAHOO_RANGE[range]) {
     return res.status(400).json({ error: 'Range must be "compact" or "full"' });
-  }
-
-  const apiKey = process.env.ALPHAVANTAGE_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({ error: 'Alpha Vantage API key not configured' });
   }
 
   // Check cache
@@ -32,43 +33,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(symbol)}&outputsize=${range}&apikey=${apiKey}`;
-    const response = await fetch(url);
-    const json = await response.json();
+    const yahooRange = YAHOO_RANGE[range];
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${yahooRange}`;
 
-    // Alpha Vantage rate limit message
-    if (json['Note'] || json['Information']) {
-      return res.status(429).json({ error: 'API rate limit reached. Try again later.' });
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Yahoo Finance returned ${response.status}` });
     }
 
-    const timeSeries = json['Time Series (Daily)'];
-    if (!timeSeries) {
+    const json = await response.json();
+    const result = json?.chart?.result?.[0];
+
+    if (!result) {
       return res.status(404).json({ error: `No candle data found for ${symbol}` });
     }
 
-    // Convert to array sorted by date ascending
-    const candles = Object.entries(timeSeries)
-      .map(([date, values]: [string, any]) => ({
-        date,
-        open: parseFloat(values['1. open']),
-        high: parseFloat(values['2. high']),
-        low: parseFloat(values['3. low']),
-        close: parseFloat(values['4. close']),
-        volume: parseInt(values['5. volume'], 10),
+    const timestamps: number[] = result.timestamp ?? [];
+    const quote = result.indicators?.quote?.[0] ?? {};
+    const opens: number[] = quote.open ?? [];
+    const highs: number[] = quote.high ?? [];
+    const lows: number[] = quote.low ?? [];
+    const closes: number[] = quote.close ?? [];
+    const volumes: number[] = quote.volume ?? [];
+
+    const candles = timestamps
+      .map((ts, i) => ({
+        date: new Date(ts * 1000).toISOString().slice(0, 10),
+        open: opens[i] ?? 0,
+        high: highs[i] ?? 0,
+        low: lows[i] ?? 0,
+        close: closes[i] ?? 0,
+        volume: volumes[i] ?? 0,
       }))
+      .filter((c) => c.close > 0) // drop any null bars
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    const data = {
-      symbol,
-      candles,
-    };
+    if (candles.length === 0) {
+      return res.status(404).json({ error: `No candle data found for ${symbol}` });
+    }
 
-    // Cache the result
+    const data = { symbol, candles };
     cache.set(cacheKey, { data, timestamp: Date.now() });
 
     return res.status(200).json(data);
   } catch (err) {
-    console.error('Alpha Vantage candles error:', err);
+    console.error('Yahoo Finance candles error:', err);
     return res.status(500).json({ error: 'Failed to fetch candle data' });
   }
 }

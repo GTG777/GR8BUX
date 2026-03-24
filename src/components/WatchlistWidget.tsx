@@ -33,16 +33,15 @@ export const WatchlistWidget: React.FC = () => {
     setError(null);
 
     const results = new Map<string, QuoteData>();
-    // Fetch sequentially to respect Alpha Vantage rate limits (5/min)
+    // Fetch sequentially to avoid hammering Yahoo Finance
     for (const sym of symbols) {
       try {
         const res = await fetch(`/api/market/quote?symbol=${encodeURIComponent(sym)}`);
         if (res.ok) {
           const data = await res.json();
           results.set(sym, data);
-        } else if (res.status === 429) {
-          setError('Rate limit reached — some quotes may be delayed');
-          break;
+        } else {
+          console.warn(`Quote fetch failed for ${sym}: ${res.status}`);
         }
       } catch {
         // skip individual failures

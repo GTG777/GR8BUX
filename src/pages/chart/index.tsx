@@ -688,7 +688,7 @@ export default function ChartPage() {
 
         {/* ── Footer note ── */}
         <p className="text-xs text-gray-400 text-center">
-          Chart powered by TradingView. Indicators (EMA, RSI, TSI, Pivots) calculated from Alpha Vantage daily data.
+          Chart powered by TradingView. Indicators (EMA, TSI, Pivots) calculated from Yahoo Finance daily data.
           For informational purposes only — not financial advice.
         </p>
       </div>
