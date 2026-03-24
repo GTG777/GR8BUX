@@ -7,8 +7,9 @@
 
 [build.environment]
   NODE_VERSION = "18.17.0"
-  NEXT_PUBLIC_SUPABASE_URL = "TODO_SET_IN_NETLIFY_UI"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY = "TODO_SET_IN_NETLIFY_UI"
+  NEXT_PUBLIC_SUPABASE_URL = "https://bsqrrbtdvybgqufoanta.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcXJyYnRkdnliZ3F1Zm9hbnRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMzA1MTEsImV4cCI6MjA4OTkwNjUxMX0.4Mr8tDST7uVdZk6xkcdHvkPHMlW3lkPDp0EOBPwCx20"
+  SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcXJyYnRkdnliZ3F1Zm9hbnRhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDMzMDUxMSwiZXhwIjoyMDg5OTA2NTExfQ.eHggajf8bOhz2BiSe5le2b-guPiKggGNL6K34MnD_9g"
 
 # Redirect all trailing slashes to non-trailing version
 [[redirects]]
