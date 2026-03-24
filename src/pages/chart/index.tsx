@@ -168,13 +168,13 @@ function AdvancedChart({ symbol, interval }: { symbol: string; interval: string 
       save_image: false,
       show_popup_button: false,
       studies: [
-        'MASimple@tv-basicstudies',
-        'MASimple@tv-basicstudies',
-        'MASimple@tv-basicstudies',
-        'MASimple@tv-basicstudies',
-        'RSI@tv-basicstudies',
-        'TSI@tv-basicstudies',
-        'Volume@tv-basicstudies',
+        { id: 'MAExp@tv-basicstudies',             inputs: { length: 9   } },
+        { id: 'MAExp@tv-basicstudies',             inputs: { length: 21  } },
+        { id: 'MAExp@tv-basicstudies',             inputs: { length: 50  } },
+        { id: 'MAExp@tv-basicstudies',             inputs: { length: 200 } },
+        { id: 'RSI@tv-basicstudies',               inputs: { length: 14  } },
+        { id: 'TrueStrengthIndicator@tv-basicstudies', inputs: { first_length: 25, second_length: 13 } },
+        { id: 'Volume@tv-basicstudies'             },
       ],
     });
     containerRef.current.appendChild(script);
