@@ -16,6 +16,8 @@ interface WatchlistItem {
 const AdvancedWatchlist: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [symbolInput, setSymbolInput] = useState('');
+  const [sortColumn, setSortColumn] = useState<keyof WatchlistItem | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const initializeWatchlist = React.useCallback((symbols: string[]) => {
     const items = symbols.map(symbol => ({
@@ -132,6 +134,52 @@ const AdvancedWatchlist: React.FC = () => {
     watchlist.forEach(item => fetchSymbolData(item.symbol));
   };
 
+  const handleSort = (column: keyof WatchlistItem) => {
+    if (sortColumn === column) {
+      // Toggle sort order if clicking the same column
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column);
+      setSortOrder('asc');
+    }
+  };
+
+  const getSortedWatchlist = () => {
+    if (!sortColumn) return watchlist;
+
+    const sorted = [...watchlist].sort((a, b) => {
+      const aVal = a[sortColumn];
+      const bVal = b[sortColumn];
+
+      // Handle null values
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return sortOrder === 'asc' ? 1 : -1;
+      if (bVal === null) return sortOrder === 'asc' ? -1 : 1;
+
+      // Compare values
+      let comparison = 0;
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        comparison = aVal.localeCompare(bVal);
+      } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+        comparison = aVal - bVal;
+      } else if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+        comparison = (aVal === bVal) ? 0 : aVal ? 1 : -1;
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
+  };
+
+  const SortIcon = ({ column }: { column: keyof WatchlistItem }) => {
+    if (sortColumn !== column) {
+      return <span className="ml-1 text-gray-400">⇅</span>;
+    }
+    return <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>;
+  };
+
   return (
     <Layout title="Advanced Watchlist">
       <div className="space-y-6">
@@ -169,17 +217,29 @@ const AdvancedWatchlist: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-100 border-b border-gray-300">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Ticker</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Current Price</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Day Change</th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">True Strength Index</th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Coiling</th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Coiling Strength</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('symbol')}>
+                    Ticker <SortIcon column="symbol" />
+                  </th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('price')}>
+                    Current Price <SortIcon column="price" />
+                  </th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('change')}>
+                    Day Change <SortIcon column="change" />
+                  </th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tsi')}>
+                    True Strength Index <SortIcon column="tsi" />
+                  </th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('isCoiling')}>
+                    Coiling <SortIcon column="isCoiling" />
+                  </th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('coilingStrength')}>
+                    Coiling Strength <SortIcon column="coilingStrength" />
+                  </th>
                   <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {watchlist.map((item, idx) => (
+                {getSortedWatchlist().map((item, idx) => (
                   <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">{item.symbol}</td>
                     <td className="px-6 py-4 text-right text-sm text-gray-900">
