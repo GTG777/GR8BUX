@@ -104,16 +104,16 @@ function buildBullPuts(
 
     for (const shortP of sorted) {
       if (shortP.strike >= spot) continue;
-      if (shortP.bid <= 0) continue;
+      if (shortP.mid <= 0) continue;
       const sigma = shortP.impliedVolatility || 0.20;
       const pop = probAbove(spot, shortP.strike, T, sigma, r) * 100;
       if (pop < minPoP) continue;
 
       for (const w of targetWidths) {
         const longP = sorted.find((c) => Math.abs(c.strike - (shortP.strike - w)) < w * 0.4 && c.strike < shortP.strike);
-        if (!longP || longP.ask <= 0) continue;
+        if (!longP || longP.mid <= 0) continue;
         const actualWidth = shortP.strike - longP.strike;
-        const credit = (shortP.bid - longP.ask) * 100;
+        const credit = (shortP.mid - longP.mid) * 100;
         if (credit < 5) continue;
         const maxLoss = actualWidth * 100 - credit;
         if (maxLoss <= 0) continue;
@@ -158,16 +158,16 @@ function buildBearCalls(
 
     for (const shortC of sorted) {
       if (shortC.strike <= spot) continue;
-      if (shortC.bid <= 0) continue;
+      if (shortC.mid <= 0) continue;
       const sigma = shortC.impliedVolatility || 0.20;
       const pop = probBelow(spot, shortC.strike, T, sigma, r) * 100;
       if (pop < minPoP) continue;
 
       for (const w of targetWidths) {
         const longC = sorted.find((c) => Math.abs(c.strike - (shortC.strike + w)) < w * 0.4 && c.strike > shortC.strike);
-        if (!longC || longC.ask <= 0) continue;
+        if (!longC || longC.mid <= 0) continue;
         const actualWidth = longC.strike - shortC.strike;
-        const credit = (shortC.bid - longC.ask) * 100;
+        const credit = (shortC.mid - longC.mid) * 100;
         if (credit < 5) continue;
         const maxLoss = actualWidth * 100 - credit;
         if (maxLoss <= 0) continue;
@@ -753,6 +753,9 @@ export default function ScannerPage() {
             {lastScanned && !loading && (
               <span className="text-xs text-gray-400">
                 Last scanned at {lastScanned} · {scanResults.length} results · real chain data
+                {scanResults.length > 0 && chainIV < 5 && (
+                  <span className="ml-2 text-amber-500">· Markets closed — using last-trade prices</span>
+                )}
               </span>
             )}
             {error && <span className="text-xs text-red-500">{error}</span>}

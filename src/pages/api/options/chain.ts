@@ -139,16 +139,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         for (const c of raw) {
           const bid = (c.bid as number) ?? 0;
           const ask = (c.ask as number) ?? 0;
+          const lastPrice = (c.lastPrice as number) ?? 0;
+          // Use bid/ask mid during market hours; fall back to lastPrice when market is closed
+          const mid = bid > 0 && ask > 0
+            ? parseFloat(((bid + ask) / 2).toFixed(2))
+            : lastPrice;
           const contract: OptionContract = {
             contractSymbol: c.contractSymbol as string,
             strike: c.strike as number,
             expiration: c.expiration as number,
             expirationStr: exStr,
             type,
-            lastPrice: (c.lastPrice as number) ?? 0,
+            lastPrice,
             bid,
             ask,
-            mid: bid > 0 && ask > 0 ? parseFloat(((bid + ask) / 2).toFixed(2)) : (c.lastPrice as number) ?? 0,
+            mid,
             impliedVolatility: (c.impliedVolatility as number) ?? 0,
             delta: null,
             openInterest: (c.openInterest as number) ?? 0,
