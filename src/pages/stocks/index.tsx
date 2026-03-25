@@ -18,7 +18,8 @@ interface Indicators {
   ema20: number;
   ema50: number;
   ema200: number;
-  rsi14: number;
+  tsi: number;        // True Strength Index (−100 to +100)
+  tsiSignal: number;  // EMA(7) of TSI
   atr14: number;
   bbUpper: number;
   bbMiddle: number;
@@ -53,6 +54,35 @@ interface StockSetup {
 }
 
 /* ── Indicator math ─────────────────────────────────────────────── */
+function calcEMAArr(data: number[], period: number): number[] {
+  if (data.length < period) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [];
+  let ema = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  result.push(ema);
+  for (let i = period; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+    result.push(ema);
+  }
+  return result;
+}
+
+// True Strength Index — double-smoothed momentum oscillator (range ≈ −100 to +100)
+function calcTSI(closes: number[], fast = 13, slow = 25): { tsi: number; signal: number } {
+  if (closes.length < slow + fast + 2) return { tsi: 0, signal: 0 };
+  const momentum = closes.slice(1).map((c, i) => c - closes[i]);
+  const absMom   = momentum.map(Math.abs);
+  const sm2 = calcEMAArr(calcEMAArr(momentum, slow), fast);
+  const sa2 = calcEMAArr(calcEMAArr(absMom,   slow), fast);
+  if (!sa2.length || sa2[sa2.length - 1] === 0) return { tsi: 0, signal: 0 };
+  const tsiArr = sm2.map((v, i) => sa2[i] !== 0 ? (100 * v) / sa2[i] : 0);
+  const sigArr = calcEMAArr(tsiArr, 7);
+  return {
+    tsi:    parseFloat((tsiArr[tsiArr.length - 1] ?? 0).toFixed(2)),
+    signal: parseFloat((sigArr[sigArr.length - 1] ?? 0).toFixed(2)),
+  };
+}
+
 function calcEMA(closes: number[], period: number): number {
   if (closes.length < period) return closes.at(-1) ?? 0;
   const k = 2 / (period + 1);
@@ -61,23 +91,6 @@ function calcEMA(closes: number[], period: number): number {
   return ema;
 }
 
-function calcRSI(closes: number[], period = 14): number {
-  if (closes.length < period + 1) return 50;
-  const changes = closes.slice(1).map((c, i) => c - closes[i]);
-  let avgGain = 0, avgLoss = 0;
-  for (let i = 0; i < period; i++) {
-    if (changes[i] > 0) avgGain += changes[i];
-    else avgLoss -= changes[i];
-  }
-  avgGain /= period;
-  avgLoss /= period;
-  for (let i = period; i < changes.length; i++) {
-    avgGain = (avgGain * (period - 1) + (changes[i] > 0 ? changes[i] : 0)) / period;
-    avgLoss = (avgLoss * (period - 1) + (changes[i] < 0 ? -changes[i] : 0)) / period;
-  }
-  if (avgLoss === 0) return 100;
-  return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
-}
 
 function calcATR(highs: number[], lows: number[], closes: number[], period = 14): number {
   if (highs.length < period + 1) return 0;
@@ -153,7 +166,7 @@ function computeIndicators(candles: Candle[]): Indicators {
   const ema20  = parseFloat(calcEMA(closes, 20).toFixed(2));
   const ema50  = parseFloat(calcEMA(closes, 50).toFixed(2));
   const ema200 = parseFloat(calcEMA(closes, 200).toFixed(2));
-  const rsi14  = calcRSI(closes, 14);
+  const { tsi, signal: tsiSignal } = calcTSI(closes);
   const atr14  = calcATR(highs, lows, closes, 14);
   const bb     = calcBB(closes, 20, 2);
   const macd   = calcMACD(closes);
@@ -173,7 +186,7 @@ function computeIndicators(candles: Candle[]): Indicators {
 
   return {
     price, prevClose, changePct,
-    ema20, ema50, ema200, rsi14, atr14,
+    ema20, ema50, ema200, tsi, tsiSignal, atr14,
     bbUpper: bb.upper, bbMiddle: bb.middle, bbLower: bb.lower,
     ...macd, hv20, volumeRatio, high20, low20, trendScore,
   };
@@ -181,7 +194,7 @@ function computeIndicators(candles: Candle[]): Indicators {
 
 /* ── Detect setups ──────────────────────────────────────────────── */
 function detectSetups(ind: Indicators): StockSetup[] {
-  const { price, ema20, ema50, ema200, rsi14, atr14, bbUpper, bbLower,
+  const { price, ema20, ema50, ema200, tsi, atr14, bbUpper, bbLower,
           macdHist, volumeRatio, high20, trendScore } = ind;
   const setups: StockSetup[] = [];
 
@@ -208,28 +221,28 @@ function detectSetups(ind: Indicators): StockSetup[] {
   };
 
   /* 1 — Uptrend Continuation */
-  if (trendScore === 3 && rsi14 >= 45 && rsi14 <= 68 && macdHist > 0) {
+  if (trendScore === 3 && tsi >= 0 && tsi <= 50 && macdHist > 0) {
     let adj = 0;
-    if (rsi14 >= 50 && rsi14 <= 63) adj += 4;
+    if (tsi >= 5 && tsi <= 35) adj += 4;   // sweet spot: bullish but not extreme
     if (volumeRatio >= 1.2) adj += 3;
     if (macdHist > 0.05) adj += 2;
     setups.push(build(
       'uptrend', 'Uptrend Continuation',
-      'All three EMAs aligned bullish. Price in momentum zone.',
+      'All three EMAs aligned bullish. TSI positive — momentum confirmed.',
       'long', price, price - 1.5 * atr14, 60, '📈',
       [
         `Price ${((price - ema20) / ema20 * 100).toFixed(1)}% above EMA20 ($${ema20}) — uptrend intact`,
-        `RSI ${rsi14} — momentum present but not overbought`,
+        `TSI ${tsi} (positive) — double-smoothed momentum confirms buyers`,
         `MACD histogram positive ($${macdHist.toFixed(3)}) — buyers in control`,
       ], adj,
     ));
   }
 
   /* 2 — EMA20 Pullback */
-  if (trendScore >= 2 && rsi14 >= 38 && rsi14 <= 58 && Math.abs(price - ema20) / ema20 < 0.015) {
+  if (trendScore >= 2 && tsi >= -10 && tsi <= 25 && Math.abs(price - ema20) / ema20 < 0.015) {
     let adj = 0;
     if (Math.abs(price - ema20) / ema20 < 0.005) adj += 4;
-    if (rsi14 >= 42 && rsi14 <= 54) adj += 3;
+    if (tsi >= -5 && tsi <= 15) adj += 3;  // TSI near zero = cooled momentum, good entry
     if (volumeRatio < 0.9) adj += 2;
     setups.push(build(
       'ema20pb', 'EMA20 Pullback',
@@ -237,14 +250,14 @@ function detectSetups(ind: Indicators): StockSetup[] {
       'long', price, price - 1.5 * atr14, 58, '↩️',
       [
         `Price testing EMA20 ($${ema20}) — key dynamic support level`,
-        `RSI ${rsi14} cooling down — sellers are exhausting`,
+        `TSI ${tsi} cooling towards zero — momentum reset, not broken`,
         `Low-volume pullback (${volumeRatio}x avg) signals no distribution`,
       ], adj,
     ));
   }
 
   /* 3 — EMA50 Bounce */
-  if (trendScore >= 1 && price > ema200 && rsi14 >= 38 && rsi14 <= 60 &&
+  if (trendScore >= 1 && price > ema200 && tsi >= -20 && tsi <= 20 &&
       Math.abs(price - ema50) / ema50 < 0.02) {
     let adj = 0;
     if (Math.abs(price - ema50) / ema50 < 0.008) adj += 4;
@@ -256,23 +269,23 @@ function detectSetups(ind: Indicators): StockSetup[] {
       [
         `Price near EMA50 ($${ema50}) — intermediate-term support`,
         `Price above EMA200 ($${ema200.toFixed(2)}) — long-term trend bullish`,
-        `RSI ${rsi14} — not oversold, room to recover`,
+        `TSI ${tsi} near zero — momentum neutral, ideal bounce entry`,
       ], adj,
     ));
   }
 
-  /* 4 — Oversold Bounce */
-  if (rsi14 < 35 && price > ema200 * 0.98 && price <= ind.bbLower * 1.02) {
+  /* 4 — Oversold Bounce (TSI deeply negative) */
+  if (tsi < -25 && price > ema200 * 0.98 && price <= ind.bbLower * 1.02) {
     let adj = 0;
-    if (rsi14 < 30) adj += 4;
+    if (tsi < -40) adj += 4;
     if (price < ind.bbLower) adj += 3;
     if (trendScore >= 0) adj += 3;
     setups.push(build(
       'oversold', 'Oversold Bounce',
-      'RSI deeply oversold. Price at lower Bollinger Band. Mean-reversion long.',
+      'TSI deeply negative. Price at lower Bollinger Band. Mean-reversion long.',
       'long', price, price - 1.5 * atr14, 52, '🔄',
       [
-        `RSI ${rsi14} — oversold, statistically prone to reversal`,
+        `TSI ${tsi} — deeply negative, statistically prone to reversal`,
         `Price at/below lower Bollinger Band ($${ind.bbLower}) — stretched`,
         `Long-term EMA200 ($${ema200.toFixed(2)}) still supportive below`,
       ], adj,
@@ -280,10 +293,10 @@ function detectSetups(ind: Indicators): StockSetup[] {
   }
 
   /* 5 — 20-Day Breakout */
-  if (price >= high20 * 0.998 && volumeRatio >= 1.4 && rsi14 >= 55 && rsi14 <= 78 && trendScore >= 2) {
+  if (price >= high20 * 0.998 && volumeRatio >= 1.4 && tsi >= 10 && tsi <= 70 && trendScore >= 2) {
     let adj = 0;
     if (volumeRatio >= 1.8) adj += 5;
-    if (rsi14 >= 58 && rsi14 <= 72) adj += 3;
+    if (tsi >= 15 && tsi <= 50) adj += 3;
     setups.push(build(
       'breakout', '20-Day Breakout',
       'Price breaking out of 20-day range on elevated volume.',
@@ -291,41 +304,41 @@ function detectSetups(ind: Indicators): StockSetup[] {
       [
         `Price at/above 20-day high ($${high20.toFixed(2)}) — resistance flipping to support`,
         `Volume ${volumeRatio}x the 20-day average — institutional participation`,
-        `RSI ${rsi14} — strong but not yet extended`,
+        `TSI ${tsi} — momentum expanding, breakout confirmed`,
       ], adj,
     ));
   }
 
   /* 6 — Bear Trend Short */
-  if (trendScore === -3 && rsi14 >= 30 && rsi14 <= 55 && macdHist < 0) {
+  if (trendScore === -3 && tsi <= 0 && tsi >= -50 && macdHist < 0) {
     let adj = 0;
-    if (rsi14 >= 43 && rsi14 <= 52) adj += 4;
+    if (tsi <= -5 && tsi >= -35) adj += 4;  // TSI negative but not extreme = room to fall
     if (volumeRatio >= 1.2) adj += 2;
     if (macdHist < -0.05) adj += 2;
     setups.push(build(
       'downtrend', 'Bear Trend Continuation',
-      'All EMAs aligned bearish. Any bounce is an opportunity to short.',
+      'All EMAs aligned bearish. TSI negative — any bounce is an opportunity to short.',
       'short', price, price + 1.5 * atr14, 58, '📉',
       [
         `Price ${((ema20 - price) / ema20 * 100).toFixed(1)}% below EMA20 ($${ema20}) — downtrend intact`,
-        `RSI ${rsi14} — not yet oversold, further downside likely`,
+        `TSI ${tsi} (negative) — double-smoothed momentum confirms sellers`,
         `MACD histogram negative ($${macdHist.toFixed(3)}) — sellers in control`,
       ], adj,
     ));
   }
 
   /* 7 — Overbought Mean Reversion Short */
-  if (rsi14 > 72 && price >= bbUpper * 0.99 && trendScore <= 1) {
+  if (tsi > 50 && price >= bbUpper * 0.99 && trendScore <= 1) {
     let adj = 0;
-    if (rsi14 > 78) adj += 4;
+    if (tsi > 65) adj += 4;
     if (price > bbUpper) adj += 3;
     if (trendScore <= -1) adj += 3;
     setups.push(build(
       'overbought', 'Overbought Mean Reversion',
-      'RSI extended. Price at upper Bollinger Band. Counter-trend short.',
+      'TSI extended above 50. Price at upper Bollinger Band. Counter-trend short.',
       'short', price, price + 1.5 * atr14, 50, '🔻',
       [
-        `RSI ${rsi14} — overbought, historically prone to pullbacks`,
+        `TSI ${tsi} — historically extended, mean reversion likely`,
         `Price at/above upper Bollinger Band ($${bbUpper}) — statistically stretched`,
         `Weak underlying trend (score ${trendScore}/3) — no strong tailwind`,
       ], adj,
@@ -359,7 +372,7 @@ function TVMini({ symbol }: { symbol: string }) {
         { id: 'MAExp@tv-basicstudies', inputs: { length: 20 } },
         { id: 'MAExp@tv-basicstudies', inputs: { length: 50 } },
         { id: 'MAExp@tv-basicstudies', inputs: { length: 200 } },
-        { id: 'RSI@tv-basicstudies' },
+        { id: 'TrueStrength@tv-basicstudies' },
         { id: 'Volume@tv-basicstudies' },
       ],
     });
@@ -377,7 +390,8 @@ function TechBar({ ind }: { ind: Indicators }) {
     ind.trendScore === -1 ? 'Mixed Bearish'    :
     ind.trendScore === -2 ? 'Downtrend'        : 'Strong Downtrend';
   const trendColor  = ind.trendScore > 0 ? 'text-green-600' : ind.trendScore < 0 ? 'text-red-600' : 'text-gray-500';
-  const rsiColor    = ind.rsi14 < 35 ? 'text-blue-600'  : ind.rsi14 > 70 ? 'text-red-600' : 'text-gray-800';
+  const tsiColor    = ind.tsi > 25 ? 'text-green-700' : ind.tsi < -25 ? 'text-red-600' : 'text-gray-800';
+  const tsiLabel    = ind.tsi > 25 ? 'Bullish' : ind.tsi < -25 ? 'Bearish' : 'Neutral';
   const changeColor = ind.changePct >= 0 ? 'text-green-600' : 'text-red-600';
   const volColor    = ind.volumeRatio >= 1.3 ? 'text-green-600' : ind.volumeRatio < 0.7 ? 'text-gray-400' : 'text-gray-700';
 
@@ -396,9 +410,9 @@ function TechBar({ ind }: { ind: Indicators }) {
         <p className="text-xs text-gray-400">EMA {ind.ema20}/{ind.ema50}/{ind.ema200.toFixed(0)}</p>
       </div>
       <div>
-        <p className="text-xs text-gray-400 mb-0.5">RSI 14</p>
-        <p className={`text-xl font-bold ${rsiColor}`}>{ind.rsi14}</p>
-        <p className="text-xs text-gray-400">{ind.rsi14 < 35 ? 'Oversold' : ind.rsi14 > 70 ? 'Overbought' : 'Neutral'}</p>
+        <p className="text-xs text-gray-400 mb-0.5">TSI (25/13)</p>
+        <p className={`text-xl font-bold ${tsiColor}`}>{ind.tsi}</p>
+        <p className="text-xs text-gray-400">{tsiLabel} · signal {ind.tsiSignal}</p>
       </div>
       <div>
         <p className="text-xs text-gray-400 mb-0.5">MACD</p>
@@ -668,7 +682,7 @@ export default function StockScannerPage() {
               ['Risk : Reward',      '1:2 means you risk $1 to make $2. Always trade positive R:R setups.'],
               ['Prob. of Success',   'Estimated win rate based on historical performance of this setup type, adjusted by RSI, trend alignment and volume confirmation.'],
               ['ATR 14',             'Average True Range — daily price volatility. Used to dynamically size stops.'],
-              ['RSI 14',             'Relative Strength Index. < 35 = oversold; > 70 = overbought; 40–60 = neutral.'],
+              ['TSI (25/13)',         'True Strength Index. Double-smoothed momentum oscillator. Above 0 = bullish; below 0 = bearish. Extreme readings (> +50 or < −50) signal overextension.'],
               ['MACD',               'Momentum indicator. Positive histogram = bullish momentum, negative = bearish.'],
               ['Trend Score',        'Count of EMAs (20/50/200) below price. +3 = strong uptrend; −3 = strong downtrend.'],
               ['Volume Ratio',       'Today\'s volume vs 20-day average. > 1.3× = elevated = conviction behind the move.'],
