@@ -4,6 +4,39 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
 
+// Yahoo Finance now requires a session cookie + crumb for the options endpoint.
+// We fetch one crumb per server instance and cache it for 6 hours.
+const CRUMB_TTL = 6 * 60 * 60 * 1000;
+const crumbStore = { crumb: '', cookie: '', ts: 0 };
+const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: string }> {
+  if (!force && crumbStore.crumb && Date.now() - crumbStore.ts < CRUMB_TTL) {
+    return { crumb: crumbStore.crumb, cookie: crumbStore.cookie };
+  }
+  // Step 1 – get a Yahoo session cookie from the consent endpoint
+  const fcRes = await fetch('https://fc.yahoo.com', {
+    headers: { 'User-Agent': UA },
+    redirect: 'follow',
+  });
+  const rawCookie = fcRes.headers.get('set-cookie') ?? '';
+  // Collect key=value pairs from each Set-Cookie segment; strip attributes
+  const cookie = rawCookie
+    .split(',')
+    .map((seg) => seg.trim().split(';')[0])
+    .filter(Boolean)
+    .join('; ');
+
+  // Step 2 – exchange the cookie for a crumb
+  const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+    headers: { 'User-Agent': UA, Cookie: cookie },
+  });
+  const crumb = (await crumbRes.text()).trim();
+  Object.assign(crumbStore, { crumb, cookie, ts: Date.now() });
+  return { crumb, cookie };
+}
+
 export interface OptionContract {
   contractSymbol: string;
   strike: number;
@@ -48,13 +81,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Fetch (or reuse cached) crumb + session cookie required by Yahoo Finance options API
+    let { crumb, cookie } = await getYahooCrumb();
+
+    const yahooHeaders = () => ({ 'User-Agent': UA, Accept: 'application/json', Cookie: cookie });
+
     // Step 1: fetch available expirations (no date param = first expiry + list of all dates)
     const baseUrl = `https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}`;
-    const firstUrl = dateParam ? `${baseUrl}?date=${dateParam}` : baseUrl;
+    const crumbParam = `crumb=${encodeURIComponent(crumb)}`;
+    const firstUrl = dateParam ? `${baseUrl}?date=${dateParam}&${crumbParam}` : `${baseUrl}?${crumbParam}`;
 
-    const firstRes = await fetch(firstUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
-    });
+    let firstRes = await fetch(firstUrl, { headers: yahooHeaders() });
+
+    // If the crumb has expired, refresh once and retry
+    if (firstRes.status === 401) {
+      ({ crumb, cookie } = await getYahooCrumb(true));
+      const retryUrl = dateParam ? `${baseUrl}?date=${dateParam}&crumb=${encodeURIComponent(crumb)}` : `${baseUrl}?crumb=${encodeURIComponent(crumb)}`;
+      firstRes = await fetch(retryUrl, { headers: yahooHeaders() });
+    }
+
     if (!firstRes.ok) {
       return res.status(firstRes.status).json({ error: `Yahoo Finance returned ${firstRes.status}` });
     }
@@ -82,10 +127,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const contractsMap = new Map<string, OptionContract>();
 
     const fetchExpiry = async (ep: number) => {
-      const url = `${baseUrl}?date=${ep}`;
-      const r = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
-      });
+      const url = `${baseUrl}?date=${ep}&crumb=${encodeURIComponent(crumb)}`;
+      const r = await fetch(url, { headers: yahooHeaders() });
       if (!r.ok) return;
       const j = await r.json();
       const result = j?.optionChain?.result?.[0];
