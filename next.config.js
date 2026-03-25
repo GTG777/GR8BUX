@@ -3,11 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   images: {
-    domains: ['localhost'],
-  },
-  env: {
-    SUPABASE_URL: process.env.VITE_SUPABASE_URL,
-    SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY,
+    domains: ['localhost', 'gr8bux.com'],
   },
   webpack: (config) => {
     config.resolve.fallback = {

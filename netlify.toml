@@ -34,3 +34,10 @@
   for = "/_next/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# Never let Cloudflare or any CDN cache API responses
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+    Pragma = "no-cache"
