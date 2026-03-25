@@ -176,7 +176,7 @@ const sections: Section[] = [
     body: (
       <>
         <p className="text-sm text-gray-600 mb-4">
-          The Market page is your macro-level dashboard. It uses TradingView's embedded widgets to give
+          The Market page is your macro-level dashboard. It uses TradingView&apos;s embedded widgets to give
           you a real-time pulse on the broad market, sector rotation, and individual stock movers — all
           without leaving the platform.
         </p>
@@ -243,7 +243,7 @@ const sections: Section[] = [
     body: (
       <>
         <p className="text-sm text-gray-600 mb-4">
-          The Chart page is built for serious technical analysis. It combines TradingView's advanced
+          The Chart page is built for serious technical analysis. It combines TradingView&apos;s advanced
           interactive chart with custom in-house panels — including a fully rendered True Strength Index
           chart, pivot levels, and an automated signal engine — all calculated locally from real Yahoo
           Finance price data.
@@ -782,7 +782,7 @@ const sections: Section[] = [
         <p className="text-sm text-gray-600 mb-4">
           The Watchlist page lets you track any number of stock symbols side by side.
           It fetches live price data and computes TSI and coiling strength in parallel for every
-          symbol you add. Your watchlist is saved to your browser's local storage so it persists
+          symbol you add. Your watchlist is saved to your browser&apos;s local storage so it persists
           between sessions.
         </p>
 
@@ -820,7 +820,7 @@ const sections: Section[] = [
           </p>
         </SectionCard>
 
-        <Tip>Sort by "Coiling Strength" every morning. High-coiling stocks have compressed price ranges and often precede large breakout moves — they pair perfectly with a scan on the Stock Scanner or Technical page.</Tip>
+        <Tip>Sort by &quot;Coiling Strength&quot; every morning. High-coiling stocks have compressed price ranges and often precede large breakout moves — they pair perfectly with a scan on the Stock Scanner or Technical page.</Tip>
       </>
     ),
   },
@@ -879,7 +879,7 @@ const sections: Section[] = [
 
         <SectionCard title="Admin Zone (Admin role only)">
           <p className="text-sm text-gray-600">
-            A red-bordered "Admin Zone" card appears only for users with the Admin role.
+            A red-bordered &quot;Admin Zone&quot; card appears only for users with the Admin role.
             It contains a button that takes you directly to <code className="bg-gray-100 px-1 rounded text-xs">/admin</code> for
             full user management — viewing all users, changing roles, and managing accounts.
           </p>
