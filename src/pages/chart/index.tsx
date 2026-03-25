@@ -596,49 +596,52 @@ export default function ChartPage() {
     <Layout>
       <div className="space-y-4">
         {/* ── Header ── */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <h1 className="text-xl font-bold text-gray-900 mr-2">Chart</h1>
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+          {/* Row 1: title + input + intervals */}
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <h1 className="text-xl font-bold text-gray-900 shrink-0">Chart</h1>
 
-          {/* Symbol input */}
-          <div className="flex gap-2 flex-1 min-w-[200px] max-w-xs">
-            <input
-              className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Ticker…"
-              value={input}
-              onChange={(e) => setInput(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            />
-            <button
-              onClick={handleSubmit}
-              className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
-              disabled={loading}
-            >
-              {loading ? '…' : 'Go'}
-            </button>
-          </div>
-
-          {/* Quick picks */}
-          <div className="flex flex-wrap gap-1">
-            {QUICK_TICKERS.map((t) => (
+            {/* Symbol input */}
+            <div className="flex gap-2">
+              <input
+                className="px-3 py-1.5 border border-gray-300 rounded text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 w-28"
+                placeholder="Ticker…"
+                value={input}
+                onChange={(e) => setInput(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+              />
               <button
-                key={t}
-                onClick={() => { setSymbol(t); setInput(''); fetchCandles(t); }}
-                className={`px-2 py-1 rounded text-xs font-mono font-semibold border transition-colors ${symbol === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}
+                onClick={handleSubmit}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                disabled={loading}
               >
-                {t}
+                {loading ? '…' : 'Go'}
               </button>
-            ))}
-          </div>
+            </div>
 
-          {/* Interval buttons */}
-          <div className="flex gap-1 ml-auto">
-            {INTERVALS.map((iv) => (
+            {/* Interval buttons — pushed to the right */}
+            <div className="flex gap-1 ml-auto">
+              {INTERVALS.map((iv) => (
               <button
                 key={iv.value}
                 onClick={() => setInterval(iv.value)}
                 className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${interval === iv.value ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-600'}`}
               >
                 {iv.label}
+              </button>
+            ))}
+            </div>
+          </div>
+
+          {/* Row 2: Quick picks */}
+          <div className="flex flex-wrap gap-1">
+            {QUICK_TICKERS.map((t) => (
+              <button
+                key={t}
+                onClick={() => { setSymbol(t); setInput(''); fetchCandles(t); }}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-semibold border transition-colors ${symbol === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-blue-400 hover:bg-blue-50'}`}
+              >
+                {t}
               </button>
             ))}
           </div>

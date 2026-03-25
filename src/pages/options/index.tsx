@@ -847,26 +847,32 @@ export default function OptionsPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
         {/* ── Symbol bar ── */}
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-800">Options Analysis</h1>
-          <form onSubmit={(e) => { e.preventDefault(); handleSymbol(input); }} className="flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value.toUpperCase())}
-              placeholder="TICKER…"
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <button type="submit" className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">Go</button>
-          </form>
-          {QUICK_TICKERS.map((t) => (
-            <button
-              key={t}
-              onClick={() => handleSymbol(t)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${symbol === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+          {/* Row 1: title + search */}
+          <div className="flex items-center gap-3 mb-3">
+            <h1 className="text-xl font-bold text-gray-800 shrink-0">Options Analysis</h1>
+            <form onSubmit={(e) => { e.preventDefault(); handleSymbol(input); }} className="flex gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value.toUpperCase())}
+                placeholder="TICKER…"
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <button type="submit" className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">Go</button>
+            </form>
+          </div>
+          {/* Row 2: quick tickers */}
+          <div className="flex flex-wrap gap-2">
+            {QUICK_TICKERS.map((t) => (
+              <button
+                key={t}
+                onClick={() => handleSymbol(t)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${symbol === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── TradingView chart ── */}
