@@ -12,11 +12,21 @@ const navItems = [
   { href: '/market',     label: 'Market',    icon: MarketIcon    },
   { href: '/chart',      label: 'Chart',     icon: ChartIcon     },
   { href: '/options',    label: 'Options',   icon: OptionsIcon   },
+  { href: '/scanner',    label: 'Scanner',   icon: ScannerIcon   },
   { href: '/news',       label: 'News',      icon: NewsIcon      },
   { href: '/community',  label: 'Community', icon: CommunityIcon },
   { href: '/technical',  label: 'Technical', icon: TechnicalIcon },
   { href: '/watchlist',  label: 'Watchlist', icon: WatchlistIcon },
 ];
+
+function ScannerIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
 
 function OptionsIcon() {
   return (
