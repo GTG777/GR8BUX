@@ -539,6 +539,167 @@ function GreeksTable({ legs }: { legs: Leg[] }) {
   );
 }
 
+/* ── Trade Narrative ────────────────────────────────────────────── */
+function TradeNarrative({
+  stratId, symbol, spot, k1, k2, k3, k4, dte, contractQty, result,
+}: {
+  stratId: StrategyId; symbol: string; spot: number;
+  k1: number; k2: number; k3: number; k4: number;
+  dte: number; contractQty: number; result: CalcResult;
+}) {
+  const { netCost, maxProfit, maxLoss, breakevenPrices, legs } = result;
+  const isCredit = netCost < 0;
+  const creditAmt = Math.abs(netCost);
+  const be1 = breakevenPrices[0];
+  const be2 = breakevenPrices[1];
+  const dteLabel = dte === 1 ? '1 day' : `${dte} days`;
+  const perC = (n: number) => (n / contractQty).toFixed(2);
+  const maxProfitPer = maxProfit != null ? maxProfit / contractQty : null;
+  const maxLossPer   = Math.abs((maxLoss ?? -netCost)) / contractQty;
+  const longLeg  = legs.find((l) => l.direction === 'long');
+  const shortLeg = legs.find((l) => l.direction === 'short');
+
+  const EMOJI: Record<string, string> = {
+    bullish: '📈', bearish: '📉', 'neutral-credit': '💰', 'neutral-debit': '🔵', volatility: '⚡',
+  };
+  const BG: Record<string, string> = {
+    bullish: 'border-green-200 bg-green-50',
+    bearish: 'border-red-200 bg-red-50',
+    'neutral-credit': 'border-blue-200 bg-blue-50',
+    'neutral-debit': 'border-purple-200 bg-purple-50',
+    volatility: 'border-amber-200 bg-amber-50',
+  };
+  const cat = STRATEGIES[stratId].category;
+
+  let text: React.ReactNode;
+  switch (stratId) {
+    case 'long-call':
+      text = <>
+        You&apos;re buying a <strong>{symbol} ${k1} call</strong> expiring in <strong>{dteLabel}</strong>, paying <strong>${(legs[0].premium * 100).toFixed(2)}</strong> per contract — that&apos;s the most you can ever lose on this trade.
+        For it to be profitable at expiry, <strong>{symbol} needs to close above ${be1?.toFixed(2) ?? '—'}</strong> (your breakeven).
+        Above that, every extra dollar {symbol} rises puts roughly <strong>$100 more in your pocket</strong> per contract — there&apos;s no ceiling.
+        Below <strong>${k1}</strong> at expiry, both options are worthless and you lose the full premium. This is a pure directional bet — best used when you have strong conviction or expect a near-term catalyst.
+      </>;
+      break;
+    case 'long-put':
+      text = <>
+        You&apos;re buying a <strong>{symbol} ${k1} put</strong> expiring in <strong>{dteLabel}</strong>, paying <strong>${(legs[0].premium * 100).toFixed(2)}</strong> per contract.
+        To profit at expiry, <strong>{symbol} must close below ${be1?.toFixed(2) ?? '—'}</strong> — your breakeven.
+        Every dollar {symbol} drops below that adds ~$100 per contract, with maximum theoretical profit if the stock fell to zero.
+        Above <strong>${k1}</strong> at expiry the put expires worthless — you lose only the premium. A great bearish bet or portfolio hedge with fully defined risk.
+      </>;
+      break;
+    case 'covered-call':
+      text = <>
+        You already own 100 shares of <strong>{symbol}</strong> and you&apos;re selling a <strong>${k1} call</strong>, collecting <strong>${(legs[0].premium * 100).toFixed(2)}</strong> in cash today.
+        That premium is yours no matter what.
+        If <strong>{symbol} stays below ${k1} by expiry</strong> ({dteLabel}), the call expires worthless and you keep the premium as pure income — rinse and repeat.
+        If {symbol} trades above <strong>${k1}</strong>, your shares get called away (sold) at ${k1}. You still profit, but you give up any gains beyond that level.
+        Think of it as getting paid to set a willing-to-sell price on shares you already hold.
+      </>;
+      break;
+    case 'csp':
+      text = <>
+        You&apos;re selling a <strong>{symbol} ${k1} put</strong>, collecting <strong>${(legs[0].premium * 100).toFixed(2)}</strong> in premium today — that&apos;s your maximum gain.
+        As long as <strong>{symbol} stays above ${k1} by expiry</strong> ({dteLabel}), the put expires worthless and you keep the full premium.
+        If {symbol} falls below <strong>${k1}</strong>, you&apos;re obligated to buy 100 shares at ${k1}, but your real cost basis is only <strong>${(k1 - legs[0].premium).toFixed(2)}</strong> per share (strike minus premium).
+        Your breakeven is <strong>${be1?.toFixed(2) ?? '—'}</strong>. This is the classic &quot;Wheel&quot; trade step 1 — a great way to get paid to wait to buy a stock at a discounted price.
+      </>;
+      break;
+    case 'bull-call':
+      text = <>
+        You&apos;re buying a <strong>{symbol} ${k1} call</strong> (costs ${(longLeg!.premium * 100).toFixed(2)}) and selling a <strong>${k2} call</strong> against it (collects ${(shortLeg!.premium * 100).toFixed(2)}),
+        for a net debit of <strong>${perC(Math.abs(netCost))}</strong> per contract — that&apos;s your total risk.
+        For <strong>maximum profit</strong> of <strong>${maxProfitPer?.toFixed(2) ?? '—'}</strong>, you need <strong>{symbol} to close at or above ${k2} by expiry</strong> ({dteLabel}).
+        Your breakeven is <strong>${be1?.toFixed(2) ?? '—'}</strong>: anywhere between here and ${k2} at expiry is partial profit; below ${k1} and both legs expire worthless.
+        Selling the upper call cuts your cost roughly in half compared to buying the call outright — you cap your upside, but you also cap your risk.
+      </>;
+      break;
+    case 'bear-put':
+      text = <>
+        You&apos;re buying a <strong>{symbol} ${k2} put</strong> (costs ${(longLeg!.premium * 100).toFixed(2)}) and selling a <strong>${k1} put</strong> against it (collects ${(shortLeg!.premium * 100).toFixed(2)}),
+        for a net debit of <strong>${perC(Math.abs(netCost))}</strong> per contract.
+        For <strong>maximum profit</strong> of <strong>${maxProfitPer?.toFixed(2) ?? '—'}</strong>, <strong>{symbol} needs to close at or below ${k1} at expiry</strong> ({dteLabel}).
+        Your breakeven is <strong>${be1?.toFixed(2) ?? '—'}</strong>. Above ${k2} both legs expire worthless and you lose your debit.
+        Selling the lower put pays for some of the cost — a cheaper bearish trade than a naked long put, with profits and losses both capped.
+      </>;
+      break;
+    case 'bull-put':
+      text = <>
+        You&apos;re selling a <strong>{symbol} ${k2} put</strong> and buying a <strong>${k1} put</strong> as your downside protection, collecting a net credit of <strong>${perC(creditAmt)}</strong> per contract — that&apos;s your max gain.
+        As long as <strong>{symbol} stays above ${k2} at expiry</strong> ({dteLabel}), both puts expire worthless and you pocket the full credit.
+        Your breakeven is <strong>${be1?.toFixed(2) ?? '—'}</strong>. If {symbol} falls below <strong>${k1}</strong>, your loss is capped at <strong>${maxLossPer.toFixed(2)}</strong>.
+        Every day that passes without {symbol} breaking below ${k2}, theta works in your favour. A high-probability income trade suited to a bullish-to-neutral outlook.
+      </>;
+      break;
+    case 'bear-call':
+      text = <>
+        You&apos;re selling a <strong>{symbol} ${k1} call</strong> and buying a <strong>${k2} call</strong> as upside insurance, collecting a net credit of <strong>${perC(creditAmt)}</strong> per contract.
+        As long as <strong>{symbol} stays below ${k1} at expiry</strong> ({dteLabel}), both calls expire worthless and you keep the full credit.
+        Your breakeven is <strong>${be1?.toFixed(2) ?? '—'}</strong>. Above <strong>${k2}</strong>, your loss is capped at <strong>${maxLossPer.toFixed(2)}</strong>.
+        Time decay (theta) works in your favour every day {symbol} doesn&apos;t rally past ${k1}. Best suited to a neutral-to-bearish view where you expect a stock to stall or pull back.
+      </>;
+      break;
+    case 'straddle':
+      text = <>
+        You&apos;re buying both a <strong>{symbol} ${k1} call</strong> and a <strong>${k1} put</strong> at the same strike, paying a combined debit of <strong>${perC(Math.abs(netCost))}</strong> per contract.
+        You have no directional view — you just need a <em>big move</em> in either direction.
+        To the upside, {symbol} must close above <strong>${be2?.toFixed(2) ?? '—'}</strong>; to the downside, below <strong>${be1?.toFixed(2) ?? '—'}</strong>.
+        Anywhere between those two levels at expiry and you&apos;re at a loss.
+        This is the classic pre-earnings play: if the market has underestimated how volatile the move will be, one leg pays off far more than the total cost of both. Time decay (theta) is your biggest enemy — every quiet day bleeds value.
+      </>;
+      break;
+    case 'strangle':
+      text = <>
+        You&apos;re buying an OTM <strong>{symbol} ${k1} put</strong> and an OTM <strong>${k2} call</strong>, paying a total of <strong>${perC(Math.abs(netCost))}</strong> per contract — cheaper than a straddle, but the move needs to be bigger.
+        For profit, {symbol} must close below <strong>${be1?.toFixed(2) ?? '—'}</strong> or above <strong>${be2?.toFixed(2) ?? '—'}</strong> by expiry ({dteLabel}).
+        Between those two breakevens both options expire worthless and you lose the full premium.
+        Best used ahead of a major catalyst (earnings, regulatory decision, FOMC) where you expect an outsized move but aren&apos;t sure which way.
+      </>;
+      break;
+    case 'iron-condor':
+      text = <>
+        You&apos;re selling a <strong>{symbol} ${k2}/${k1} put spread</strong> and a <strong>${k3}/${k4} call spread</strong>, collecting a net credit of <strong>${perC(creditAmt)}</strong> per contract.
+        Your &quot;profit tent&quot; is the range between <strong>${k2} and ${k3}</strong> — as long as {symbol} stays within that band through expiry ({dteLabel}), all four options expire worthless and you keep the full credit.
+        Your two breakevens are <strong>${be1?.toFixed(2) ?? '—'}</strong> (lower) and <strong>${be2?.toFixed(2) ?? '—'}</strong> (upper).
+        If {symbol} breaks outside either wing — below ${k1} or above ${k4} — your loss is capped at <strong>${maxLossPer.toFixed(2)}</strong>.
+        A pure income trade: theta decays in your favour every day {symbol} stays rangebound. Ideal in low-volatility environments after an IV spike.
+      </>;
+      break;
+    case 'butterfly':
+      text = <>
+        You&apos;re buying one <strong>{symbol} ${k1} call</strong>, selling <em>two</em> <strong>${k2} calls</strong>, and buying one <strong>${k3} call</strong> as the wing, paying a small debit of <strong>${perC(Math.abs(netCost))}</strong> per contract.
+        This is a &quot;pin the price&quot; trade: your peak profit of <strong>${maxProfitPer?.toFixed(2) ?? '—'}</strong> is only achieved if {symbol} closes exactly at <strong>${k2} on expiration day</strong> ({dteLabel}).
+        You&apos;re profitable anywhere between <strong>${be1?.toFixed(2) ?? '—'}</strong> and <strong>${be2?.toFixed(2) ?? '—'}</strong>.
+        If {symbol} moves far in either direction the wings cancel out and you lose only your small debit.
+        Best used when you have a precise price target and want an asymmetric, low-cost payoff at that exact level.
+      </>;
+      break;
+    default:
+      text = <>Options strategy selected.</>;
+  }
+
+  return (
+    <div className={`rounded-xl border p-5 shadow-sm ${BG[cat]}`}>
+      <div className="flex items-start gap-3">
+        <span className="text-2xl mt-0.5 select-none">{EMOJI[cat]}</span>
+        <div>
+          <h3 className="text-sm font-bold text-gray-800 mb-2">
+            Trade Breakdown — {STRATEGIES[stratId].name} on {symbol}
+            {contractQty > 1 && <span className="font-normal text-gray-500"> ({contractQty} contracts)</span>}
+          </h3>
+          <p className="text-sm text-gray-700 leading-relaxed">{text}</p>
+          {contractQty > 1 && (
+            <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+              Figures above are per contract (×100). Multiply by {contractQty} for your full position size.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Strategy Library ───────────────────────────────────────────── */
 function StrategyLibrary({ onSelect }: { onSelect: (id: StrategyId) => void }) {
   const groups: [string, StrategyId[]][] = [
@@ -822,6 +983,22 @@ export default function OptionsPage() {
             data={calcResult.pnlChart}
             spot={parseFloat(spot)}
             breakevenPrices={calcResult.breakevenPrices}
+          />
+        )}
+
+        {/* ── Plain-English Trade Narrative ── */}
+        {calcResult && (
+          <TradeNarrative
+            stratId={stratId}
+            symbol={symbol}
+            spot={parseFloat(spot)}
+            k1={parseFloat(k1) || 0}
+            k2={parseFloat(k2) || 0}
+            k3={parseFloat(k3) || 0}
+            k4={parseFloat(k4) || 0}
+            dte={parseInt(dte) || 30}
+            contractQty={parseInt(contractQty) || 1}
+            result={calcResult}
           />
         )}
 
