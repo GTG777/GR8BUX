@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import '@/styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'Trading Journal',
-  description: 'Professional trading journal app for stocks and options',
+  title: 'GR8BUX',
+  description: 'GR8BUX — Professional trading journal and market analysis platform for stocks and options',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

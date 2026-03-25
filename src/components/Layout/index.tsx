@@ -258,7 +258,7 @@ export function Layout({ children, title }: LayoutProps) {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top bar */}
           <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 shrink-0">
-            <h1 className="text-xl font-semibold text-gray-900">{title || 'Trading Journal'}</h1>
+            <h1 className="text-xl font-semibold text-gray-900">{title || 'GR8BUX'}</h1>
           </header>
 
           {/* Page content */}

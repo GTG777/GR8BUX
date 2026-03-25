@@ -8,7 +8,7 @@ export default function Navigation() {
         <div className="flex justify-between items-center">
           {/* Logo */}
           <Link href="/" className="text-2xl font-bold text-blue-600">
-            📊 Trading Journal
+            📊 GR8BUX
           </Link>
 
           {/* Nav Links */}

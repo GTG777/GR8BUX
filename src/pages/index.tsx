@@ -35,7 +35,7 @@ export default function Home() {
       {/* Navigation */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Trading Journal</h1>
+          <h1 className="text-2xl font-bold text-gray-900">GR8BUX</h1>
           <div className="flex gap-4">
             <Link
               href="/auth/signin"
@@ -56,7 +56,7 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 py-16">
         {/* Header */}
         <div className="text-center mb-12">
-          <h2 className="text-5xl font-bold text-gray-900 mb-4">Trading Journal</h2>
+          <h2 className="text-5xl font-bold text-gray-900 mb-4">GR8BUX</h2>
           <p className="text-xl text-gray-600 mb-8">
             Track your stock and options trades with professional analytics and market insights
           </p>
@@ -125,7 +125,7 @@ export default function Home() {
         <div className="mt-16 p-8 bg-green-50 border border-green-200 rounded-lg">
           <h3 className="text-2xl font-bold text-gray-900 mb-2">✅ Now Live</h3>
           <p className="text-gray-700 mb-4">
-            The Trading Journal app is now live with core features implemented:
+            GR8BUX is now live with core features implemented:
           </p>
           <ul className="text-gray-700 space-y-2 ml-4">
             <li>✓ User authentication with role-based access (Admin, Manager, User)</li>

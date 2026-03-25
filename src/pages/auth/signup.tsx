@@ -100,7 +100,7 @@ export default function SignUpPage() {
         {/* Header */}
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Create Account</h2>
-          <p className="mt-2 text-sm text-gray-600">Join Trading Journal and start tracking your trades</p>
+          <p className="mt-2 text-sm text-gray-600">Join GR8BUX and start tracking your trades</p>
         </div>
 
         {/* Form */}
