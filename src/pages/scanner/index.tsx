@@ -5,7 +5,7 @@ import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/c
 
 /* ── Types ──────────────────────────────────────────────────────── */
 type StratType = 'bull-put' | 'bear-call' | 'iron-condor';
-type SortKey = 'pop' | 'ev' | 'credit' | 'theta' | 'dte' | 'maxLoss' | 'creditToWidth';
+type SortKey = 'pop' | 'ev' | 'credit' | 'theta' | 'dte' | 'maxLoss' | 'creditToWidth' | 'riskReward';
 type SortDir = 'asc' | 'desc';
 type Bias = 'bullish' | 'bearish' | 'neutral';
 
@@ -366,48 +366,83 @@ function StrikeLabel({ r }: { r: Spread }) {
 /* ── Top Opportunity Card ───────────────────────────────────────── */
 function TopCard({ result, symbol, rank }: { result: Spread; symbol: string; rank: string }) {
   const bg: Record<StratType, string> = {
-    'bull-put': 'border-green-200 bg-green-50',
-    'bear-call': 'border-red-200 bg-red-50',
+    'bull-put':    'border-green-200 bg-green-50',
+    'bear-call':   'border-red-200 bg-red-50',
     'iron-condor': 'border-blue-200 bg-blue-50',
   };
   const icon: Record<StratType, string> = { 'bull-put': '📈', 'bear-call': '📉', 'iron-condor': '↔️' };
 
-  const strikes =
+  const strikeText =
     result.type === 'bull-put'
       ? `Short ${result.shortPut?.strike}P / Long ${result.longPut?.strike}P`
       : result.type === 'bear-call'
       ? `Short ${result.shortCall?.strike}C / Long ${result.longCall?.strike}C`
-      : `${result.longPut?.strike}P/${result.shortPut?.strike}P — ${result.shortCall?.strike}C/${result.longCall?.strike}C`;
+      : `${result.longPut?.strike}P / ${result.shortPut?.strike}P — ${result.shortCall?.strike}C / ${result.longCall?.strike}C`;
 
   const narrative =
     result.type === 'bull-put'
-      ? `Sell the ${result.shortPut?.strike} put, buy the ${result.longPut?.strike} put. Collect $${result.creditPerContract.toFixed(0)} (real bid/ask mid). ${symbol} must stay above $${result.breakevenLow?.toFixed(2)} by ${result.expirationStr}. Max loss: $${result.maxLossPerContract.toFixed(0)}.`
+      ? `Sell the ${result.shortPut?.strike} put, buy the ${result.longPut?.strike} put. Collect $${result.creditPerContract.toFixed(0)} (real bid/ask mid). ${symbol} must stay above $${result.breakevenLow?.toFixed(2)} by expiry. Max loss: $${result.maxLossPerContract.toFixed(0)}.`
       : result.type === 'bear-call'
-      ? `Sell the ${result.shortCall?.strike} call, buy the ${result.longCall?.strike} call. Collect $${result.creditPerContract.toFixed(0)} (real bid/ask mid). ${symbol} must stay below $${result.breakevenHigh?.toFixed(2)} by ${result.expirationStr}. Max loss: $${result.maxLossPerContract.toFixed(0)}.`
-      : `Sell the ${result.shortPut?.strike}/${result.longPut?.strike} put spread + the ${result.shortCall?.strike}/${result.longCall?.strike} call spread. Collect $${result.creditPerContract.toFixed(0)} total. Profit zone: $${result.breakevenLow?.toFixed(2)} – $${result.breakevenHigh?.toFixed(2)}. Max loss: $${result.maxLossPerContract.toFixed(0)}.`;
+      ? `Sell the ${result.shortCall?.strike} call, buy the ${result.longCall?.strike} call. Collect $${result.creditPerContract.toFixed(0)} (real bid/ask mid). ${symbol} must stay below $${result.breakevenHigh?.toFixed(2)} by expiry. Max loss: $${result.maxLossPerContract.toFixed(0)}.`
+      : `Sell ${result.shortPut?.strike}/${result.longPut?.strike} put spread + ${result.shortCall?.strike}/${result.longCall?.strike} call spread. Collect $${result.creditPerContract.toFixed(0)} total. Profit zone: $${result.breakevenLow?.toFixed(2)} – $${result.breakevenHigh?.toFixed(2)}. Max loss: $${result.maxLossPerContract.toFixed(0)}.`;
+
+  const rrRatio = result.maxLossPerContract > 0
+    ? `1 : ${(result.maxLossPerContract / result.creditPerContract).toFixed(1)}`
+    : '—';
+  const rorPct = result.maxLossPerContract > 0
+    ? `${((result.creditPerContract / result.maxLossPerContract) * 100).toFixed(0)}%`
+    : '—';
 
   return (
     <div className={`rounded-xl border p-5 shadow-sm ${bg[result.type]}`}>
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <span className="text-lg mr-2">{icon[result.type]}</span>
-          <TypeBadge type={result.type} />
-          <span className="ml-2 text-xs text-gray-500 font-medium">{rank}</span>
-        </div>
-        <PoPBadge pop={result.pop} />
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-lg">{icon[result.type]}</span>
+        <TypeBadge type={result.type} />
+        <span className="text-xs text-gray-500 font-medium">{rank}</span>
       </div>
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">
-        {result.dte}d to {result.expirationStr} — {strikes}
-      </p>
+
+      {/* ── Expiry · Strikes · Probability — hero block ── */}
+      <div className="bg-white bg-opacity-75 rounded-xl px-4 py-3 mb-3 flex flex-wrap gap-5 items-start">
+        {/* Expiry */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Expiry Date</p>
+          <p className="text-xl font-bold text-gray-800 font-mono leading-none">{result.expirationStr}</p>
+          <p className="text-xs text-gray-400 mt-1">{result.dte} days to expiry</p>
+        </div>
+
+        <div className="w-px bg-gray-200 self-stretch hidden sm:block" />
+
+        {/* Strikes */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Strike Prices</p>
+          <p className="text-base font-bold text-gray-800 font-mono leading-none">{strikeText}</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {result.breakevenLow  ? `BE ↑ $${result.breakevenLow}` : ''}
+            {result.breakevenLow && result.breakevenHigh ? '  ·  ' : ''}
+            {result.breakevenHigh ? `BE ↓ $${result.breakevenHigh}` : ''}
+          </p>
+        </div>
+
+        {/* Probability — far right */}
+        <div className="ml-auto text-right">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Prob. of Success</p>
+          <p className="text-4xl font-extrabold text-gray-800 leading-none">{result.pop.toFixed(1)}%</p>
+          <p className="text-xs text-gray-400 mt-1">B-S risk-neutral PoP</p>
+        </div>
+      </div>
+
       <p className="text-sm text-gray-700 leading-relaxed mb-4">{narrative}</p>
-      <div className="grid grid-cols-3 gap-3 text-center">
+
+      {/* Metrics grid */}
+      <div className="grid grid-cols-3 gap-2 text-center">
         {[
           { label: 'Credit (real)', value: `$${result.creditPerContract.toFixed(0)}` },
-          { label: 'Max Loss', value: `$${result.maxLossPerContract.toFixed(0)}` },
-          { label: 'Avg IV', value: `${result.avgIV.toFixed(1)}%` },
-          { label: 'PoP (B-S)', value: `${result.pop.toFixed(1)}%` },
-          { label: 'Exp. Value', value: `$${result.ev.toFixed(0)}` },
-          { label: 'Credit/Width', value: `${(result.creditToWidth * 100).toFixed(0)}%` },
+          { label: 'Max Loss',      value: `$${result.maxLossPerContract.toFixed(0)}` },
+          { label: 'Risk : Reward', value: rrRatio },
+          { label: 'Return on Risk', value: rorPct },
+          { label: 'Exp. Value',    value: `$${result.ev.toFixed(0)}` },
+          { label: 'Θ / day',       value: `$${result.thetaPerDay.toFixed(2)}` },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white bg-opacity-60 rounded-lg p-2">
             <p className="text-xs text-gray-500">{label}</p>
@@ -451,6 +486,7 @@ function ScanTable({
             <th className={thCls}>Strikes</th>
             <th className={thCls} onClick={() => onSort('credit')}>Credit{arrow('credit')}</th>
             <th className={thCls} onClick={() => onSort('maxLoss')}>Max Loss{arrow('maxLoss')}</th>
+            <th className={thCls} onClick={() => onSort('riskReward')}>R/R{arrow('riskReward')}</th>
             <th className={thCls}>Avg IV</th>
             <th className={thCls} onClick={() => onSort('pop')}>PoP{arrow('pop')}</th>
             <th className={thCls} onClick={() => onSort('theta')}>Θ/day{arrow('theta')}</th>
@@ -468,6 +504,7 @@ function ScanTable({
               <td className={tdCls}><StrikeLabel r={r} /></td>
               <td className={tdCls + ' text-green-700 font-semibold'}>${r.creditPerContract.toFixed(0)}</td>
               <td className={tdCls + ' text-red-600'}>${r.maxLossPerContract.toFixed(0)}</td>
+              <td className={tdCls + ' font-mono text-xs text-gray-500'}>1:{(r.maxLossPerContract / Math.max(r.creditPerContract, 0.01)).toFixed(1)}</td>
               <td className={tdCls + ' text-indigo-600'}>{r.avgIV.toFixed(1)}%</td>
               <td className={tdCls}><PoPBadge pop={r.pop} /></td>
               <td className={tdCls + ' text-indigo-600 font-medium'}>${r.thetaPerDay.toFixed(2)}</td>
@@ -526,12 +563,14 @@ export default function ScannerPage() {
 
   function sortSpreads(arr: Spread[], key: SortKey, dir: SortDir): Spread[] {
     return [...arr].sort((a, b) => {
+      const rr = (s: Spread) => s.creditPerContract / Math.max(s.maxLossPerContract, 0.01);
       const diff: Record<SortKey, number> = {
         pop: a.pop - b.pop, ev: a.ev - b.ev,
         credit: a.creditPerContract - b.creditPerContract,
         theta: a.thetaPerDay - b.thetaPerDay, dte: a.dte - b.dte,
         maxLoss: a.maxLossPerContract - b.maxLossPerContract,
         creditToWidth: a.creditToWidth - b.creditToWidth,
+        riskReward: rr(a) - rr(b),
       };
       return dir === 'desc' ? -diff[key] : diff[key];
     });
@@ -756,7 +795,10 @@ export default function ScannerPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <GlossaryRow term="Credit (real)" def="Bid/ask midpoint from the live Yahoo Finance options chain — what you&apos;d realistically collect." />
             <GlossaryRow term="Avg IV" def="Average implied volatility of the two legs — sourced directly from the options chain, not estimated." />
-            <GlossaryRow term="PoP (B-S)" def="Probability of Profit using the contract&apos;s real IV as the volatility input to Black-Scholes d2." />
+            <GlossaryRow term="Prob. of Success" def="Black-Scholes risk-neutral probability the spread expires worthless (i.e. you keep the full credit)." />
+            <GlossaryRow term="Risk : Reward" def="How much you risk per $1 collected. 1:4 means risk $4 to collect $1. Lower number = more attractive." />
+            <GlossaryRow term="Return on Risk" def="Credit ÷ Max Loss as a %. A 25% RoR spread collects $1 for every $4 of risk capital tied up." />
+            <GlossaryRow term="PoP (B-S)" def="Same as Prob. of Success — displayed in the table using Black-Scholes d2 with the contract&apos;s real IV." />
             <GlossaryRow term="Exp. Value" def="(PoP × credit) − (loss prob × max loss). Positive EV = mathematical edge." />
             <GlossaryRow term="Θ / day" def="Net theta per contract per day — time decay working in your favour." />
             <GlossaryRow term="Breakeven" def="Stock price at expiry beyond which you start losing money." />
