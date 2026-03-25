@@ -342,6 +342,7 @@ function TVMini({ symbol }: { symbol: string }) {
     if (!ref.current) return;
     ref.current.innerHTML = '';
     const wd = document.createElement('div');
+    wd.className = 'tradingview-widget-container__widget';
     wd.style.cssText = 'height:320px;width:100%';
     ref.current.appendChild(wd);
     const sc = document.createElement('script');
