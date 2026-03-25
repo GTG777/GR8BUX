@@ -12,7 +12,7 @@ const navItems = [
   { href: '/market',     label: 'Market',    icon: MarketIcon    },
   { href: '/chart',      label: 'Chart',     icon: ChartIcon     },
   { href: '/options',    label: 'Options',   icon: OptionsIcon   },
-  { href: '/scanner',    label: 'Scanner',   icon: ScannerIcon   },
+  { href: '/scanner',    label: 'Screener',  icon: ScannerIcon   },
   { href: '/news',       label: 'News',      icon: NewsIcon      },
   { href: '/community',  label: 'Community', icon: CommunityIcon },
   { href: '/technical',  label: 'Technical', icon: TechnicalIcon },
