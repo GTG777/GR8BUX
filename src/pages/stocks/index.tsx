@@ -372,7 +372,6 @@ function TVMini({ symbol }: { symbol: string }) {
         { id: 'MAExp@tv-basicstudies', inputs: { length: 20 } },
         { id: 'MAExp@tv-basicstudies', inputs: { length: 50 } },
         { id: 'MAExp@tv-basicstudies', inputs: { length: 200 } },
-        { id: 'TrueStrength@tv-basicstudies' },
         { id: 'Volume@tv-basicstudies' },
       ],
     });
