@@ -7,16 +7,17 @@ import { useAuthStore } from '@/store/authStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 const navItems = [
-  { href: '/dashboard',  label: 'Dashboard', icon: DashboardIcon },
-  { href: '/trades',     label: 'Trades',    icon: TradesIcon    },
-  { href: '/market',     label: 'Market',    icon: MarketIcon    },
-  { href: '/chart',      label: 'Chart',     icon: ChartIcon     },
-  { href: '/options',    label: 'Options',   icon: OptionsIcon   },
-  { href: '/scanner',    label: 'Screener',  icon: ScannerIcon   },
-  { href: '/news',       label: 'News',      icon: NewsIcon      },
-  { href: '/community',  label: 'Community', icon: CommunityIcon },
-  { href: '/technical',  label: 'Technical', icon: TechnicalIcon },
-  { href: '/watchlist',  label: 'Watchlist', icon: WatchlistIcon },
+  { href: '/dashboard',  label: 'Dashboard',        icon: DashboardIcon     },
+  { href: '/trades',     label: 'Trades',           icon: TradesIcon        },
+  { href: '/market',     label: 'Market',           icon: MarketIcon        },
+  { href: '/chart',      label: 'Chart',            icon: ChartIcon         },
+  { href: '/options',    label: 'Options',          icon: OptionsIcon       },
+  { href: '/scanner',    label: 'Options Screener', icon: ScannerIcon       },
+  { href: '/stocks',     label: 'Stock Scanner',    icon: StockScannerIcon  },
+  { href: '/news',       label: 'News',             icon: NewsIcon          },
+  { href: '/community',  label: 'Community',        icon: CommunityIcon     },
+  { href: '/technical',  label: 'Technical',        icon: TechnicalIcon     },
+  { href: '/watchlist',  label: 'Watchlist',        icon: WatchlistIcon     },
 ];
 
 function ScannerIcon() {
@@ -24,6 +25,15 @@ function ScannerIcon() {
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+
+function StockScannerIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18M3 9h18M9 15l3-3 3 3 3-4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 21h14a1 1 0 001-1v-5H4v5a1 1 0 001 1z" />
     </svg>
   );
 }
