@@ -79,11 +79,13 @@ async function handleGetTrades(
   }
 
   res.setHeader('X-Total-Count', count || 0);
+  res.setHeader('X-Total-Count', count || 0);
   return res.status(200).json({
     success: true,
     data: (data as any[])?.map((row) => {
-      // Extract earliest expiry date from option legs, if any
-      const legs: any[] = row.option_trades?.option_legs ?? [];
+      // Supabase returns one-to-many joins as arrays even with unique FK
+      const optTrade = Array.isArray(row.option_trades) ? row.option_trades[0] : row.option_trades;
+      const legs: any[] = optTrade?.option_legs ?? [];
       const expiryDate = legs.length
         ? legs.map((l: any) => l.expiration_date).sort()[0]
         : undefined;
