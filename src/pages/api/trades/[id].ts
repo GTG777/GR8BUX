@@ -72,9 +72,29 @@ async function handleGetTrade(
     });
   }
 
+  // Fetch type-specific data
+  let optionData = null;
+  let stockData = null;
+
+  if (data.type === 'option') {
+    const { data: optTrade } = await supabase
+      .from('option_trades')
+      .select('*, option_legs(*)')
+      .eq('trade_id', id)
+      .single();
+    if (optTrade) optionData = optTrade;
+  } else if (data.type === 'stock') {
+    const { data: stTrade } = await supabase
+      .from('stock_trades')
+      .select('*')
+      .eq('trade_id', id)
+      .single();
+    if (stTrade) stockData = stTrade;
+  }
+
   return res.status(200).json({
     success: true,
-    data: convertTradeFromDatabase(data),
+    data: convertTradeFromDatabase({ ...data, optionData, stockData }),
   });
 }
 

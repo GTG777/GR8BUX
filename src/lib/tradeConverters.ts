@@ -19,5 +19,30 @@ export function convertTradeFromDatabase(dbTrade: any): Trade {
     status: dbTrade.status,
     createdAt: dbTrade.created_at,
     updatedAt: dbTrade.updated_at,
+    optionData: dbTrade.optionData
+      ? {
+          strategy: dbTrade.optionData.strategy,
+          totalPremium: dbTrade.optionData.total_premium,
+          totalCost: dbTrade.optionData.total_cost,
+          legs: (dbTrade.optionData.option_legs || []).map((leg: any) => ({
+            id: leg.id,
+            symbol: leg.symbol,
+            type: leg.type,
+            strikePrice: leg.strike_price,
+            expirationDate: leg.expiration_date,
+            direction: leg.direction,
+            quantity: leg.quantity,
+            entryPrice: leg.entry_price,
+            exitPrice: leg.exit_price || undefined,
+          })),
+        }
+      : undefined,
+    stockData: dbTrade.stockData
+      ? {
+          quantity: dbTrade.stockData.quantity,
+          entryPrice: dbTrade.stockData.entry_price,
+          exitPrice: dbTrade.stockData.exit_price || undefined,
+        }
+      : undefined,
   };
 }
