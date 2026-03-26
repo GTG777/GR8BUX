@@ -105,32 +105,55 @@ async function handleUpdateTrade(
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
   const supabase = getSupabaseClient()!;
-  const updates = req.body;
+  const { stockData, legUpdates, ...rest } = req.body;
 
   // Don't allow updating id or timestamps
-  delete updates.id;
-  delete updates.createdAt;
-  delete updates.updatedAt;
+  delete rest.id;
+  delete rest.createdAt;
+  delete rest.updatedAt;
 
+  // Update the base trades table
   const { data, error } = await supabase
     .from('trades')
-    .update(updates)
+    .update(rest)
     .eq('id', id)
     .eq('user_id', userId)
     .select()
     .single();
 
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: error.message,
-    });
+    return res.status(400).json({ success: false, error: error.message });
   }
 
-  return res.status(200).json({
-    success: true,
-    data: convertTradeFromDatabase(data),
-  });
+  // Update stock_trades if stockData provided
+  if (stockData) {
+    await supabase
+      .from('stock_trades')
+      .update({
+        quantity: stockData.quantity,
+        entry_price: stockData.entryPrice,
+        exit_price: stockData.exitPrice ?? null,
+      })
+      .eq('trade_id', id);
+  }
+
+  // Update individual option legs if provided
+  if (Array.isArray(legUpdates)) {
+    for (const leg of legUpdates) {
+      if (!leg.id) continue;
+      await supabase
+        .from('option_legs')
+        .update({
+          exit_price: leg.exitPrice ?? null,
+          quantity: leg.quantity,
+          entry_price: leg.entryPrice,
+        })
+        .eq('id', leg.id);
+    }
+  }
+
+  // Re-fetch with all related data so caller gets fresh optionData/stockData
+  return handleGetTrade(id, userId, res);
 }
 
 async function handleDeleteTrade(
