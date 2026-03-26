@@ -6,6 +6,7 @@ export interface Trade {
   symbol: string;
   entryDate: string;
   exitDate?: string;
+  expiryDate?: string;  // earliest option leg expiration date
   relatedNews?: string[]; // IDs of news articles
   commission: number;
   pnl?: number; // calculated

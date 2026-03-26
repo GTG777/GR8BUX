@@ -151,6 +151,7 @@ export function TradeList() {
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Symbol</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Entry Date</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Expiry Date</th>
                   <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">P&L</th>
                   <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Tags</th>
@@ -163,6 +164,11 @@ export function TradeList() {
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">{trade.symbol}</td>
                     <td className="px-6 py-4 text-sm text-gray-600 capitalize">{trade.type}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{formatDate(trade.entryDate)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {trade.expiryDate
+                        ? formatDate(trade.expiryDate)
+                        : <span className="text-gray-400">—</span>}
+                    </td>
                     <td className={`px-6 py-4 text-sm text-right ${getWinLossColor(trade.pnl)}`}>
                       {formatCurrency(trade.pnl)}
                     </td>

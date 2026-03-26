@@ -11,6 +11,7 @@ export function convertTradeFromDatabase(dbTrade: any): Trade {
     symbol: dbTrade.symbol,
     entryDate: dbTrade.entry_date,
     exitDate: dbTrade.exit_date || undefined,
+    expiryDate: dbTrade.expiryDate || undefined,
     commission: dbTrade.commission,
     pnl: dbTrade.pnl,
     notes: dbTrade.notes,

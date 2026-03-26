@@ -52,7 +52,7 @@ async function handleGetTrades(
 
   let query = supabase
     .from('trades')
-    .select('*')
+    .select('*, option_trades(strategy, option_legs(expiration_date))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -81,7 +81,14 @@ async function handleGetTrades(
   res.setHeader('X-Total-Count', count || 0);
   return res.status(200).json({
     success: true,
-    data: (data as any[])?.map(convertTradeFromDatabase) || [],
+    data: (data as any[])?.map((row) => {
+      // Extract earliest expiry date from option legs, if any
+      const legs: any[] = row.option_trades?.option_legs ?? [];
+      const expiryDate = legs.length
+        ? legs.map((l: any) => l.expiration_date).sort()[0]
+        : undefined;
+      return convertTradeFromDatabase({ ...row, expiryDate });
+    }) || [],
   });
 }
 
