@@ -16,14 +16,29 @@ interface TradeFormData {
   quantity?: number;
   entryPrice?: number;
   exitPrice?: number;
-  // For option trades
+  // For option trades (summary)
   strategy?: string;
-  totalPremium?: number;
-  totalCost?: number;
-  expirationDate?: string;
-  strikePrice?: number;
-  optionType?: 'call' | 'put';
 }
+
+interface LegInput {
+  direction: 'long' | 'short';
+  type: 'call' | 'put';
+  strikePrice: string;
+  expirationDate: string;
+  quantity: string;
+  entryPrice: string;
+  exitPrice: string;
+}
+
+const defaultLeg = (): LegInput => ({
+  direction: 'long',
+  type: 'call',
+  strikePrice: '',
+  expirationDate: '',
+  quantity: '1',
+  entryPrice: '',
+  exitPrice: '',
+});
 
 export function TradeForm() {
   const { createTrade, isLoading, error, clearError } = useTradeStore();
@@ -38,7 +53,16 @@ export function TradeForm() {
   });
 
   const [successMessage, setSuccessMessage] = useState('');
+  const [legs, setLegs] = useState<LegInput[]>([defaultLeg()]);
   const tradeType = watch('type');
+
+  const addLeg = () => setLegs((prev) => [...prev, defaultLeg()]);
+  const removeLeg = (index: number) =>
+    setLegs((prev) => prev.filter((_, i) => i !== index));
+  const updateLeg = (index: number, field: keyof LegInput, value: string) =>
+    setLegs((prev) =>
+      prev.map((leg, i) => (i === index ? { ...leg, [field]: value } : leg))
+    );
 
   const onSubmit = async (data: TradeFormData) => {
     clearError();
@@ -65,15 +89,29 @@ export function TradeForm() {
           exitPrice: data.exitPrice ? parseFloat(data.exitPrice.toString()) : null,
         };
       } else {
-        // Option trade
+        // Option trade with multi-leg support
+        const parsedLegs = legs.map((leg) => ({
+          direction: leg.direction,
+          type: leg.type,
+          strikePrice: parseFloat(leg.strikePrice) || 0,
+          expirationDate: leg.expirationDate,
+          quantity: parseFloat(leg.quantity) || 1,
+          entryPrice: parseFloat(leg.entryPrice) || 0,
+          exitPrice: leg.exitPrice ? parseFloat(leg.exitPrice) : null,
+        }));
+
+        // Net cost: long legs pay premium (+), short legs receive premium (-)
+        const netCost = parsedLegs.reduce((sum, leg) => {
+          const legValue = leg.entryPrice * leg.quantity * 100;
+          return sum + (leg.direction === 'long' ? legValue : -legValue);
+        }, 0);
+
         tradePayload = {
           ...basePayload,
           strategy: data.strategy || 'single',
-          strikePrice: parseFloat(data.strikePrice?.toString() || '0'),
-          optionType: data.optionType || 'call',
-          expirationDate: data.expirationDate,
-          totalPremium: parseFloat(data.totalPremium?.toString() || '0'),
-          totalCost: data.totalCost ? parseFloat(data.totalCost.toString()) : null,
+          totalPremium: Math.abs(netCost),
+          totalCost: netCost,
+          legs: parsedLegs,
         };
       }
 
@@ -81,6 +119,7 @@ export function TradeForm() {
       if (result) {
         setSuccessMessage(`Trade created successfully (${data.symbol})`);
         reset();
+        setLegs([defaultLeg()]);
         setTimeout(() => setSuccessMessage(''), 3000);
       }
     } catch (err) {
@@ -182,61 +221,144 @@ export function TradeForm() {
           </div>
         )}
 
-        {/* Option-Specific Fields */}
+        {/* Option-Specific Fields - Multi-Leg */}
         {tradeType === 'option' && (
           <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-            <h3 className="font-semibold text-gray-900 mb-3">Option Details</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Option Type *</label>
-                <select
-                  {...register('optionType')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="call">Call</option>
-                  <option value="put">Put</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
-                <input
-                  type="text"
-                  {...register('strategy')}
-                  placeholder="Single, Spread, etc."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Option Legs</h3>
+              <button
+                type="button"
+                onClick={addLeg}
+                className="text-sm px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
+              >
+                + Add Leg
+              </button>
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Strike Price *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('strikePrice', { required: 'Strike price is required' })}
-                  placeholder="150.00"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Expiration Date *</label>
-                <input
-                  type="date"
-                  {...register('expirationDate', { required: 'Expiration date is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Total Premium *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('totalPremium', { required: 'Premium is required' })}
-                  placeholder="350.00"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
+              <input
+                type="text"
+                {...register('strategy')}
+                placeholder="Call Debit Spread, Bull Put Spread, Iron Condor…"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
+
+            {legs.map((leg, index) => (
+              <div key={index} className="p-3 bg-white rounded-lg border border-purple-200">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-semibold text-gray-700">Leg {index + 1}</span>
+                  {legs.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeLeg(index)}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {/* Direction + Call/Put toggles */}
+                <div className="flex gap-3 mb-3">
+                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                    {(['long', 'short'] as const).map((dir) => (
+                      <button
+                        key={dir}
+                        type="button"
+                        onClick={() => updateLeg(index, 'direction', dir)}
+                        className={`px-4 py-1.5 text-sm font-medium capitalize transition ${
+                          leg.direction === dir
+                            ? dir === 'long'
+                              ? 'bg-green-500 text-white'
+                              : 'bg-red-500 text-white'
+                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {dir}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                    {(['call', 'put'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => updateLeg(index, 'type', t)}
+                        className={`px-4 py-1.5 text-sm font-medium capitalize transition ${
+                          leg.type === t
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Strike *</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={leg.strikePrice}
+                      onChange={(e) => updateLeg(index, 'strikePrice', e.target.value)}
+                      placeholder="150"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Expiration *</label>
+                    <input
+                      type="date"
+                      value={leg.expirationDate}
+                      onChange={(e) => updateLeg(index, 'expirationDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Qty (contracts) *</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={leg.quantity}
+                      onChange={(e) => updateLeg(index, 'quantity', e.target.value)}
+                      placeholder="1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Entry Premium (per share) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={leg.entryPrice}
+                      onChange={(e) => updateLeg(index, 'entryPrice', e.target.value)}
+                      placeholder="3.50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Exit Premium (per share)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={leg.exitPrice}
+                      onChange={(e) => updateLeg(index, 'exitPrice', e.target.value)}
+                      placeholder="5.00"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

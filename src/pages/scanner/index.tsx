@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
+import { useTradeStore } from '@/store/tradeStore';
 import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/chain';
 
 /* ── Types ──────────────────────────────────────────────────────── */
@@ -365,6 +367,58 @@ function StrikeLabel({ r }: { r: Spread }) {
 
 /* ── Top Opportunity Card ───────────────────────────────────────── */
 function TopCard({ result, symbol, rank }: { result: Spread; symbol: string; rank: string }) {
+  const { createTrade } = useTradeStore();
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  const addToJournal = async () => {
+    setSaving(true);
+    setSaveError('');
+
+    // Build legs from spread data
+    const legs: { direction: 'long' | 'short'; type: 'call' | 'put'; strikePrice: number; expirationDate: string; quantity: number; entryPrice: number }[] = [];
+    if (result.shortPut) legs.push({ direction: 'short', type: 'put',  strikePrice: result.shortPut.strike,  expirationDate: result.expirationStr, quantity: 1, entryPrice: result.shortPut.mid  });
+    if (result.longPut)  legs.push({ direction: 'long',  type: 'put',  strikePrice: result.longPut.strike,   expirationDate: result.expirationStr, quantity: 1, entryPrice: result.longPut.mid   });
+    if (result.shortCall)legs.push({ direction: 'short', type: 'call', strikePrice: result.shortCall.strike, expirationDate: result.expirationStr, quantity: 1, entryPrice: result.shortCall.mid });
+    if (result.longCall) legs.push({ direction: 'long',  type: 'call', strikePrice: result.longCall.strike,  expirationDate: result.expirationStr, quantity: 1, entryPrice: result.longCall.mid  });
+
+    const netCost = legs.reduce((sum, leg) => {
+      const val = leg.entryPrice * leg.quantity * 100;
+      return sum + (leg.direction === 'long' ? val : -val);
+    }, 0);
+
+    const strategyLabel: Record<StratType, string> = {
+      'bull-put': 'Bull Put Spread',
+      'bear-call': 'Bear Call Spread',
+      'iron-condor': 'Iron Condor',
+    };
+
+    const payload = {
+      type: 'option' as const,
+      symbol,
+      entryDate: new Date().toISOString(),
+      commission: 0,
+      notes: '',
+      planNotes: `${strategyLabel[result.type]} — PoP ${result.pop.toFixed(1)}% · EV $${result.ev.toFixed(0)} · Max loss $${result.maxLossPerContract.toFixed(0)}`,
+      tags: [result.type, 'screener'],
+      strategy: strategyLabel[result.type],
+      totalPremium: Math.abs(netCost),
+      totalCost: netCost,
+      legs,
+    };
+
+    const trade = await createTrade(payload);
+    setSaving(false);
+    if (trade) {
+      setSaved(true);
+      setTimeout(() => router.push('/trades'), 1200);
+    } else {
+      setSaveError('Failed to save — are you signed in?');
+    }
+  };
+
   const bg: Record<StratType, string> = {
     'bull-put':    'border-green-200 bg-green-50',
     'bear-call':   'border-red-200 bg-red-50',
@@ -449,6 +503,27 @@ function TopCard({ result, symbol, rank }: { result: Spread; symbol: string; ran
             <p className="text-sm font-bold text-gray-800">{value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Add to Journal */}
+      <div className="mt-4">
+        {saveError && (
+          <p className="text-xs text-red-500 mb-2 text-center">{saveError}</p>
+        )}
+        <button
+          type="button"
+          onClick={addToJournal}
+          disabled={saving || saved}
+          className={`w-full py-2 px-4 rounded-lg text-sm font-semibold transition ${
+            saved
+              ? 'bg-green-500 text-white cursor-default'
+              : saving
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+          }`}
+        >
+          {saved ? '✓ Added to Journal — redirecting…' : saving ? 'Saving…' : '📒 Add to Journal'}
+        </button>
       </div>
     </div>
   );

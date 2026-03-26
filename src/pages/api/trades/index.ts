@@ -168,14 +168,16 @@ async function handleCreateTrade(
         });
       }
     } else if (trade.type === 'option') {
-      const { error: optionError } = await supabase
+      const { data: optionTradeData, error: optionError } = await supabase
         .from('option_trades')
         .insert([{
           trade_id: tradeId,
           strategy: trade.strategy || null,
           total_premium: trade.totalPremium || null,
           total_cost: trade.totalCost || null,
-        }]);
+        }])
+        .select('id')
+        .single();
 
       if (optionError) {
         console.error('[Create Option Trade Error]', optionError);
@@ -183,6 +185,30 @@ async function handleCreateTrade(
           success: false,
           error: optionError.message,
         });
+      }
+
+      // Insert individual option legs (supports spreads, condors, etc.)
+      if (optionTradeData && Array.isArray(trade.legs) && trade.legs.length > 0) {
+        const legsToInsert = trade.legs.map((leg: any) => ({
+          option_trade_id: optionTradeData.id,
+          symbol: trade.symbol,
+          type: leg.type,
+          strike_price: leg.strikePrice,
+          expiration_date: leg.expirationDate,
+          direction: leg.direction,
+          quantity: leg.quantity,
+          entry_price: leg.entryPrice,
+          exit_price: leg.exitPrice || null,
+        }));
+
+        const { error: legsError } = await supabase
+          .from('option_legs')
+          .insert(legsToInsert);
+
+        if (legsError) {
+          console.error('[Create Option Legs Error]', legsError);
+          // Non-fatal: base trade is saved; log and continue
+        }
       }
     }
 
