@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase';
 
 interface User {
   id: string;
@@ -46,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (!supabase) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
     }
+    const serviceSupabase = getSupabaseServiceRoleClient() || supabase;
 
     // Verify token with Supabase
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
@@ -57,8 +58,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       });
     }
 
-    // Check if user is admin
-    const { data: userData, error: userError } = await supabase
+    // Check if user is admin (service role bypasses RLS)
+    const { data: userData, error: userError } = await serviceSupabase
       .from('users')
       .select('role')
       .eq('id', authData.user.id)
@@ -71,8 +72,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       });
     }
 
-    // Get all users
-    const { data: users, error: usersError } = await supabase
+    // Get all users (service role bypasses RLS)
+    const { data: users, error: usersError } = await serviceSupabase
       .from('users')
       .select('*')
       .order('created_at', { ascending: false });

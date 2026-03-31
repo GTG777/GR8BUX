@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { AuthUser } from '@/types';
 
 interface ApiResponse {
@@ -54,6 +54,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (!supabase) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
     }
+    // Use service role for all writes so they work after RLS is enabled
+    const serviceSupabase = getSupabaseServiceRoleClient() || supabase;
 
     // Verify token with Supabase
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
@@ -65,8 +67,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       });
     }
 
-    // Check if requesting user is admin
-    const { data: requesterData, error: requesterError } = await supabase
+    // Check if requesting user is admin (service role bypasses RLS)
+    const { data: requesterData, error: requesterError } = await serviceSupabase
       .from('users')
       .select('role')
       .eq('id', authData.user.id)
@@ -79,8 +81,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       });
     }
 
-    // Update user role
-    const { data: updatedUser, error: updateError } = await supabase
+    // Update user role (service role bypasses RLS)
+    const { data: updatedUser, error: updateError } = await serviceSupabase
       .from('users')
       .update({ role })
       .eq('id', id)
@@ -95,7 +97,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
 
     // Log the role change
-    await supabase.from('auth_logs').insert({
+    await serviceSupabase.from('auth_logs').insert({
       user_id: id,
       email: updatedUser.email,
       event_type: 'role_changed',

@@ -47,7 +47,7 @@ async function handleGetTrades(
   res: NextApiResponse<ApiResponse<Trade[]>>,
   userId: string
 ) {
-  const supabase = getSupabaseClient()!;
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseClient()!;
   const { symbol, status, limit = 50, offset = 0 } = req.query;
 
   let query = supabase

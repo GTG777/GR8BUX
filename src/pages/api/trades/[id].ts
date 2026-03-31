@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { Trade, ApiResponse } from '@/types';
 import { convertTradeFromDatabase } from '@/lib/tradeConverters';
 import { requireAuth } from '@/lib/apiAuth';
@@ -57,7 +57,7 @@ async function handleGetTrade(
   userId: string,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
-  const supabase = getSupabaseClient()!;
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseClient()!;
   const { data, error } = await supabase
     .from('trades')
     .select('*')
@@ -104,7 +104,7 @@ async function handleUpdateTrade(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
-  const supabase = getSupabaseClient()!;
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseClient()!;
   const { stockData, legUpdates, ...rest } = req.body;
 
   // Don't allow updating id or timestamps
@@ -161,7 +161,7 @@ async function handleDeleteTrade(
   userId: string,
   res: NextApiResponse<ApiResponse<Trade>>
 ) {
-  const supabase = getSupabaseClient()!;
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseClient()!;
   const { error } = await supabase.from('trades').delete().eq('id', id).eq('user_id', userId);
 
   if (error) {

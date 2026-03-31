@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { Trade, TradeAnalytics, ApiResponse } from '@/types';
 import { convertTradeFromDatabase } from '@/lib/tradeConverters';
 import { requireAuth } from '@/lib/apiAuth';
@@ -39,7 +39,7 @@ export default async function handler(
   try {
     const { symbol, startDate, endDate } = req.query;
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServiceRoleClient() || getSupabaseClient();
     if (!supabase) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
     }
