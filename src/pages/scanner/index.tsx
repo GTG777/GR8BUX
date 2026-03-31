@@ -106,6 +106,7 @@ function buildBullPuts(
 
     for (const shortP of sorted) {
       if (shortP.strike >= spot) continue;
+      if (shortP.strike < spot * 0.5) continue; // filter stale/pre-split strikes
       if (shortP.mid <= 0) continue;
       const sigma = shortP.impliedVolatility || 0.20;
       const pop = probAbove(spot, shortP.strike, T, sigma, r) * 100;
@@ -160,6 +161,7 @@ function buildBearCalls(
 
     for (const shortC of sorted) {
       if (shortC.strike <= spot) continue;
+      if (shortC.strike > spot * 1.5) continue; // filter stale/pre-split strikes
       if (shortC.mid <= 0) continue;
       const sigma = shortC.impliedVolatility || 0.20;
       const pop = probBelow(spot, shortC.strike, T, sigma, r) * 100;
