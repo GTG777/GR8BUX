@@ -1,7 +1,9 @@
 /**
  * Technical Setups Detection Service
  * Identifies coiling stocks, consolidation patterns, and other technical setups
+ * Includes Smart Money Concepts (SMC): Order Blocks, FVGs, BOS/CHoCH, Liquidity
  */
+import { OrderBlock, FairValueGap, StructureBreak, LiquidityLevel, SMCAnalysis } from '@/types';
 
 export interface PriceData {
   date: string;
@@ -280,6 +282,207 @@ class TechnicalService {
     const rsi = 100 - 100 / (1 + rs);
 
     return rsi;
+  }
+
+  // ─── Smart Money Concepts ────────────────────────────────────────────────────
+
+  /**
+   * Detect Order Blocks (last candle before a significant impulse move)
+   * Bullish OB: bearish candle followed by strong bullish move
+   * Bearish OB: bullish candle followed by strong bearish move
+   */
+  detectOrderBlocks(prices: PriceData[]): OrderBlock[] {
+    if (prices.length < 5) return [];
+
+    const orderBlocks: OrderBlock[] = [];
+    const impulseThreshold = 0.005; // 0.5% move to qualify as impulse
+    const lastPrice = prices[prices.length - 1].close;
+
+    for (let i = 1; i < prices.length - 2; i++) {
+      const candle = prices[i];
+      const next = prices[i + 1];
+      const nextNext = prices[i + 2];
+
+      // Bullish OB: bearish candle (close < open) before upward impulse
+      const bullishImpulse = (nextNext.close - next.open) / next.open;
+      if (candle.close < candle.open && bullishImpulse > impulseThreshold && next.close > candle.high) {
+        const mitigated = lastPrice >= candle.low && lastPrice <= candle.high;
+        orderBlocks.push({ type: 'bullish', high: candle.high, low: candle.low, date: candle.date, mitigated });
+      }
+
+      // Bearish OB: bullish candle (close > open) before downward impulse
+      const bearishImpulse = (next.open - nextNext.close) / next.open;
+      if (candle.close > candle.open && bearishImpulse > impulseThreshold && next.close < candle.low) {
+        const mitigated = lastPrice >= candle.low && lastPrice <= candle.high;
+        orderBlocks.push({ type: 'bearish', high: candle.high, low: candle.low, date: candle.date, mitigated });
+      }
+    }
+
+    // Return most recent 5 unmitigated OBs
+    return orderBlocks.filter((ob) => !ob.mitigated).slice(-5);
+  }
+
+  /**
+   * Detect Fair Value Gaps (3-candle imbalance)
+   * Bullish FVG: prev.high < next.low (gap up)
+   * Bearish FVG: prev.low > next.high (gap down)
+   */
+  detectFairValueGaps(prices: PriceData[]): FairValueGap[] {
+    if (prices.length < 3) return [];
+
+    const fvgs: FairValueGap[] = [];
+    const lastPrice = prices[prices.length - 1].close;
+
+    for (let i = 1; i < prices.length - 1; i++) {
+      const prev = prices[i - 1];
+      const curr = prices[i];
+      const next = prices[i + 1];
+
+      // Bullish FVG: gap between prev candle high and next candle low
+      if (prev.high < next.low) {
+        const top = next.low;
+        const bottom = prev.high;
+        const filled = lastPrice <= top && lastPrice >= bottom;
+        fvgs.push({ top, bottom, date: curr.date, filled, direction: 'bullish' });
+      }
+
+      // Bearish FVG: gap between next candle high and prev candle low
+      if (prev.low > next.high) {
+        const top = prev.low;
+        const bottom = next.high;
+        const filled = lastPrice <= top && lastPrice >= bottom;
+        fvgs.push({ top, bottom, date: curr.date, filled, direction: 'bearish' });
+      }
+    }
+
+    // Return most recent 5 unfilled FVGs
+    return fvgs.filter((g) => !g.filled).slice(-5);
+  }
+
+  /**
+   * Detect Break of Structure (BOS) and Change of Character (CHoCH)
+   * BOS: continuation — price breaks in direction of prior trend
+   * CHoCH: reversal — price breaks against prior trend
+   */
+  detectStructureBreaks(prices: PriceData[]): StructureBreak[] {
+    if (prices.length < 10) return [];
+
+    const breaks: StructureBreak[] = [];
+    const lookback = 5;
+
+    for (let i = lookback; i < prices.length; i++) {
+      const window = prices.slice(i - lookback, i);
+      const prevHigh = Math.max(...window.map((p) => p.high));
+      const prevLow = Math.min(...window.map((p) => p.low));
+      const curr = prices[i];
+
+      // Determine prior trend direction from window
+      const priorBullish = window[window.length - 1].close > window[0].close;
+
+      if (priorBullish) {
+        if (curr.high > prevHigh) {
+          breaks.push({ type: 'BOS', direction: 'bullish', price: prevHigh, date: curr.date });
+        } else if (curr.low < prevLow) {
+          breaks.push({ type: 'CHoCH', direction: 'bearish', price: prevLow, date: curr.date });
+        }
+      } else {
+        if (curr.low < prevLow) {
+          breaks.push({ type: 'BOS', direction: 'bearish', price: prevLow, date: curr.date });
+        } else if (curr.high > prevHigh) {
+          breaks.push({ type: 'CHoCH', direction: 'bullish', price: prevHigh, date: curr.date });
+        }
+      }
+    }
+
+    return breaks.slice(-5);
+  }
+
+  /**
+   * Detect Liquidity Levels (equal highs = buy-side, equal lows = sell-side)
+   * These are stop-loss clusters that smart money targets before reversing
+   */
+  detectLiquidityLevels(prices: PriceData[]): LiquidityLevel[] {
+    if (prices.length < 10) return [];
+
+    const levels: LiquidityLevel[] = [];
+    const tolerance = 0.002; // 0.2% tolerance for "equal" levels
+    const lastPrice = prices[prices.length - 1].close;
+    const recent = prices.slice(-30);
+
+    for (let i = 0; i < recent.length - 1; i++) {
+      for (let j = i + 2; j < recent.length; j++) {
+        // Equal highs → buy-side liquidity sits above (shorts' stops)
+        const highDiff = Math.abs(recent[i].high - recent[j].high) / recent[i].high;
+        if (highDiff < tolerance) {
+          const level = (recent[i].high + recent[j].high) / 2;
+          levels.push({ price: level, type: 'buy-side', swept: lastPrice > level, date: recent[j].date });
+          break;
+        }
+
+        // Equal lows → sell-side liquidity sits below (longs' stops)
+        const lowDiff = Math.abs(recent[i].low - recent[j].low) / recent[i].low;
+        if (lowDiff < tolerance) {
+          const level = (recent[i].low + recent[j].low) / 2;
+          levels.push({ price: level, type: 'sell-side', swept: lastPrice < level, date: recent[j].date });
+          break;
+        }
+      }
+    }
+
+    // Deduplicate by price bucket and return unswept levels only
+    const seen = new Set<number>();
+    return levels
+      .filter((l) => {
+        if (l.swept) return false;
+        const bucket = Math.round(l.price * 10) / 10;
+        if (seen.has(bucket)) return false;
+        seen.add(bucket);
+        return true;
+      })
+      .slice(0, 6);
+  }
+
+  /**
+   * Full SMC Analysis — runs all four SMC detectors and determines
+   * overall market bias (trend + premium/discount positioning)
+   */
+  analyzeSMC(symbol: string, prices: PriceData[]): SMCAnalysis {
+    const orderBlocks = this.detectOrderBlocks(prices);
+    const fairValueGaps = this.detectFairValueGaps(prices);
+    const structureBreaks = this.detectStructureBreaks(prices);
+    const liquidityLevels = this.detectLiquidityLevels(prices);
+
+    const lastPrice = prices[prices.length - 1].close;
+
+    // Overall trend from recent structure breaks
+    const recentBreaks = structureBreaks.slice(-4);
+    const bullCount = recentBreaks.filter((b) => b.direction === 'bullish').length;
+    const bearCount = recentBreaks.filter((b) => b.direction === 'bearish').length;
+    const trend: 'bullish' | 'bearish' | 'ranging' =
+      bullCount > bearCount ? 'bullish' : bearCount > bullCount ? 'bearish' : 'ranging';
+
+    // Premium / Discount based on 50-candle range
+    const lookback = prices.slice(-50);
+    const rangeHigh = Math.max(...lookback.map((p) => p.high));
+    const rangeLow = Math.min(...lookback.map((p) => p.low));
+    const equilibrium = (rangeHigh + rangeLow) / 2;
+
+    const premiumDiscount: 'premium' | 'discount' | 'equilibrium' =
+      lastPrice > equilibrium * 1.003 ? 'premium' : lastPrice < equilibrium * 0.997 ? 'discount' : 'equilibrium';
+
+    return {
+      symbol,
+      orderBlocks,
+      fairValueGaps,
+      structureBreaks,
+      liquidityLevels,
+      trend,
+      premiumDiscount,
+      currentPrice: lastPrice,
+      rangeHigh,
+      rangeLow,
+      equilibrium,
+    };
   }
 }
 

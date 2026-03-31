@@ -2,11 +2,12 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import technicalService from '@/lib/technicalService';
 
 /**
- * GET /api/technical/setups?symbol=AAPL&prices=[...]
+ * POST /api/technical/setups
+ * Body: { symbol: string, prices: PriceData[] }
  * Analyzes price data for technical setups (coiling, consolidation, etc)
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  if (req.method !== 'POST') {
     return res.status(405).json({
       success: false,
       error: 'Method not allowed',
@@ -14,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { symbol, prices: pricesParam } = req.method === 'GET' ? req.query : req.body;
+    const { symbol, prices: pricesParam } = req.body;
 
     if (!symbol || typeof symbol !== 'string') {
       return res.status(400).json({

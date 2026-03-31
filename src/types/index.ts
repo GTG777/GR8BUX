@@ -216,3 +216,48 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
+
+// Smart Money Concepts (SMC) Types
+export interface OrderBlock {
+  type: 'bullish' | 'bearish';
+  high: number;
+  low: number;
+  date: string;
+  mitigated: boolean;
+}
+
+export interface FairValueGap {
+  top: number;
+  bottom: number;
+  date: string;
+  filled: boolean;
+  direction: 'bullish' | 'bearish';
+}
+
+export interface StructureBreak {
+  type: 'BOS' | 'CHoCH';
+  direction: 'bullish' | 'bearish';
+  price: number;
+  date: string;
+}
+
+export interface LiquidityLevel {
+  price: number;
+  type: 'buy-side' | 'sell-side';
+  swept: boolean;
+  date: string;
+}
+
+export interface SMCAnalysis {
+  symbol: string;
+  orderBlocks: OrderBlock[];
+  fairValueGaps: FairValueGap[];
+  structureBreaks: StructureBreak[];
+  liquidityLevels: LiquidityLevel[];
+  trend: 'bullish' | 'bearish' | 'ranging';
+  premiumDiscount: 'premium' | 'discount' | 'equilibrium';
+  currentPrice: number;
+  rangeHigh: number;
+  rangeLow: number;
+  equilibrium: number;
+}

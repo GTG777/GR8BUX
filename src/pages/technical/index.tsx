@@ -103,6 +103,14 @@ const TechnicalPage: React.FC = () => {
             <li>• <strong>Support/Resistance:</strong> Key turning points</li>
             <li>• <strong>Trends:</strong> Momentum direction</li>
           </ul>
+          <p className="text-sm text-blue-900 font-semibold mt-3 mb-1">🏦 Smart Money Concepts</p>
+          <ul className="text-sm text-blue-800 space-y-1 ml-4">
+            <li>• <strong>Order Blocks:</strong> Institutional supply/demand zones</li>
+            <li>• <strong>Fair Value Gaps:</strong> Price imbalances likely to be filled</li>
+            <li>• <strong>BOS / CHoCH:</strong> Structure breaks and trend reversals</li>
+            <li>• <strong>Liquidity:</strong> Stop-loss clusters smart money targets</li>
+            <li>• <strong>Premium/Discount:</strong> Price position relative to range midpoint</li>
+          </ul>
         </div>
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <h3 className="text-base font-semibold text-yellow-900 mb-3">⚠️ Risk Disclaimer</h3>
