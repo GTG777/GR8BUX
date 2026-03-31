@@ -45,11 +45,9 @@ export const TechnicalSetups: React.FC<TechnicalSetupsProps> = ({ symbol, priceD
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get('/api/technical/setups', {
-        params: {
-          symbol,
-          prices: JSON.stringify(priceData),
-        },
+      const response = await axios.post('/api/technical/setups', {
+        symbol,
+        prices: priceData,
       });
 
       if (response.data.success) {
