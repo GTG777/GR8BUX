@@ -621,7 +621,7 @@ export default function ScannerPage() {
   const [symbol, setSymbol] = useState('SPY');
   const [input, setInput] = useState('SPY');
 
-  const [targetWidths, setTargetWidths] = useState<number[]>([5, 10]);
+  const [targetWidths, setTargetWidths] = useState<number[]>([25]);
   const [minPoP, setMinPoP]             = useState(65);
   const [strategies, setStrategies]     = useState<StratType[]>(['bull-put', 'bear-call', 'iron-condor']);
 
