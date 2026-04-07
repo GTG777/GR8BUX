@@ -13,6 +13,7 @@ import {
 import { Layout } from '@/components/Layout';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { BlackScholesInputs } from '@/lib/greeks';
+import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/chain';
 
 /* ── Types ────────────────────────────────────────────────────────── */
 type StrategyId =
@@ -57,6 +58,14 @@ interface CalcResult {
 }
 
 interface HVData { hv10: number; hv20: number; hv30: number; hv60: number; currentPrice: number }
+
+interface OptionsAnalytics {
+  ivr: number | null;
+  maxPain: number;
+  gex: { strike: number; gex: number }[];
+  totalGex: number;
+  nearestExpiry: string;
+}
 
 /* ── Strategy definitions ─────────────────────────────────────────── */
 const STRATEGIES: Record<StrategyId, StrategyDef> = {
@@ -288,9 +297,65 @@ function buildCalcResult(
   return { legs, netCost, maxProfit, maxLoss, breakevenPrices, pnlChart };
 }
 
+/* ── Options Analytics helpers ──────────────────────────────────── */
+function dteTillOpt(exStr: string): number {
+  const exp = new Date(exStr + 'T16:00:00-05:00');
+  return Math.max(1, Math.round((exp.getTime() - Date.now()) / 86400000));
+}
+function calcIVR(contracts: OptionContract[]): number | null {
+  const ivs = contracts.map((c) => c.impliedVolatility).filter((v) => v > 0);
+  if (ivs.length < 4) return null;
+  const min = Math.min(...ivs); const max = Math.max(...ivs);
+  if (max === min) return null;
+  ivs.sort((a, b) => a - b);
+  const mid = ivs.slice(Math.floor(ivs.length * 0.3), Math.ceil(ivs.length * 0.7));
+  const current = mid.reduce((s, v) => s + v, 0) / mid.length;
+  return parseFloat(((current - min) / (max - min) * 100).toFixed(1));
+}
+function calcMaxPainOpt(contracts: OptionContract[], spot: number): number {
+  const nextExpiry = contracts.reduce((e, c) => (!e || c.expirationStr < e ? c.expirationStr : e), '');
+  const near = contracts.filter((c) => c.expirationStr === nextExpiry);
+  const strikes = [...new Set(near.map((c) => c.strike))].sort((a, b) => a - b);
+  let minPain = Infinity; let maxPainStrike = spot;
+  for (const ts of strikes) {
+    let pain = 0;
+    for (const c of near) {
+      const oi = c.openInterest ?? 0;
+      if (c.type === 'call' && ts > c.strike) pain += (ts - c.strike) * oi * 100;
+      if (c.type === 'put'  && ts < c.strike) pain += (c.strike - ts) * oi * 100;
+    }
+    if (pain < minPain) { minPain = pain; maxPainStrike = ts; }
+  }
+  return maxPainStrike;
+}
+function calcGEXOpt(contracts: OptionContract[], spot: number): { gexByStrike: { strike: number; gex: number }[]; totalGex: number; nearestExpiry: string } {
+  const nextExpiry = contracts.reduce((e, c) => (!e || c.expirationStr < e ? c.expirationStr : e), '');
+  const near = contracts.filter((c) => c.expirationStr === nextExpiry);
+  const T = Math.max(dteTillOpt(nextExpiry) / 365, 1 / 365);
+  const r = 0.045;
+  const byStrike = new Map<number, number>();
+  for (const c of near) {
+    if (c.openInterest <= 0 || c.impliedVolatility <= 0) continue;
+    const sigma = c.impliedVolatility;
+    const d1 = (Math.log(spot / c.strike) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+    const gamma = Math.exp(-0.5 * d1 * d1) / (spot * sigma * Math.sqrt(T) * Math.sqrt(2 * Math.PI));
+    const dollarGamma = gamma * c.openInterest * 100 * spot * spot * 0.01;
+    const sign = c.type === 'call' ? -1 : 1;
+    byStrike.set(c.strike, (byStrike.get(c.strike) ?? 0) + sign * dollarGamma);
+  }
+  const gexByStrike = Array.from(byStrike.entries())
+    .map(([strike, gex]) => ({ strike, gex: parseFloat(gex.toFixed(0)) }))
+    .sort((a, b) => Math.abs(b.gex) - Math.abs(a.gex)).slice(0, 10);
+  const totalGex = parseFloat(Array.from(byStrike.values()).reduce((s, v) => s + v, 0).toFixed(0));
+  return { gexByStrike, totalGex, nearestExpiry: nextExpiry };
+}
+function computeOptionsAnalytics(contracts: OptionContract[], spot: number): OptionsAnalytics {
+  const { gexByStrike, totalGex, nearestExpiry } = calcGEXOpt(contracts, spot);
+  return { ivr: calcIVR(contracts), maxPain: calcMaxPainOpt(contracts, spot), gex: gexByStrike, totalGex, nearestExpiry };
+}
+
 /* ── HV helper ──────────────────────────────────────────────────── */
 function calcHV(closes: number[], period: number): number {
-  if (closes.length < period + 1) return 0;
   const slice = closes.slice(-(period + 1));
   const returns = slice.slice(1).map((c, i) => Math.log(c / slice[i]));
   const mean = returns.reduce((a, b) => a + b) / returns.length;
@@ -336,6 +401,70 @@ function TVWidget({ symbol }: { symbol: string }) {
     containerRef.current.appendChild(script);
   }, [symbol]);
   return <div className="tradingview-widget-container" ref={containerRef} style={{ height: CHART_H, width: '100%' }} />;
+}
+
+/* ── Options Analytics Mini Panel ──────────────────────────────── */
+function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number }) {
+  const ivrColor = oa.ivr === null ? 'text-gray-400'
+    : oa.ivr >= 70 ? 'text-red-600' : oa.ivr >= 40 ? 'text-amber-600' : 'text-green-600';
+  const ivrLabel = oa.ivr === null ? '—'
+    : oa.ivr >= 80 ? 'Elevated — strong edge to sell'
+    : oa.ivr >= 60 ? 'Above avg — good to sell'
+    : oa.ivr >= 40 ? 'Neutral — average premium'
+    : oa.ivr >= 20 ? 'Compressed — thin premium'
+    : 'Very low — consider buying';
+  const maxPainDiff = spot > 0 ? ((oa.maxPain - spot) / spot * 100).toFixed(1) : '0';
+  const gexRegime = oa.totalGex > 0
+    ? { label: '🛡️ +GEX · Vol Dampener', color: 'text-green-700' }
+    : { label: '⚡ −GEX · Vol Expander', color: 'text-red-700' };
+  const absGex = oa.gex.map((g) => Math.abs(g.gex));
+  const maxAbsGex = Math.max(...absGex, 1);
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 mt-3 space-y-3">
+      <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Options Analytics
+        <span className="font-normal text-gray-400 ml-1">· {oa.nearestExpiry}</span>
+      </p>
+      {/* IVR */}
+      <div>
+        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">IV Rank</p>
+        <p className={`text-2xl font-extrabold leading-none ${ivrColor}`}>{oa.ivr?.toFixed(0) ?? '—'}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{ivrLabel}</p>
+        <div className="mt-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full ${oa.ivr !== null && oa.ivr >= 70 ? 'bg-red-500' : oa.ivr !== null && oa.ivr >= 40 ? 'bg-amber-400' : 'bg-green-500'}`}
+            style={{ width: `${Math.min(100, oa.ivr ?? 0)}%` }} />
+        </div>
+      </div>
+      {/* Max Pain */}
+      <div>
+        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Max Pain</p>
+        <p className="text-xl font-bold text-indigo-600">${oa.maxPain}</p>
+        <p className="text-xs text-gray-500">
+          {parseFloat(maxPainDiff) > 0 ? '+' : ''}{maxPainDiff}% from spot ${spot.toFixed(0)}
+        </p>
+      </div>
+      {/* GEX */}
+      <div>
+        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Gamma Exposure</p>
+        <p className={`text-xs font-semibold ${gexRegime.color}`}>{gexRegime.label}</p>
+        <p className="text-xs text-gray-500">Net: {oa.totalGex > 0 ? '+' : ''}{(oa.totalGex / 1e6).toFixed(1)}M</p>
+        <div className="space-y-0.5 mt-1">
+          {oa.gex.slice(0, 5).map((g) => (
+            <div key={g.strike} className="flex items-center gap-1 text-[10px]">
+              <span className="text-gray-400 w-10 text-right">${g.strike}</span>
+              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${g.gex > 0 ? 'bg-green-400' : 'bg-red-400'}`}
+                  style={{ width: `${(Math.abs(g.gex) / maxAbsGex * 100).toFixed(0)}%` }} />
+              </div>
+              <span className={`w-8 ${g.gex > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                {g.gex > 0 ? '+' : ''}{(g.gex / 1e6).toFixed(1)}M
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ── HV Panel ───────────────────────────────────────────────────── */
@@ -767,24 +896,37 @@ export default function OptionsPage() {
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null);
   const [hvData, setHvData] = useState<HVData | null>(null);
   const [hvLoading, setHvLoading] = useState(false);
+  const [optionsAnalytics, setOptionsAnalytics] = useState<OptionsAnalytics | null>(null);
   const [calcError, setCalcError] = useState('');
 
   const strat = STRATEGIES[stratId];
 
-  // Fetch HV when symbol changes
+  // Fetch HV + Options Analytics when symbol changes
   const fetchHV = useCallback(async (sym: string) => {
     setHvLoading(true);
     setHvData(null);
+    setOptionsAnalytics(null);
     try {
-      const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const closes: number[] = json.candles?.map((c: { close: number }) => c.close) ?? [];
-      if (!closes.length) return;
-      const latest = closes[closes.length - 1];
-      setHvData({ hv10: calcHV(closes, 10), hv20: calcHV(closes, 20), hv30: calcHV(closes, 30), hv60: calcHV(closes, 60), currentPrice: latest });
-      // Auto-fill spot price
-      setSpot(latest.toFixed(2));
+      const [candlesRes, chainRes] = await Promise.all([
+        fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`),
+        fetch(`/api/options/chain?symbol=${encodeURIComponent(sym)}`),
+      ]);
+      if (candlesRes.ok) {
+        const json = await candlesRes.json();
+        const closes: number[] = json.candles?.map((c: { close: number }) => c.close) ?? [];
+        if (closes.length) {
+          const latest = closes[closes.length - 1];
+          setHvData({ hv10: calcHV(closes, 10), hv20: calcHV(closes, 20), hv30: calcHV(closes, 30), hv60: calcHV(closes, 60), currentPrice: latest });
+          setSpot(latest.toFixed(2));
+        }
+      }
+      if (chainRes.ok) {
+        const chain: OptionsChainResponse = await chainRes.json();
+        const price = chain.underlyingPrice;
+        if (chain.contracts?.length && price > 0) {
+          setOptionsAnalytics(computeOptionsAnalytics(chain.contracts, price));
+        }
+      }
     } finally {
       setHvLoading(false);
     }
@@ -896,6 +1038,9 @@ export default function OptionsPage() {
               />
               <p className="text-xs text-gray-400 mt-1">Enter the IV shown in your broker to compare with HV above.</p>
             </div>
+            {optionsAnalytics && hvData && (
+              <OptionsAnalyticsMini oa={optionsAnalytics} spot={hvData.currentPrice} />
+            )}
           </div>
 
           {/* Strategy Builder */}

@@ -42,6 +42,14 @@ interface MarketData {
   bias: Bias;
 }
 
+interface OptionsAnalytics {
+  ivr: number | null;          // 0–100 percentile of current IV vs chain IV range
+  maxPain: number;             // strike where total OI dollar loss is minimised
+  gex: { strike: number; gex: number }[];  // top 10 strikes by abs GEX
+  totalGex: number;            // net GEX across all strikes (positive = dampening)
+  nearestExpiry: string;       // expiry used for Max Pain / GEX
+}
+
 /* ── Math: exact Black-Scholes risk-neutral probabilities ─────── */
 function normCDF(x: number): number {
   const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
@@ -88,6 +96,105 @@ function calcEMA(closes: number[], period: number): number {
 function dteTill(exStr: string): number {
   const exp = new Date(exStr + 'T16:00:00-05:00');
   return Math.max(1, Math.round((exp.getTime() - Date.now()) / 86400000));
+}
+
+/* ── Options Analytics helpers ──────────────────────────────────── */
+
+/**
+ * IVR (IV Rank): where current avg IV sits within the IV range seen across
+ * the entire chain snapshot (used as a proxy for the 52-week IV range when
+ * historical data is unavailable).
+ */
+function calcIVR(contracts: OptionContract[]): number | null {
+  const ivs = contracts.map((c) => c.impliedVolatility).filter((v) => v > 0);
+  if (ivs.length < 4) return null;
+  const min = Math.min(...ivs);
+  const max = Math.max(...ivs);
+  if (max === min) return null;
+  // ATM contracts (middle 40% of IV distribution) define "current IV"
+  ivs.sort((a, b) => a - b);
+  const mid = ivs.slice(Math.floor(ivs.length * 0.3), Math.ceil(ivs.length * 0.7));
+  const current = mid.reduce((s, v) => s + v, 0) / mid.length;
+  return parseFloat(((current - min) / (max - min) * 100).toFixed(1));
+}
+
+/**
+ * Max Pain: the strike where the sum of in-the-money OI dollar value (calls
+ * above + puts below) is smallest — i.e. where most outstanding options
+ * expire worthless by dollar notional.
+ */
+function calcMaxPain(contracts: OptionContract[], spot: number): number {
+  const strikes = [...new Set(contracts.map((c) => c.strike))].sort((a, b) => a - b);
+  // Only look at the nearest expiry for max pain relevance
+  const nextExpiry = contracts.reduce((earliest, c) => {
+    return !earliest || c.expirationStr < earliest ? c.expirationStr : earliest;
+  }, '' as string);
+  const nearContracts = contracts.filter((c) => c.expirationStr === nextExpiry);
+
+  let minPain = Infinity;
+  let maxPainStrike = spot;
+
+  for (const testStrike of strikes) {
+    let pain = 0;
+    for (const c of nearContracts) {
+      const oi = c.openInterest ?? 0;
+      if (c.type === 'call' && testStrike > c.strike) pain += (testStrike - c.strike) * oi * 100;
+      if (c.type === 'put'  && testStrike < c.strike) pain += (c.strike - testStrike) * oi * 100;
+    }
+    if (pain < minPain) { minPain = pain; maxPainStrike = testStrike; }
+  }
+  return maxPainStrike;
+}
+
+/**
+ * GEX (Gamma Exposure): dealer gamma exposure per strike.
+ * Dealers are typically short calls and long puts (they sold calls to retail).
+ * GEX = gamma × OI × 100 × spot² × 0.01
+ * Positive GEX → dealers buy dips / sell rips → volatility dampener.
+ * Negative GEX → dealers amplify moves → volatility expander.
+ */
+function calcGEX(
+  contracts: OptionContract[],
+  spot: number,
+  r: number,
+): { gexByStrike: { strike: number; gex: number }[]; totalGex: number; nearestExpiry: string } {
+  const nextExpiry = contracts.reduce((earliest, c) => {
+    return !earliest || c.expirationStr < earliest ? c.expirationStr : earliest;
+  }, '' as string);
+  const nearContracts = contracts.filter((c) => c.expirationStr === nextExpiry);
+  const T = Math.max(dteTill(nextExpiry) / 365, 1 / 365);
+
+  const byStrike = new Map<number, number>();
+  for (const c of nearContracts) {
+    if (c.openInterest <= 0 || c.impliedVolatility <= 0) continue;
+    const sigma = c.impliedVolatility;
+    // Black-Scholes gamma (same for calls and puts)
+    const d1 = (Math.log(spot / c.strike) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+    const gamma = Math.exp(-0.5 * d1 * d1) / (spot * sigma * Math.sqrt(T) * Math.sqrt(2 * Math.PI));
+    const dollarGamma = gamma * c.openInterest * 100 * spot * spot * 0.01;
+    // Calls: dealers short → negative contribution; Puts: dealers long → positive contribution
+    const sign = c.type === 'call' ? -1 : 1;
+    byStrike.set(c.strike, (byStrike.get(c.strike) ?? 0) + sign * dollarGamma);
+  }
+
+  const gexByStrike = Array.from(byStrike.entries())
+    .map(([strike, gex]) => ({ strike, gex: parseFloat(gex.toFixed(0)) }))
+    .sort((a, b) => Math.abs(b.gex) - Math.abs(a.gex))
+    .slice(0, 10);
+
+  const totalGex = parseFloat(
+    Array.from(byStrike.values()).reduce((s, v) => s + v, 0).toFixed(0),
+  );
+
+  return { gexByStrike, totalGex, nearestExpiry: nextExpiry };
+}
+
+function computeOptionsAnalytics(contracts: OptionContract[], spot: number): OptionsAnalytics {
+  const r = 0.045;
+  const ivr = calcIVR(contracts);
+  const maxPain = calcMaxPain(contracts, spot);
+  const { gexByStrike, totalGex, nearestExpiry } = calcGEX(contracts, spot, r);
+  return { ivr, maxPain, gex: gexByStrike, totalGex, nearestExpiry };
 }
 
 /* ── Build spreads from real options chain ──────────────────────── */
@@ -280,7 +387,7 @@ function TVMini({ symbol }: { symbol: string }) {
 }
 
 /* ── Market Bias Bar ───────────────────────────────────────────── */
-function BiasBar({ md, chainIV }: { md: MarketData; chainIV: number }) {
+function BiasBar({ md, chainIV, ivr }: { md: MarketData; chainIV: number; ivr: number | null }) {
   const biasColor = md.bias === 'bullish' ? 'text-green-600' : md.bias === 'bearish' ? 'text-red-600' : 'text-gray-600';
   const biasIcon  = md.bias === 'bullish' ? '▲ Bullish' : md.bias === 'bearish' ? '▼ Bearish' : '→ Neutral';
   const biasTip   = md.bias === 'bullish'
@@ -290,6 +397,18 @@ function BiasBar({ md, chainIV }: { md: MarketData; chainIV: number }) {
     : 'Price ≈ EMA20 — Iron Condors suit rangebound conditions';
   const pctFromEMA = ((md.price - md.ema20) / md.ema20 * 100).toFixed(1);
   const ivPremium  = chainIV > 0 ? ((chainIV - md.hv20) / md.hv20 * 100).toFixed(0) : null;
+
+  const ivrColor = ivr === null ? 'text-gray-400'
+    : ivr >= 70 ? 'text-red-600 font-bold'
+    : ivr >= 50 ? 'text-amber-600 font-semibold'
+    : 'text-green-600 font-semibold';
+  const ivrVerdict = ivr === null ? 'N/A'
+    : ivr >= 80 ? 'Elevated · Strong edge to sell premium'
+    : ivr >= 60 ? 'Above avg · Good time to sell'
+    : ivr >= 40 ? 'Neutral · Average premium available'
+    : ivr >= 20 ? 'Compressed · Thin premium, use caution'
+    : 'Very low · Avoid selling — buy instead';
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4 flex flex-wrap items-center gap-6 text-sm">
       <div>
@@ -311,6 +430,13 @@ function BiasBar({ md, chainIV }: { md: MarketData; chainIV: number }) {
           )}
         </div>
       )}
+      {ivr !== null && (
+        <div>
+          <span className="text-xs text-gray-400 block">IV Rank (IVR)</span>
+          <span className={`text-lg ${ivrColor}`}>{ivr.toFixed(0)}</span>
+          <span className="text-xs text-gray-500 block max-w-[200px]">{ivrVerdict}</span>
+        </div>
+      )}
       <div>
         <span className="text-xs text-gray-400 block">EMA20</span>
         <span className="font-semibold text-gray-700">
@@ -324,6 +450,124 @@ function BiasBar({ md, chainIV }: { md: MarketData; chainIV: number }) {
         <span className="text-xs text-gray-400 block">Market Bias</span>
         <span className={`font-bold text-base ${biasColor}`}>{biasIcon}</span>
         <span className="text-xs text-gray-500 block max-w-xs">{biasTip}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Options Analytics Panel ────────────────────────────────────── */
+function OptionsAnalyticsPanel({ oa, spot, symbol }: { oa: OptionsAnalytics; spot: number; symbol: string }) {
+  const ivrColor = oa.ivr === null ? 'text-gray-400'
+    : oa.ivr >= 70 ? 'text-red-600'
+    : oa.ivr >= 40 ? 'text-amber-600'
+    : 'text-green-600';
+
+  const ivrBarWidth = oa.ivr !== null ? Math.min(100, oa.ivr) : 0;
+  const ivrBarColor = oa.ivr === null ? 'bg-gray-300'
+    : oa.ivr >= 70 ? 'bg-red-500'
+    : oa.ivr >= 40 ? 'bg-amber-400'
+    : 'bg-green-500';
+
+  const maxPainDiff = spot > 0 ? ((oa.maxPain - spot) / spot * 100) : 0;
+  const gexDominantStrike = oa.gex[0];
+  const gexRegime = oa.totalGex > 0
+    ? { label: 'Positive GEX — Volatility Dampener', color: 'text-green-700', bg: 'bg-green-50 border-green-200' }
+    : { label: 'Negative GEX — Volatility Expander', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
+
+  const absGex = oa.gex.map((g) => Math.abs(g.gex));
+  const maxAbsGex = Math.max(...absGex, 1);
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+      <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+        Options Analytics
+        <span className="text-xs font-normal text-gray-400">· {symbol} · nearest expiry: {oa.nearestExpiry}</span>
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+        {/* ── IVR ── */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">IV Rank (IVR)</p>
+          <div className="flex items-end gap-2">
+            <span className={`text-4xl font-extrabold leading-none ${ivrColor}`}>
+              {oa.ivr !== null ? oa.ivr.toFixed(0) : '—'}
+            </span>
+            <span className="text-xs text-gray-400 mb-1">/ 100</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${ivrBarColor}`} style={{ width: `${ivrBarWidth}%` }} />
+          </div>
+          <div className="flex justify-between text-[10px] text-gray-400">
+            <span>Low (sell cautiously)</span>
+            <span>High (sell aggressively)</span>
+          </div>
+          <p className="text-xs text-gray-500 pt-1">
+            {oa.ivr === null
+              ? 'Insufficient data'
+              : oa.ivr >= 80 ? '🔥 IV historically expensive — strong edge to sell spreads and collect inflated premium'
+              : oa.ivr >= 60 ? '✅ Above-average IV — good time to collect premium via credit spreads'
+              : oa.ivr >= 40 ? '⚠️ Neutral IV — average premium; standard sizing recommended'
+              : oa.ivr >= 20 ? '🔵 Compressed IV — thin premium; reduce size or avoid selling'
+              : '❄️ Very low IV — consider buying options instead of selling'}
+          </p>
+        </div>
+
+        {/* ── Max Pain ── */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Max Pain</p>
+          <div className="flex items-end gap-2">
+            <span className="text-4xl font-extrabold leading-none text-indigo-600">${oa.maxPain}</span>
+          </div>
+          <p className="text-xs text-gray-500">
+            Current spot: <span className="font-semibold text-gray-700">${spot.toFixed(2)}</span>
+            <span className={`ml-2 font-semibold ${maxPainDiff > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({maxPainDiff > 0 ? '+' : ''}{maxPainDiff.toFixed(1)}% from spot)
+            </span>
+          </p>
+          <p className="text-xs text-gray-500 pt-1">
+            {Math.abs(maxPainDiff) < 1
+              ? '📌 Spot is at Max Pain — dealers have maximum incentive to pin price here into expiry'
+              : Math.abs(maxPainDiff) < 3
+              ? `📍 Spot is near Max Pain ($${oa.maxPain}) — expect gravity pull toward this level`
+              : `➡️ Max Pain at $${oa.maxPain} — market makers benefit from price moving ${maxPainDiff > 0 ? 'up' : 'down'} toward this strike`}
+          </p>
+        </div>
+
+        {/* ── GEX ── */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Gamma Exposure (GEX)</p>
+          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${gexRegime.bg} ${gexRegime.color}`}>
+            {oa.totalGex > 0 ? '🛡️' : '⚡'} {gexRegime.label}
+          </div>
+          <p className="text-xs text-gray-500">
+            Net GEX: <span className={`font-semibold ${oa.totalGex > 0 ? 'text-green-700' : 'text-red-600'}`}>
+              {oa.totalGex > 0 ? '+' : ''}{(oa.totalGex / 1e6).toFixed(1)}M
+            </span>
+          </p>
+          {gexDominantStrike && (
+            <p className="text-xs text-gray-500">
+              Largest wall: <span className="font-semibold text-gray-700">${gexDominantStrike.strike}</span>
+              <span className="text-gray-400"> ({gexDominantStrike.gex > 0 ? '+' : ''}{(gexDominantStrike.gex / 1e6).toFixed(1)}M)</span>
+            </p>
+          )}
+          {/* Mini bar chart */}
+          <div className="space-y-0.5 pt-1">
+            {oa.gex.slice(0, 6).map((g) => (
+              <div key={g.strike} className="flex items-center gap-1.5 text-[10px]">
+                <span className="text-gray-400 w-12 text-right">${g.strike}</span>
+                <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${g.gex > 0 ? 'bg-green-400' : 'bg-red-400'}`}
+                    style={{ width: `${(Math.abs(g.gex) / maxAbsGex * 100).toFixed(0)}%` }}
+                  />
+                </div>
+                <span className={`w-10 ${g.gex > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {g.gex > 0 ? '+' : ''}{(g.gex / 1e6).toFixed(1)}M
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -368,7 +612,7 @@ function StrikeLabel({ r }: { r: Spread }) {
 }
 
 /* ── Top Opportunity Card ───────────────────────────────────────── */
-function TopCard({ result, symbol, rank }: { result: Spread; symbol: string; rank: string }) {
+function TopCard({ result, symbol, rank, ivr }: { result: Spread; symbol: string; rank: string; ivr: number | null }) {
   const { createTrade } = useTradeStore();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -442,6 +686,14 @@ function TopCard({ result, symbol, rank }: { result: Spread; symbol: string; ran
       ? `Sell the ${result.shortCall?.strike} call, buy the ${result.longCall?.strike} call. Collect $${result.creditPerContract.toFixed(0)} (real bid/ask mid). ${symbol} must stay below $${result.breakevenHigh?.toFixed(2)} by expiry. Max loss: $${result.maxLossPerContract.toFixed(0)}.`
       : `Sell ${result.shortPut?.strike}/${result.longPut?.strike} put spread + ${result.shortCall?.strike}/${result.longCall?.strike} call spread. Collect $${result.creditPerContract.toFixed(0)} total. Profit zone: $${result.breakevenLow?.toFixed(2)} – $${result.breakevenHigh?.toFixed(2)}. Max loss: $${result.maxLossPerContract.toFixed(0)}.`;
 
+  const ivrSentence = ivr !== null
+    ? ivr >= 70
+      ? ` IVR ${ivr.toFixed(0)} — IV is historically expensive, supporting this credit sale.`
+      : ivr >= 40
+      ? ` IVR ${ivr.toFixed(0)} — IV is near average; standard sizing applies.`
+      : ` IVR ${ivr.toFixed(0)} — IV is compressed; premium is thin, consider reducing size.`
+    : '';
+
   const rrRatio = result.maxLossPerContract > 0
     ? `1 : ${(result.maxLossPerContract / result.creditPerContract).toFixed(1)}`
     : '—';
@@ -488,7 +740,7 @@ function TopCard({ result, symbol, rank }: { result: Spread; symbol: string; ran
         </div>
       </div>
 
-      <p className="text-sm text-gray-700 leading-relaxed mb-4">{narrative}</p>
+      <p className="text-sm text-gray-700 leading-relaxed mb-4">{narrative}{ivrSentence}</p>
 
       {/* Metrics grid */}
       <div className="grid grid-cols-3 gap-2 text-center">
@@ -665,12 +917,13 @@ export default function ScannerPage() {
   const [minPoP, setMinPoP]             = useState(65);
   const [strategies, setStrategies]     = useState<StratType[]>(['bull-put', 'bear-call', 'iron-condor']);
 
-  const [marketData, setMarketData]   = useState<MarketData | null>(null);
-  const [scanResults, setScanResults] = useState<Spread[]>([]);
-  const [chainIV, setChainIV]         = useState(0);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState('');
-  const [lastScanned, setLastScanned] = useState('');
+  const [marketData, setMarketData]         = useState<MarketData | null>(null);
+  const [scanResults, setScanResults]       = useState<Spread[]>([]);
+  const [chainIV, setChainIV]               = useState(0);
+  const [optionsAnalytics, setOptionsAnalytics] = useState<OptionsAnalytics | null>(null);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState('');
+  const [lastScanned, setLastScanned]       = useState('');
 
   const [sortKey, setSortKey]       = useState<SortKey>('ev');
   const [sortDir, setSortDir]       = useState<SortDir>('desc');
@@ -727,6 +980,8 @@ export default function ScannerPage() {
       setChainIV(atm.length
         ? parseFloat((atm.reduce((s, c) => s + c.impliedVolatility, 0) / atm.length * 100).toFixed(1))
         : 0);
+
+      setOptionsAnalytics(computeOptionsAnalytics(chain.contracts, price));
 
       const puts  = chain.contracts.filter((c) => c.type === 'put');
       const calls = chain.contracts.filter((c) => c.type === 'call');
@@ -811,7 +1066,12 @@ export default function ScannerPage() {
         </div>
 
         {/* ── Market Context ── */}
-        {marketData && <BiasBar md={marketData} chainIV={chainIV} />}
+        {marketData && <BiasBar md={marketData} chainIV={chainIV} ivr={optionsAnalytics?.ivr ?? null} />}
+
+        {/* ── Options Analytics ── */}
+        {!loading && optionsAnalytics && marketData && (
+          <OptionsAnalyticsPanel oa={optionsAnalytics} spot={marketData.price} symbol={symbol} />
+        )}
 
         {/* ── Screener Controls ── */}
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-5">
@@ -882,9 +1142,9 @@ export default function ScannerPage() {
           <div>
             <h2 className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3">Top Opportunities</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {topBP && <TopCard result={topBP} symbol={symbol} rank="Best Bull Put" />}
-              {topBC && <TopCard result={topBC} symbol={symbol} rank="Best Bear Call" />}
-              {topIC && <TopCard result={topIC} symbol={symbol} rank="Best Iron Condor" />}
+              {topBP && <TopCard result={topBP} symbol={symbol} rank="Best Bull Put" ivr={optionsAnalytics?.ivr ?? null} />}
+              {topBC && <TopCard result={topBC} symbol={symbol} rank="Best Bear Call" ivr={optionsAnalytics?.ivr ?? null} />}
+              {topIC && <TopCard result={topIC} symbol={symbol} rank="Best Iron Condor" ivr={optionsAnalytics?.ivr ?? null} />}
             </div>
           </div>
         )}
