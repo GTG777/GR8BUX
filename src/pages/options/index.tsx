@@ -403,64 +403,106 @@ function TVWidget({ symbol }: { symbol: string }) {
   return <div className="tradingview-widget-container" ref={containerRef} style={{ height: CHART_H, width: '100%' }} />;
 }
 
-/* ── Options Analytics Mini Panel ──────────────────────────────── */
+/* ── Options Analytics Panel (full-width) ───────────────────────── */
 function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number }) {
   const ivrColor = oa.ivr === null ? 'text-gray-400'
     : oa.ivr >= 70 ? 'text-red-600' : oa.ivr >= 40 ? 'text-amber-600' : 'text-green-600';
-  const ivrLabel = oa.ivr === null ? '—'
-    : oa.ivr >= 80 ? 'Elevated — strong edge to sell'
-    : oa.ivr >= 60 ? 'Above avg — good to sell'
-    : oa.ivr >= 40 ? 'Neutral — average premium'
-    : oa.ivr >= 20 ? 'Compressed — thin premium'
-    : 'Very low — consider buying';
-  const maxPainDiff = spot > 0 ? ((oa.maxPain - spot) / spot * 100).toFixed(1) : '0';
+  const ivrBarColor = oa.ivr === null ? 'bg-gray-300'
+    : oa.ivr >= 70 ? 'bg-red-500' : oa.ivr >= 40 ? 'bg-amber-400' : 'bg-green-500';
+  const maxPainDiff = spot > 0 ? ((oa.maxPain - spot) / spot * 100) : 0;
   const gexRegime = oa.totalGex > 0
-    ? { label: '🛡️ +GEX · Vol Dampener', color: 'text-green-700' }
-    : { label: '⚡ −GEX · Vol Expander', color: 'text-red-700' };
+    ? { label: 'Positive GEX — Volatility Dampener', color: 'text-green-700', bg: 'bg-green-50 border-green-200' }
+    : { label: 'Negative GEX — Volatility Expander', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
   const absGex = oa.gex.map((g) => Math.abs(g.gex));
   const maxAbsGex = Math.max(...absGex, 1);
+  const gexDominantStrike = oa.gex[0];
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 mt-3 space-y-3">
-      <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Options Analytics
-        <span className="font-normal text-gray-400 ml-1">· {oa.nearestExpiry}</span>
-      </p>
-      {/* IVR */}
-      <div>
-        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">IV Rank</p>
-        <p className={`text-2xl font-extrabold leading-none ${ivrColor}`}>{oa.ivr?.toFixed(0) ?? '—'}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{ivrLabel}</p>
-        <div className="mt-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full ${oa.ivr !== null && oa.ivr >= 70 ? 'bg-red-500' : oa.ivr !== null && oa.ivr >= 40 ? 'bg-amber-400' : 'bg-green-500'}`}
-            style={{ width: `${Math.min(100, oa.ivr ?? 0)}%` }} />
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+      <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+        Options Analytics
+        <span className="text-xs font-normal text-gray-400">· nearest expiry: {oa.nearestExpiry}</span>
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+        {/* IVR */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">IV Rank (IVR)</p>
+          <div className="flex items-end gap-2">
+            <span className={`text-4xl font-extrabold leading-none ${ivrColor}`}>
+              {oa.ivr !== null ? oa.ivr.toFixed(0) : '—'}
+            </span>
+            <span className="text-xs text-gray-400 mb-1">/ 100</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${ivrBarColor}`} style={{ width: `${Math.min(100, oa.ivr ?? 0)}%` }} />
+          </div>
+          <div className="flex justify-between text-[10px] text-gray-400">
+            <span>Low — sell cautiously</span>
+            <span>High — sell aggressively</span>
+          </div>
+          <p className="text-xs text-gray-500">
+            {oa.ivr === null ? 'Insufficient data'
+              : oa.ivr >= 80 ? '🔥 IV expensive — strong edge to sell spreads'
+              : oa.ivr >= 60 ? '✅ Above-average IV — good time to collect premium'
+              : oa.ivr >= 40 ? '⚠️ Neutral IV — standard sizing recommended'
+              : oa.ivr >= 20 ? '🔵 Compressed IV — reduce size or avoid selling'
+              : '❄️ Very low IV — consider buying options instead'}
+          </p>
         </div>
-      </div>
-      {/* Max Pain */}
-      <div>
-        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Max Pain</p>
-        <p className="text-xl font-bold text-indigo-600">${oa.maxPain}</p>
-        <p className="text-xs text-gray-500">
-          {parseFloat(maxPainDiff) > 0 ? '+' : ''}{maxPainDiff}% from spot ${spot.toFixed(0)}
-        </p>
-      </div>
-      {/* GEX */}
-      <div>
-        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Gamma Exposure</p>
-        <p className={`text-xs font-semibold ${gexRegime.color}`}>{gexRegime.label}</p>
-        <p className="text-xs text-gray-500">Net: {oa.totalGex > 0 ? '+' : ''}{(oa.totalGex / 1e6).toFixed(1)}M</p>
-        <div className="space-y-0.5 mt-1">
-          {oa.gex.slice(0, 5).map((g) => (
-            <div key={g.strike} className="flex items-center gap-1 text-[10px]">
-              <span className="text-gray-400 w-10 text-right">${g.strike}</span>
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${g.gex > 0 ? 'bg-green-400' : 'bg-red-400'}`}
-                  style={{ width: `${(Math.abs(g.gex) / maxAbsGex * 100).toFixed(0)}%` }} />
+
+        {/* Max Pain */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Max Pain</p>
+          <div className="flex items-end gap-2">
+            <span className="text-4xl font-extrabold leading-none text-indigo-600">${oa.maxPain}</span>
+          </div>
+          <p className="text-xs text-gray-500">
+            Current spot: <span className="font-semibold text-gray-700">${spot.toFixed(2)}</span>
+            <span className={`ml-2 font-semibold ${maxPainDiff > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({maxPainDiff > 0 ? '+' : ''}{maxPainDiff.toFixed(1)}% from spot)
+            </span>
+          </p>
+          <p className="text-xs text-gray-500">
+            {Math.abs(maxPainDiff) < 1
+              ? '📌 Spot at Max Pain — dealers pin price here into expiry'
+              : Math.abs(maxPainDiff) < 3
+              ? `📍 Near Max Pain — gravity pull toward $${oa.maxPain}`
+              : `➡️ Market makers benefit from price moving toward $${oa.maxPain}`}
+          </p>
+        </div>
+
+        {/* GEX */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Gamma Exposure (GEX)</p>
+          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${gexRegime.bg} ${gexRegime.color}`}>
+            {oa.totalGex > 0 ? '🛡️' : '⚡'} {gexRegime.label}
+          </div>
+          <p className="text-xs text-gray-500">
+            Net GEX: <span className={`font-semibold ${oa.totalGex > 0 ? 'text-green-700' : 'text-red-600'}`}>
+              {oa.totalGex > 0 ? '+' : ''}{(oa.totalGex / 1e6).toFixed(1)}M
+            </span>
+          </p>
+          {gexDominantStrike && (
+            <p className="text-xs text-gray-500">
+              Largest wall: <span className="font-semibold text-gray-700">${gexDominantStrike.strike}</span>
+              <span className="text-gray-400"> ({gexDominantStrike.gex > 0 ? '+' : ''}{(gexDominantStrike.gex / 1e6).toFixed(1)}M)</span>
+            </p>
+          )}
+          <div className="space-y-0.5 pt-1">
+            {oa.gex.slice(0, 6).map((g) => (
+              <div key={g.strike} className="flex items-center gap-1.5 text-[10px]">
+                <span className="text-gray-400 w-12 text-right">${g.strike}</span>
+                <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${g.gex > 0 ? 'bg-green-400' : 'bg-red-400'}`}
+                    style={{ width: `${(Math.abs(g.gex) / maxAbsGex * 100).toFixed(0)}%` }} />
+                </div>
+                <span className={`w-10 ${g.gex > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {g.gex > 0 ? '+' : ''}{(g.gex / 1e6).toFixed(1)}M
+                </span>
               </div>
-              <span className={`w-8 ${g.gex > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                {g.gex > 0 ? '+' : ''}{(g.gex / 1e6).toFixed(1)}M
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -475,7 +517,7 @@ function HVPanel({ hvData, userIV, loading }: { hvData: HVData | null; userIV: s
     : [];
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm h-full">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-gray-700 mb-4">Historical Volatility</h3>
       {loading && <p className="text-xs text-gray-400">Loading…</p>}
       {!loading && !hvData && <p className="text-xs text-gray-400">Enter a symbol to load HV data.</p>}
@@ -1022,6 +1064,11 @@ export default function OptionsPage() {
           <TVWidget key={symbol} symbol={symbol} />
         </div>
 
+        {/* ── Options Analytics ── */}
+        {optionsAnalytics && hvData && (
+          <OptionsAnalyticsMini oa={optionsAnalytics} spot={hvData.currentPrice} />
+        )}
+
         {/* ── HV panel + Strategy builder ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
@@ -1038,9 +1085,6 @@ export default function OptionsPage() {
               />
               <p className="text-xs text-gray-400 mt-1">Enter the IV shown in your broker to compare with HV above.</p>
             </div>
-            {optionsAnalytics && hvData && (
-              <OptionsAnalyticsMini oa={optionsAnalytics} spot={hvData.currentPrice} />
-            )}
           </div>
 
           {/* Strategy Builder */}
