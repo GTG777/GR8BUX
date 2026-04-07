@@ -227,10 +227,10 @@ function MarketScreener() {
       <h2 className="text-base font-semibold text-gray-900 mb-3">🔍 Stock Screener</h2>
       <TVWidget
         src={`${TV_EMBED}/embed-widget-screener.js`}
-        height={490}
+        height={600}
         config={{
           width: '100%',
-          height: 490,
+          height: 600,
           defaultColumn: 'overview',
           defaultScreen: 'general',
           market: 'us',
@@ -252,7 +252,7 @@ function HotlistsWidget() {
       <h2 className="text-base font-semibold text-gray-900 mb-3">🔥 Top Movers</h2>
       <TVWidget
         src={`${TV_EMBED}/embed-widget-hotlists.js`}
-        height={490}
+        height={600}
         config={{
           colorTheme: 'light',
           dateRange: '1D',
@@ -260,7 +260,7 @@ function HotlistsWidget() {
           showChart: true,
           locale: 'en',
           width: '100%',
-          height: 490,
+          height: 600,
           largeChartUrl: '',
           isTransparent: false,
           showSymbolLogo: false,
@@ -316,7 +316,7 @@ export default function MarketOverviewPage() {
         </div>
 
         {/* Screener + Movers */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <MarketScreener />
           <HotlistsWidget />
         </div>
