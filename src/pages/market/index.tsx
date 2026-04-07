@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
+import MacroBar from '@/components/MacroBar';
 
 const TV_EMBED = 'https://s3.tradingview.com/external-embedding';
 
@@ -292,6 +293,9 @@ export default function MarketOverviewPage() {
     <Layout>
       <div className="space-y-4">
         <h1 className="text-2xl font-bold text-gray-900">Market Overview</h1>
+
+        {/* Macro Dashboard */}
+        <MacroBar />
 
         {/* Ticker Tape */}
         <div className="rounded-lg overflow-hidden shadow">
