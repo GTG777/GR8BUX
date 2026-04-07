@@ -531,15 +531,51 @@ function TopCard({ result, symbol, rank }: { result: Spread; symbol: string; ran
   );
 }
 
+/* ── Trade narrative (tooltip text) ─────────────────────────────── */
+function buildNarrative(r: Spread, symbol: string): string {
+  if (r.type === 'bull-put')
+    return `Sell the ${r.shortPut?.strike} put, buy the ${r.longPut?.strike} put. Collect $${r.creditPerContract.toFixed(0)} (real bid/ask mid). ${symbol} must stay above $${r.breakevenLow?.toFixed(2)} by expiry. Max loss: $${r.maxLossPerContract.toFixed(0)}.`;
+  if (r.type === 'bear-call')
+    return `Sell the ${r.shortCall?.strike} call, buy the ${r.longCall?.strike} call. Collect $${r.creditPerContract.toFixed(0)} (real bid/ask mid). ${symbol} must stay below $${r.breakevenHigh?.toFixed(2)} by expiry. Max loss: $${r.maxLossPerContract.toFixed(0)}.`;
+  return `Sell ${r.shortPut?.strike}/${r.longPut?.strike} put spread + ${r.shortCall?.strike}/${r.longCall?.strike} call spread. Collect $${r.creditPerContract.toFixed(0)} total. Profit zone: $${r.breakevenLow?.toFixed(2)} – $${r.breakevenHigh?.toFixed(2)}. Max loss: $${r.maxLossPerContract.toFixed(0)}.`;
+}
+
+/* ── Inline tooltip (fixed-positioned to escape overflow clip) ───── */
+function RowTooltip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  return (
+    <>
+      <span
+        className="cursor-help text-gray-400 hover:text-indigo-500 select-none text-sm"
+        onMouseEnter={(e) => { setPos({ x: e.clientX + 14, y: e.clientY - 8 }); setVisible(true); }}
+        onMouseLeave={() => setVisible(false)}
+        onMouseMove={(e) => setPos({ x: e.clientX + 14, y: e.clientY - 8 })}
+      >
+        ℹ
+      </span>
+      {visible && (
+        <div
+          className="fixed z-[9999] w-72 bg-gray-900 text-white text-xs rounded-lg px-3 py-2.5 shadow-xl pointer-events-none leading-relaxed"
+          style={{ left: pos.x, top: pos.y }}
+        >
+          {text}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ── Results table ──────────────────────────────────────────────── */
 function ScanTable({
-  results, sortKey, sortDir, onSort, activeType,
+  results, sortKey, sortDir, onSort, activeType, symbol,
 }: {
   results: Spread[];
   sortKey: SortKey;
   sortDir: SortDir;
   onSort: (k: SortKey) => void;
   activeType: StratType | 'all';
+  symbol: string;
 }) {
   const displayed = activeType === 'all' ? results : results.filter((r) => r.type === activeType);
   const arrow = (k: SortKey) => sortKey === k ? (sortDir === 'desc' ? ' ▼' : ' ▲') : '';
@@ -557,6 +593,7 @@ function ScanTable({
       <table className="w-full min-w-[900px]">
         <thead className="border-b border-gray-100 bg-gray-50">
           <tr>
+            <th className="py-2 px-2 w-7" />
             <th className={thCls} onClick={() => onSort('dte')}>DTE{arrow('dte')}</th>
             <th className={thCls}>Expiry</th>
             <th className={thCls}>Type</th>
@@ -575,6 +612,7 @@ function ScanTable({
         <tbody>
           {displayed.slice(0, 60).map((r, i) => (
             <tr key={r.id} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'} hover:bg-indigo-50/40 transition-colors`}>
+              <td className="py-2 px-2 text-center"><RowTooltip text={buildNarrative(r, symbol)} /></td>
               <td className={tdCls + ' font-mono text-gray-700'}>{r.dte}d</td>
               <td className={tdCls + ' font-mono text-xs text-gray-500'}>{r.expirationStr}</td>
               <td className={tdCls}><TypeBadge type={r.type} /></td>
@@ -865,7 +903,7 @@ export default function ScannerPage() {
                 ))}
               </div>
             </div>
-            <ScanTable results={scanResults} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} activeType={activeType} />
+            <ScanTable results={scanResults} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} activeType={activeType} symbol={symbol} />
           </div>
         )}
 

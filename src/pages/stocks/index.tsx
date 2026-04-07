@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ResponsiveContainer,
+  ComposedChart,
   LineChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ReferenceLine,
+  ReferenceArea,
   Legend,
 } from 'recharts';
 import { Layout } from '@/components/Layout';
@@ -647,6 +650,247 @@ function SetupCard({ setup }: { setup: StockSetup }) {
   );
 }
 
+/* ── Pivot Points & Fibonacci (forward-looking S/R) ─────────────── */
+function calcPivots(candles: Candle[]) {
+  const c   = candles[candles.length - 1];
+  const PP  = (c.high + c.low + c.close) / 3;
+  const rng = c.high - c.low;
+  return {
+    PP:  +PP.toFixed(2),
+    R1:  +(2 * PP - c.low).toFixed(2),
+    R2:  +(PP + rng).toFixed(2),
+    S1:  +(2 * PP - c.high).toFixed(2),
+    S2:  +(PP - rng).toFixed(2),
+  };
+}
+
+function calcFibs(candles: Candle[], lookback = 60) {
+  const sl  = candles.slice(-lookback);
+  const hi  = Math.max(...sl.map(c => c.high));
+  const lo  = Math.min(...sl.map(c => c.low));
+  const rng = hi - lo;
+  return {
+    hi:   +hi.toFixed(2),
+    lo:   +lo.toFixed(2),
+    f786: +(hi - 0.786 * rng).toFixed(2),
+    f618: +(hi - 0.618 * rng).toFixed(2),
+    f500: +(hi - 0.500 * rng).toFixed(2),
+    f382: +(hi - 0.382 * rng).toFixed(2),
+    f236: +(hi - 0.236 * rng).toFixed(2),
+  };
+}
+
+/* ── Setup Projection Map ───────────────────────────────────────── */
+interface ProjPoint {
+  label: string;
+  close: number | null;
+  bbUp:  number | null;
+  bbLo:  number | null;
+  atrUp: number | null;
+  atrLo: number | null;
+}
+
+function SetupProjectionChart({
+  candles, indicators, setups, symbol,
+}: { candles: Candle[]; indicators: Indicators; setups: StockSetup[]; symbol: string }) {
+  const HIST = 50;
+  const PROJ = 15;
+  const pivots = calcPivots(candles);
+  const fibs   = calcFibs(candles, 60);
+  const closes = candles.map(c => c.close);
+
+  /* Rolling BB per historical bar */
+  const slice = candles.slice(-HIST);
+  const histPoints: ProjPoint[] = slice.map((c, i) => {
+    const gi = candles.length - HIST + i;
+    const bb = closes.slice(Math.max(0, gi - 19), gi + 1);
+    const ok = bb.length >= 20;
+    const mid = ok ? bb.reduce((a, b) => a + b) / bb.length : 0;
+    const std = ok ? Math.sqrt(bb.reduce((s, v) => s + (v - mid) ** 2, 0) / bb.length) : 0;
+    return {
+      label: c.date.slice(5),
+      close: c.close,
+      bbUp:  ok ? +(mid + 2 * std).toFixed(2) : null,
+      bbLo:  ok ? +(mid - 2 * std).toFixed(2) : null,
+      atrUp: null,
+      atrLo: null,
+    };
+  });
+
+  /* ATR volatility cone — forward projection */
+  const atr       = indicators.atr14;
+  const lastClose = indicators.price;
+  const projPoints: ProjPoint[] = Array.from({ length: PROJ }, (_, i) => ({
+    label:  `+${i + 1}d`,
+    close:  null,
+    bbUp:   null,
+    bbLo:   null,
+    atrUp:  +(lastClose + atr * Math.sqrt(i + 1) * 0.65).toFixed(2),
+    atrLo:  +(lastClose - atr * Math.sqrt(i + 1) * 0.65).toFixed(2),
+  }));
+
+  const data      = [...histPoints, ...projPoints];
+  const projStart = projPoints[0].label;
+  const projEnd   = projPoints[projPoints.length - 1].label;
+  const todayLbl  = histPoints[histPoints.length - 1].label;
+
+  /* Y domain — include all key levels */
+  const keyVals = [
+    ...slice.map(c => c.close),
+    ...setups.flatMap(s => [s.stop, s.target1, s.target2]),
+    pivots.R2, pivots.S2,
+    fibs.hi, fibs.lo,
+    +(lastClose + atr * Math.sqrt(PROJ) * 0.65).toFixed(2),
+    +(lastClose - atr * Math.sqrt(PROJ) * 0.65).toFixed(2),
+  ].filter((v): v is number => isFinite(v));
+  const span = Math.max(...keyVals) - Math.min(...keyVals);
+  const yMin = +(Math.min(...keyVals) - span * 0.04).toFixed(2);
+  const yMax = +(Math.max(...keyVals) + span * 0.04).toFixed(2);
+
+  // RIGHT side label — pivot points, stop/targets, current price
+  const lbl = (text: string, fill: string, bold = false) => ({
+    value: text, position: 'right' as const, fontSize: 12, fill,
+    fontWeight: bold ? ('bold' as const) : ('normal' as const), offset: 10,
+  });
+  // LEFT side label — outside chart in the left margin
+  const lblLeft = (text: string, fill: string, bold = false) => ({
+    value: text, position: 'left' as const, fontSize: 11, fill,
+    fontWeight: bold ? ('bold' as const) : ('normal' as const), offset: 10,
+  });
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-gray-900">Setup Projection Map — {symbol}</h3>
+        <p className="text-xs text-gray-400 mt-0.5">
+          Forward-looking S/R: pivot points · Fibonacci retracements · ATR volatility cone · entry &amp; target projections
+        </p>
+        {/* Side legend */}
+        <div className="flex flex-wrap gap-4 mt-2 text-xs">
+          <span className="flex items-center gap-1"><span className="w-8 border-t-2 border-dashed border-amber-700 inline-block" /> <span className="text-amber-700 font-medium">LEFT — Fibonacci &amp; EMAs</span></span>
+          <span className="flex items-center gap-1"><span className="w-8 border-t-2 border-dashed border-indigo-500 inline-block" /> <span className="text-indigo-600 font-medium">RIGHT — Pivots, Entry &amp; Targets</span></span>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={640}>
+        <ComposedChart data={data} margin={{ top: 8, right: 190, bottom: 8, left: 150 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} interval={Math.floor(data.length / 10)} />
+          <YAxis
+            domain={[yMin, yMax]}
+            tick={{ fontSize: 11, fill: '#9ca3af' }}
+            width={72}
+            tickFormatter={(v: number) => `$${v.toFixed(0)}`}
+          />
+          <Tooltip
+            contentStyle={{ fontSize: 11, padding: '4px 8px' }}
+            formatter={(val: number, name: string) => [`$${Number(val).toFixed(2)}`, name]}
+          />
+
+          {/* Projection zone background */}
+          <ReferenceArea x1={projStart} x2={projEnd} fill="#f3f4f6" fillOpacity={0.7} />
+
+          {/* Today divider */}
+          <ReferenceLine x={todayLbl} stroke="#d1d5db" strokeWidth={1.5}
+            label={{ value: '◀ History  |  Projection ▶', position: 'top', fontSize: 12, fill: '#9ca3af' }} />
+
+          {/* ── BB Bands (rolling historical) ── */}
+          <Line type="monotone" dataKey="bbUp" stroke="#93c5fd" strokeWidth={1}
+            strokeDasharray="4 2" dot={false} name="BB Upper" connectNulls={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="bbLo" stroke="#93c5fd" strokeWidth={1}
+            strokeDasharray="4 2" dot={false} name="BB Lower" connectNulls={false} isAnimationActive={false} />
+
+          {/* ── ATR Cone (projection) ── */}
+          <Line type="monotone" dataKey="atrUp" stroke="#9ca3af" strokeWidth={1.5}
+            strokeDasharray="5 3" dot={false} name="ATR Upper" isAnimationActive={false} />
+          <Line type="monotone" dataKey="atrLo" stroke="#9ca3af" strokeWidth={1.5}
+            strokeDasharray="5 3" dot={false} name="ATR Lower" isAnimationActive={false} />
+
+          {/* ── Price line ── */}
+          <Line type="monotone" dataKey="close" stroke="#1e40af" strokeWidth={2.5}
+            dot={false} name="Price" connectNulls={false} isAnimationActive={false}
+            activeDot={{ r: 4 }} />
+
+          {/* ── Current price — RIGHT ── */}
+          <ReferenceLine y={lastClose} stroke="#374151" strokeWidth={1} strokeDasharray="4 2"
+            label={lbl(`Now  $${lastClose.toFixed(2)}`, '#374151', true)} />
+
+          {/* ── EMA dynamic S/R — LEFT (outside) ── */}
+          <ReferenceLine y={indicators.ema20} stroke="#10b981" strokeWidth={1.5} strokeDasharray="6 3"
+            label={lblLeft(`EMA20 $${indicators.ema20}`, '#10b981')} />
+          <ReferenceLine y={indicators.ema50} stroke="#d97706" strokeWidth={1.5} strokeDasharray="6 3"
+            label={lblLeft(`EMA50 $${indicators.ema50}`, '#d97706')} />
+
+          {/* ── LEADING: Pivot Points — RIGHT ── */}
+          <ReferenceLine y={pivots.R2} stroke="#16a34a" strokeWidth={1} strokeDasharray="2 5"
+            label={lbl(`R2  $${pivots.R2}`, '#16a34a')} />
+          <ReferenceLine y={pivots.R1} stroke="#22c55e" strokeWidth={1.5} strokeDasharray="4 3"
+            label={lbl(`R1  $${pivots.R1}`, '#22c55e')} />
+          <ReferenceLine y={pivots.PP} stroke="#6366f1" strokeWidth={2} strokeDasharray="4 3"
+            label={lbl(`PP  $${pivots.PP}`, '#6366f1', true)} />
+          <ReferenceLine y={pivots.S1} stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 3"
+            label={lbl(`S1  $${pivots.S1}`, '#ef4444')} />
+          <ReferenceLine y={pivots.S2} stroke="#dc2626" strokeWidth={1} strokeDasharray="2 5"
+            label={lbl(`S2  $${pivots.S2}`, '#dc2626')} />
+
+          {/* ── LEADING: Fibonacci Retracements — LEFT (outside) ── */}
+          <ReferenceLine y={fibs.f618} stroke="#b45309" strokeWidth={1} strokeDasharray="1 5"
+            label={lblLeft(`61.8% $${fibs.f618}`, '#b45309')} />
+          <ReferenceLine y={fibs.f500} stroke="#b45309" strokeWidth={1} strokeDasharray="1 5"
+            label={lblLeft(`50.0% $${fibs.f500}`, '#b45309')} />
+          <ReferenceLine y={fibs.f382} stroke="#b45309" strokeWidth={1} strokeDasharray="1 5"
+            label={lblLeft(`38.2% $${fibs.f382}`, '#b45309')} />
+
+          {/* ── Setup target projections ── */}
+          {/* Setup 1: Stop+Entry LEFT, T1+T2 RIGHT */}
+          {/* Setup 2: all LEFT — to separate from setup 1 */}
+          {setups.slice(0, 2).map((setup, idx) => {
+            const isLong = setup.direction === 'long';
+            const tClr  = isLong ? '#15803d' : '#b91c1c';
+            const sfx   = setups.length > 1 ? ` (${idx + 1})` : '';
+            return (
+              <React.Fragment key={setup.id}>
+                {idx === 0 && (
+                  <ReferenceLine y={setup.entry} stroke="#111827" strokeWidth={2}
+                    label={lblLeft(`Entry $${setup.entry.toFixed(2)}`, '#111827', true)} />
+                )}
+                <ReferenceLine y={setup.stop} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="5 3"
+                  label={idx === 0
+                    ? lblLeft(`Stop $${setup.stop.toFixed(2)}`, '#dc2626')
+                    : lbl(`Stop (2)  $${setup.stop.toFixed(2)}`, '#dc2626')} />
+                <ReferenceLine y={setup.target1} stroke={tClr} strokeWidth={1.5}
+                  label={lbl(`T1${sfx}  $${setup.target1.toFixed(2)}`, tClr)} />
+                <ReferenceLine y={setup.target2} stroke={tClr} strokeWidth={2}
+                  label={lbl(`T2${sfx}  $${setup.target2.toFixed(2)}`, tClr, true)} />
+              </React.Fragment>
+            );
+          })}
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      {/* ── Legend / Explanation ── */}
+      <div className="mt-3 pt-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+        <div>
+          <p className="font-semibold text-indigo-600 mb-1">Pivot Points <span className="text-gray-400 font-normal">(leading)</span></p>
+          <p className="text-gray-500">PP/R1/R2/S1/S2 from prior session H/L/C. Price frequently reverses at R1/S1 before targets are reached. Look for T1 landing near R1 or S1 as confluence.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-amber-700 mb-1">Fibonacci <span className="text-gray-400 font-normal">(leading)</span></p>
+          <p className="text-gray-500">38.2%, 50%, 61.8% retracement of the 60-bar swing. Institutional algorithms scale in/out at these algorithmic levels — strong clusters = high-probability zones.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-500 mb-1">ATR Cone <span className="text-gray-400 font-normal">(projection)</span></p>
+          <p className="text-gray-500">±ATR × √t shows the statistically expected price range for the next {PROJ} sessions based on realized volatility — not a forecast, but a probability envelope.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-green-700 mb-1">Target Confluence</p>
+          <p className="text-gray-500">When T1 or T2 aligns with a Pivot or Fibonacci level it becomes a high-conviction target. Divergence means the target may run past or fail to reach that level.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Constants ──────────────────────────────────────────────────── */
 const QUICK_STOCKS = ['SPY', 'QQQ', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'GOOGL', 'META', 'JPM'];
 
@@ -658,6 +902,7 @@ export default function StockScannerPage() {
   const [indicators, setIndicators] = useState<Indicators | null>(null);
   const [setups, setSetups]         = useState<StockSetup[]>([]);
   const [tsiData, setTsiData]       = useState<TSIPoint[]>([]);
+  const [allCandles, setAllCandles] = useState<Candle[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
   const [lastScanned, setLastScanned] = useState('');
@@ -668,6 +913,7 @@ export default function StockScannerPage() {
     setSetups([]);
     setIndicators(null);
     setTsiData([]);
+    setAllCandles([]);
     try {
       const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`);
       if (!res.ok) throw new Error(`Data fetch failed (${res.status})`);
@@ -679,6 +925,7 @@ export default function StockScannerPage() {
       setIndicators(ind);
       setSetups(found);
       setTsiData(calcTSIArr(candles));
+      setAllCandles(candles);
       setLastScanned(new Date().toLocaleTimeString());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Scan failed');
@@ -787,6 +1034,16 @@ export default function StockScannerPage() {
               {setups.map((s) => <SetupCard key={s.id} setup={s} />)}
             </div>
           </div>
+        )}
+
+        {/* ── Setup Projection Map ── */}
+        {!loading && setups.length > 0 && allCandles.length > 0 && indicators && (
+          <SetupProjectionChart
+            candles={allCandles}
+            indicators={indicators}
+            setups={setups}
+            symbol={symbol}
+          />
         )}
 
         {/* ── Glossary ── */}
