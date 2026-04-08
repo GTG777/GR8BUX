@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -901,8 +902,19 @@ const QUICK_STOCKS = ['SPY', 'QQQ', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'GOO
 
 /* ── Main page ──────────────────────────────────────────────────── */
 export default function StockScannerPage() {
+  const router = useRouter();
   const [symbol, setSymbol] = useState('SPY');
   const [input, setInput]   = useState('SPY');
+
+  // Pre-load symbol from ?symbol= query param (e.g. linked from Options Screener)
+  useEffect(() => {
+    const q = router.query.symbol;
+    if (typeof q === 'string' && q.trim()) {
+      const s = q.toUpperCase().trim();
+      setSymbol(s);
+      setInput(s);
+    }
+  }, [router.query.symbol]);
 
   const [indicators, setIndicators] = useState<Indicators | null>(null);
   const [setups, setSetups]         = useState<StockSetup[]>([]);
