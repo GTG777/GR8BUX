@@ -168,6 +168,7 @@ export function Layout({ children, title }: LayoutProps) {
   const router = useRouter();
   const { user, handleSignOut } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   const onSignOut = async () => {
@@ -179,11 +180,22 @@ export function Layout({ children, title }: LayoutProps) {
   return (
     <ProtectedRoute>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
+        {/* Mobile overlay backdrop */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
         <aside
-          className={`flex flex-col bg-gray-900 text-white transition-all duration-300 ${
-            collapsed ? 'w-16' : 'w-60'
-          } shrink-0`}
+          className={`flex flex-col bg-gray-900 text-white transition-all duration-300 shrink-0
+            fixed inset-y-0 left-0 z-30 md:relative md:z-auto
+            ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+            md:translate-x-0
+            ${collapsed ? 'w-16' : 'w-60'}
+          `}
         >
           {/* Logo / Brand */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
@@ -207,6 +219,7 @@ export function Layout({ children, title }: LayoutProps) {
                 <Link
                   key={href}
                   href={href}
+                  onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
                     active
                       ? 'bg-blue-600 text-white'
@@ -266,7 +279,17 @@ export function Layout({ children, title }: LayoutProps) {
         {/* Main content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top bar */}
-          <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 shrink-0">
+          <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 shrink-0 gap-4">
+            {/* Hamburger — mobile only */}
+            <button
+              className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open navigation menu"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <h1 className="text-xl font-semibold text-gray-900">{title || 'GR8BUX'}</h1>
           </header>
 
