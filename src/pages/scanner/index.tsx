@@ -48,6 +48,7 @@ interface OptionsAnalytics {
   gex: { strike: number; gex: number }[];  // top 10 strikes by abs GEX
   totalGex: number;            // net GEX across all strikes (positive = dampening)
   nearestExpiry: string;       // expiry used for Max Pain / GEX
+  pcRatio: number | null;      // put OI / call OI for nearest expiry
 }
 
 /* ── Math: exact Black-Scholes risk-neutral probabilities ─────── */
@@ -189,12 +190,26 @@ function calcGEX(
   return { gexByStrike, totalGex, nearestExpiry: nextExpiry };
 }
 
+/* ── P/C Ratio: put OI / call OI for nearest expiry ────────────── */
+function calcPCRatio(contracts: OptionContract[]): number | null {
+  // Find nearest expiry
+  const expiries = [...new Set(contracts.map((c) => c.expirationStr))].sort();
+  if (!expiries.length) return null;
+  const nearest = expiries[0];
+  const near = contracts.filter((c) => c.expirationStr === nearest);
+  const putOI  = near.filter((c) => c.type === 'put' ).reduce((s, c) => s + (c.openInterest ?? 0), 0);
+  const callOI = near.filter((c) => c.type === 'call').reduce((s, c) => s + (c.openInterest ?? 0), 0);
+  if (callOI === 0) return null;
+  return parseFloat((putOI / callOI).toFixed(2));
+}
+
 function computeOptionsAnalytics(contracts: OptionContract[], spot: number): OptionsAnalytics {
   const r = 0.045;
   const ivr = calcIVR(contracts);
   const maxPain = calcMaxPain(contracts, spot);
   const { gexByStrike, totalGex, nearestExpiry } = calcGEX(contracts, spot, r);
-  return { ivr, maxPain, gex: gexByStrike, totalGex, nearestExpiry };
+  const pcRatio = calcPCRatio(contracts);
+  return { ivr, maxPain, gex: gexByStrike, totalGex, nearestExpiry, pcRatio };
 }
 
 /* ── Build spreads from real options chain ──────────────────────── */
@@ -387,7 +402,7 @@ function TVMini({ symbol }: { symbol: string }) {
 }
 
 /* ── Market Bias Bar ───────────────────────────────────────────── */
-function BiasBar({ md, chainIV, ivr }: { md: MarketData; chainIV: number; ivr: number | null }) {
+function BiasBar({ md, chainIV, ivr, pcRatio }: { md: MarketData; chainIV: number; ivr: number | null; pcRatio: number | null }) {
   const biasColor = md.bias === 'bullish' ? 'text-green-600' : md.bias === 'bearish' ? 'text-red-600' : 'text-gray-600';
   const biasIcon  = md.bias === 'bullish' ? '▲ Bullish' : md.bias === 'bearish' ? '▼ Bearish' : '→ Neutral';
   const biasTip   = md.bias === 'bullish'
@@ -408,6 +423,19 @@ function BiasBar({ md, chainIV, ivr }: { md: MarketData; chainIV: number; ivr: n
     : ivr >= 40 ? 'Neutral · Average premium available'
     : ivr >= 20 ? 'Compressed · Thin premium, use caution'
     : 'Very low · Avoid selling — buy instead';
+
+  // Put/Call ratio sentiment
+  const pcColor = pcRatio === null ? 'text-gray-400'
+    : pcRatio >= 1.3 ? 'text-red-600 font-bold'
+    : pcRatio >= 1.0 ? 'text-amber-600 font-semibold'
+    : pcRatio >= 0.7 ? 'text-green-600 font-semibold'
+    : 'text-blue-600 font-bold';
+  const pcVerdict = pcRatio === null ? 'N/A'
+    : pcRatio >= 1.5 ? 'Extreme fear · Contrarian bullish'
+    : pcRatio >= 1.3 ? 'Heavy put buying · Bearish bias'
+    : pcRatio >= 1.0 ? 'Slightly bearish · Watch for reversal'
+    : pcRatio >= 0.7 ? 'Neutral · Balanced positioning'
+    : 'Heavy call buying · Euphoric — caution';
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4 flex flex-wrap items-center gap-6 text-sm">
@@ -446,6 +474,13 @@ function BiasBar({ md, chainIV, ivr }: { md: MarketData; chainIV: number; ivr: n
           </span>
         </span>
       </div>
+      {pcRatio !== null && (
+        <div>
+          <span className="text-xs text-gray-400 block">Put/Call Ratio</span>
+          <span className={`text-lg ${pcColor}`}>{pcRatio.toFixed(2)}</span>
+          <span className="text-xs text-gray-500 block max-w-[200px]">{pcVerdict}</span>
+        </div>
+      )}
       <div className="ml-auto">
         <span className="text-xs text-gray-400 block">Market Bias</span>
         <span className={`font-bold text-base ${biasColor}`}>{biasIcon}</span>
@@ -1066,7 +1101,7 @@ export default function ScannerPage() {
         </div>
 
         {/* ── Market Context ── */}
-        {marketData && <BiasBar md={marketData} chainIV={chainIV} ivr={optionsAnalytics?.ivr ?? null} />}
+        {marketData && <BiasBar md={marketData} chainIV={chainIV} ivr={optionsAnalytics?.ivr ?? null} pcRatio={optionsAnalytics?.pcRatio ?? null} />}
 
         {/* ── Options Analytics ── */}
         {!loading && optionsAnalytics && marketData && (
