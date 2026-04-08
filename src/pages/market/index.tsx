@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
 import MacroBar from '@/components/MacroBar';
+import SectorRotationPanel from '@/components/SectorRotationPanel';
 
 const TV_EMBED = 'https://s3.tradingview.com/external-embedding';
 
@@ -296,6 +297,9 @@ export default function MarketOverviewPage() {
 
         {/* Macro Dashboard */}
         <MacroBar />
+
+        {/* Sector Rotation */}
+        <SectorRotationPanel />
 
         {/* Ticker Tape */}
         <div className="rounded-lg overflow-hidden shadow">
