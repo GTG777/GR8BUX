@@ -317,7 +317,7 @@ export default function CryptoPage() {
                 <span>📉 <strong>Funding &lt;−10%</strong>: Shorts dominant — potential short squeeze</span>
               </div>
               <p className="text-[10px] text-gray-400 mt-2">
-                Data: Binance (prices, klines, funding) · Alternative.me (Fear &amp; Greed) · CoinGecko (dominance)
+                Data: CoinGecko (prices, OHLC, dominance) · Alternative.me (Fear &amp; Greed) · Bybit (funding rates)
               </p>
             </div>
           </div>

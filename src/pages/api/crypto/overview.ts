@@ -26,17 +26,13 @@ export interface FearGreed {
 export interface CryptoOverview {
   tickers: CryptoTicker[];
   fearGreed: FearGreed;
-  btcDominance: number | null;  // percent e.g. 54.2
+  btcDominance: number | null;
   marketSignal: 'risk-on' | 'risk-off' | 'neutral';
   signalVerdict: string;
   fetchedAt: string;
 }
 
 /* ── Helpers ────────────────────────────────────────────────────── */
-interface BinanceKline {
-  close: number;
-}
-
 function calcEMA(closes: number[], period: number): number {
   if (closes.length < period) return closes[closes.length - 1] ?? 0;
   const k = 2 / (period + 1);
@@ -55,11 +51,12 @@ function fgLabel(v: number): string {
   return 'Extreme Greed';
 }
 
-const COINS: Array<{ symbol: string; binancePair: string; futuresPair: string; name: string }> = [
-  { symbol: 'BTC',  binancePair: 'BTCUSDT',  futuresPair: 'BTCUSDT',  name: 'Bitcoin'  },
-  { symbol: 'ETH',  binancePair: 'ETHUSDT',  futuresPair: 'ETHUSDT',  name: 'Ethereum' },
-  { symbol: 'SOL',  binancePair: 'SOLUSDT',  futuresPair: 'SOLUSDT',  name: 'Solana'   },
-  { symbol: 'BNB',  binancePair: 'BNBUSDT',  futuresPair: 'BNBUSDT',  name: 'BNB'      },
+// CoinGecko IDs for each coin
+const COINS: Array<{ symbol: string; cgId: string; name: string }> = [
+  { symbol: 'BTC', cgId: 'bitcoin',      name: 'Bitcoin'  },
+  { symbol: 'ETH', cgId: 'ethereum',     name: 'Ethereum' },
+  { symbol: 'SOL', cgId: 'solana',       name: 'Solana'   },
+  { symbol: 'BNB', cgId: 'binancecoin', name: 'BNB'      },
 ];
 
 /* ── Main handler ───────────────────────────────────────────────── */
@@ -72,31 +69,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    /* ── 1. Binance 24hr ticker for all coins ── */
-    const pairsParam = encodeURIComponent(
-      JSON.stringify(COINS.map((c) => c.binancePair))
-    );
-    const [tickerRes, fgRes, dominanceRes] = await Promise.all([
-      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${pairsParam}`,
-        { signal: AbortSignal.timeout(8000) }),
-      fetch('https://api.alternative.me/fng/?limit=1',
-        { signal: AbortSignal.timeout(6000) }),
-      fetch('https://api.coingecko.com/api/v3/global',
-        { signal: AbortSignal.timeout(8000) }),
+    const cgIds = COINS.map((c) => c.cgId).join(',');
+
+    /* ── 1. CoinGecko markets (price, 24h change, volume, high, low) ── */
+    /* ── 2. Fear & Greed ── */
+    /* ── 3. CoinGecko global (BTC dominance) ── */
+    const [marketsRes, fgRes, globalRes] = await Promise.all([
+      fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${cgIds}&order=market_cap_desc&per_page=4&page=1&sparkline=false&price_change_percentage=24h`,
+        { signal: AbortSignal.timeout(10000) }
+      ),
+      fetch('https://api.alternative.me/fng/?limit=1', { signal: AbortSignal.timeout(6000) }),
+      fetch('https://api.coingecko.com/api/v3/global',  { signal: AbortSignal.timeout(8000) }),
     ]);
 
-    if (!tickerRes.ok) {
-      return res.status(502).json({ error: 'Binance API unavailable' });
+    if (!marketsRes.ok) {
+      return res.status(502).json({ error: `CoinGecko markets unavailable (${marketsRes.status})` });
     }
 
-    const tickerJson: Array<{
-      symbol: string;
-      lastPrice: string;
-      priceChangePercent: string;
-      quoteVolume: string;
-      highPrice: string;
-      lowPrice: string;
-    }> = await tickerRes.json();
+    const marketsJson: Array<{
+      id: string;
+      current_price: number;
+      price_change_percentage_24h: number;
+      total_volume: number;
+      high_24h: number;
+      low_24h: number;
+    }> = await marketsRes.json();
 
     /* ── 2. Fear & Greed ── */
     let fearGreed: FearGreed = { value: 50, label: 'Neutral' };
@@ -108,46 +106,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     /* ── 3. BTC dominance ── */
     let btcDominance: number | null = null;
-    if (dominanceRes.ok) {
-      const domJson = await dominanceRes.json();
+    if (globalRes.ok) {
+      const domJson = await globalRes.json();
       btcDominance = domJson?.data?.market_cap_percentage?.btc ?? null;
       if (btcDominance) btcDominance = Math.round(btcDominance * 10) / 10;
     }
 
-    /* ── 4. BTC klines for EMA20 trend ── */
-    const klinesMap = new Map<string, number[]>(); // pair -> closes
+    /* ── 4. CoinGecko OHLC for EMA20 (21 daily candles) ── */
+    const ohlcMap = new Map<string, number[]>(); // cgId -> closes
     await Promise.all(
       COINS.map(async (coin) => {
         try {
+          // Returns [timestamp, open, high, low, close] arrays; days=21 gives ~21 daily candles
           const r = await fetch(
-            `https://api.binance.com/api/v3/klines?symbol=${coin.binancePair}&interval=1d&limit=21`,
-            { signal: AbortSignal.timeout(6000) }
+            `https://api.coingecko.com/api/v3/coins/${coin.cgId}/ohlc?vs_currency=usd&days=21`,
+            { signal: AbortSignal.timeout(8000) }
           );
           if (!r.ok) return;
-          const klines: string[][] = await r.json();
-          klinesMap.set(coin.binancePair, klines.map((k) => parseFloat(k[4]))); // index 4 = close
-        } catch {
-          // non-fatal
-        }
+          const ohlc: number[][] = await r.json();
+          ohlcMap.set(coin.cgId, ohlc.map((c) => c[4])); // index 4 = close
+        } catch { /* non-fatal */ }
       })
     );
 
-    /* ── 5. Funding rates (Binance futures premiumIndex) ── */
+    /* ── 5. Funding rates via Bybit (works from any server, no geo-block) ── */
     const fundingMap = new Map<string, number | null>();
+    const bybitPairs: Record<string, string> = {
+      BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', BNB: 'BNBUSDT',
+    };
     await Promise.all(
       COINS.map(async (coin) => {
         try {
+          const pair = bybitPairs[coin.symbol];
           const r = await fetch(
-            `https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${coin.futuresPair}`,
+            `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${pair}`,
             { signal: AbortSignal.timeout(6000) }
           );
-          if (!r.ok) { fundingMap.set(coin.futuresPair, null); return; }
-          const data: { lastFundingRate: string } = await r.json();
-          // 8-hour rate → annualised %: rate * 3 * 365 * 100
-          const rate8h = parseFloat(data.lastFundingRate);
-          fundingMap.set(coin.futuresPair, Math.round(rate8h * 3 * 365 * 10000) / 100);
+          if (!r.ok) { fundingMap.set(coin.symbol, null); return; }
+          const data = await r.json();
+          const fundingRateRaw = data?.result?.list?.[0]?.fundingRate;
+          if (fundingRateRaw == null) { fundingMap.set(coin.symbol, null); return; }
+          // 8-hour rate → annualised %
+          const rate8h = parseFloat(fundingRateRaw);
+          fundingMap.set(coin.symbol, Math.round(rate8h * 3 * 365 * 10000) / 100);
         } catch {
-          fundingMap.set(coin.futuresPair, null);
+          fundingMap.set(coin.symbol, null);
         }
       })
     );
@@ -155,12 +158,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     /* ── 6. Build ticker objects ── */
     const tickers: CryptoTicker[] = [];
     for (const coin of COINS) {
-      const raw = tickerJson.find((t) => t.symbol === coin.binancePair);
+      const raw = marketsJson.find((m) => m.id === coin.cgId);
       if (!raw) continue;
 
-      const price     = parseFloat(raw.lastPrice);
-      const change24h = parseFloat(raw.priceChangePercent);
-      const closes    = klinesMap.get(coin.binancePair) ?? [];
+      const price     = raw.current_price;
+      const change24h = raw.price_change_percentage_24h ?? 0;
+      const closes    = ohlcMap.get(coin.cgId) ?? [];
       const ema20     = closes.length >= 20 ? calcEMA(closes, 20) : 0;
 
       let trend: CryptoTicker['trend'] = 'sideways';
@@ -172,7 +175,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         else                     { trend = 'sideways'; trendLabel = `Near EMA20 (${distPct > 0 ? '+' : ''}${distPct.toFixed(1)}%)`; }
       }
 
-      const fundingRate  = fundingMap.get(coin.futuresPair) ?? null;
+      const fundingRate  = fundingMap.get(coin.symbol) ?? null;
       let   fundingLabel = '—';
       if (fundingRate !== null) {
         if (fundingRate > 50)       fundingLabel = `+${fundingRate.toFixed(1)}% — Longs overloaded`;
@@ -187,9 +190,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: coin.name,
         price,
         change24h,
-        volume24h: parseFloat(raw.quoteVolume),
-        high24h: parseFloat(raw.highPrice),
-        low24h: parseFloat(raw.lowPrice),
+        volume24h: raw.total_volume,
+        high24h:   raw.high_24h,
+        low24h:    raw.low_24h,
         trend,
         trendLabel,
         fundingRate,
