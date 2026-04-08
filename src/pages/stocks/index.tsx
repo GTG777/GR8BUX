@@ -16,7 +16,9 @@ import {
 import { Layout } from '@/components/Layout';
 import CandlePatternsPanel from '@/components/CandlePatternsPanel';
 import VWAPPanel from '@/components/VWAPPanel';
+import InsiderActivityPanel from '@/components/InsiderActivityPanel';
 import type { VWAPData } from '@/pages/api/market/vwap';
+import type { InsiderData } from '@/pages/api/insider/filings';
 
 /* ── Types ─────────────────────────────────────────────────────── */
 interface Candle {
@@ -906,8 +908,9 @@ export default function StockScannerPage() {
   const [setups, setSetups]         = useState<StockSetup[]>([]);
   const [tsiData, setTsiData]       = useState<TSIPoint[]>([]);
   const [allCandles, setAllCandles] = useState<Candle[]>([]);
-  const [vwapData, setVwapData]     = useState<VWAPData | null>(null);
-  const [loading, setLoading]       = useState(true);
+  const [vwapData, setVwapData]         = useState<VWAPData | null>(null);
+  const [insiderData, setInsiderData]   = useState<InsiderData | null>(null);
+  const [loading, setLoading]           = useState(true);
   const [error, setError]           = useState('');
   const [lastScanned, setLastScanned] = useState('');
 
@@ -919,10 +922,12 @@ export default function StockScannerPage() {
     setTsiData([]);
     setAllCandles([]);
     setVwapData(null);
+    setInsiderData(null);
     try {
-      const [candlesRes, vwapRes] = await Promise.all([
+      const [candlesRes, vwapRes, insiderRes] = await Promise.all([
         fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`),
         fetch(`/api/market/vwap?symbol=${encodeURIComponent(sym)}`),
+        fetch(`/api/insider/filings?symbol=${encodeURIComponent(sym)}`),
       ]);
       if (!candlesRes.ok) throw new Error(`Data fetch failed (${candlesRes.status})`);
       const json = await candlesRes.json();
@@ -930,6 +935,10 @@ export default function StockScannerPage() {
       if (vwapRes.ok) {
         const vd: VWAPData = await vwapRes.json();
         setVwapData(vd);
+      }
+      if (insiderRes.ok) {
+        const id: InsiderData = await insiderRes.json();
+        setInsiderData(id);
       }
       if (candles.length < 50) throw new Error('Not enough price history for this symbol');
       const ind   = computeIndicators(candles);
@@ -1014,6 +1023,9 @@ export default function StockScannerPage() {
 
         {/* ── VWAP ── */}
         {!loading && vwapData && <VWAPPanel data={vwapData} symbol={symbol} />}
+
+        {/* ── Insider Activity ── */}
+        {!loading && insiderData && <InsiderActivityPanel data={insiderData} symbol={symbol} />}
 
         {/* ── Candlestick Patterns ── */}
         {!loading && allCandles.length > 0 && (
