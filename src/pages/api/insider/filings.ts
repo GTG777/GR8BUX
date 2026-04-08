@@ -188,9 +188,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     /* ── 1. Search EDGAR EFTS for recent Form 4 filings ── */
     const startdt = dateNDaysAgo(90);
+    const enddt   = new Date().toISOString().slice(0, 10);
     const searchUrl =
       `https://efts.sec.gov/LATEST/search-index?q=%22${encodeURIComponent(symbol)}%22` +
-      `&forms=4&dateRange=custom&startdt=${startdt}&hits.hits.total=true`;
+      `&forms=4&dateRange=custom&startdt=${startdt}&enddt=${enddt}&hits.hits._source=file_date,period_ending,ciks,display_names&hits.hits.total=true`;
 
     const searchRes = await fetch(searchUrl, { headers: SEC_HEADERS, signal: AbortSignal.timeout(10000) });
     if (!searchRes.ok) {
@@ -198,10 +199,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const searchJson = await searchRes.json();
-    const hits: Array<{
+    const allHits: Array<{
       _id: string;
       _source: { file_date: string; period_ending: string; ciks: string[]; display_names: string[] };
     }> = searchJson?.hits?.hits ?? [];
+
+    // EDGAR EFTS dateRange filter is unreliable — enforce 90-day window client-side
+    const hits = allHits.filter((h) => h._source.file_date >= startdt);
 
     if (hits.length === 0) {
       const empty = buildEmptyResult(symbol);
