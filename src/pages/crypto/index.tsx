@@ -36,9 +36,14 @@ function timeAgo(unix: number): string {
 function TrendingCoinCard({ coin }: { coin: TrendingCoin }) {
   const up = coin.change24h >= 0;
   return (
-    <div className={`rounded-xl border bg-white shadow-sm p-3 flex flex-col gap-2 ${
-      coin.coinbaseListed ? 'border-blue-100' : 'border-gray-200'
-    }`}>
+    <a
+      href={`https://www.coingecko.com/en/coins/${coin.cgId}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`rounded-xl border bg-white shadow-sm p-3 flex flex-col gap-2 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer ${
+        coin.coinbaseListed ? 'border-blue-100' : 'border-gray-200'
+      }`}
+    >
       <div className="flex items-center gap-2">
         <span className="text-xs font-bold text-gray-300 w-5">#{coin.rank}</span>
         {coin.thumb ? (
@@ -64,7 +69,7 @@ function TrendingCoinCard({ coin }: { coin: TrendingCoin }) {
       {coin.marketCapRank && (
         <p className="text-[10px] text-gray-400">MCap rank #{coin.marketCapRank}</p>
       )}
-    </div>
+    </a>
   );
 }
 
