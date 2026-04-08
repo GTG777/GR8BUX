@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
@@ -170,6 +170,23 @@ export function Layout({ children, title }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Initialise dark mode from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const enable = saved !== null ? saved === 'true' : prefersDark;
+    setDarkMode(enable);
+    document.documentElement.classList.toggle('dark', enable);
+  }, []);
+
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.classList.toggle('dark', next);
+    localStorage.setItem('darkMode', String(next));
+  };
 
   const onSignOut = async () => {
     setSigningOut(true);
@@ -179,7 +196,7 @@ export function Layout({ children, title }: LayoutProps) {
 
   return (
     <ProtectedRoute>
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden">
         {/* Mobile overlay backdrop */}
         {mobileOpen && (
           <div
@@ -279,7 +296,7 @@ export function Layout({ children, title }: LayoutProps) {
         {/* Main content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top bar */}
-          <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 shrink-0 gap-4">
+          <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center px-6 shrink-0 gap-4">
             {/* Hamburger — mobile only */}
             <button
               className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
@@ -290,11 +307,28 @@ export function Layout({ children, title }: LayoutProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <h1 className="text-xl font-semibold text-gray-900">{title || 'GR8BUX'}</h1>
+            <h1 className="flex-1 text-xl font-semibold text-gray-900 dark:text-white">{title || 'GR8BUX'}</h1>
+            {/* Dark mode toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Light mode' : 'Dark mode'}
+            >
+              {darkMode ? (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-13H20m-16 0H2.34M17.66 17.66l-.71-.71M7.05 7.05l-.71-.71M17.66 7.05l-.71.71M7.05 17.66l.71-.71M12 5a7 7 0 100 14A7 7 0 0012 5z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              )}
+            </button>
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950 dark:text-gray-100">
             {children}
           </main>
         </div>
