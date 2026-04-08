@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
+import { useRouter } from 'next/router';
+import { LineChart, Line, ResponsiveContainer } from 'recharts';
 
 interface WatchlistItem {
   symbol: string;
@@ -9,15 +11,19 @@ interface WatchlistItem {
   changePercent: string | null;
   isCoiling: boolean | null;
   coilingStrength: number | null;
+  sparkline: { v: number }[];
+  volumeRatio: number | null;
   loading: boolean;
   error: string | null;
 }
 
 const AdvancedWatchlist: React.FC = () => {
+  const router = useRouter();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [symbolInput, setSymbolInput] = useState('');
   const [sortColumn, setSortColumn] = useState<keyof WatchlistItem | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const initializeWatchlist = React.useCallback((symbols: string[]) => {
     const items = symbols.map(symbol => ({
@@ -28,6 +34,8 @@ const AdvancedWatchlist: React.FC = () => {
       changePercent: null,
       isCoiling: null,
       coilingStrength: null,
+      sparkline: [],
+      volumeRatio: null,
       loading: true,
       error: null,
     }));
@@ -54,6 +62,16 @@ const AdvancedWatchlist: React.FC = () => {
       const candleData = await candleRes.json();
 
       // Calculate TSI
+      // Last 20 closes for sparkline, volume ratio (today vs 20-day avg)
+      const recentCandles: any[] = candleData.candles.slice(-20);
+      const sparkline = recentCandles.map((c: any) => ({ v: c.close }));
+      const recentVols: number[] = recentCandles.map((c: any) => c.volume);
+      const avgVol = recentVols.length > 1
+        ? recentVols.slice(0, -1).reduce((a, b) => a + b, 0) / (recentVols.length - 1)
+        : 0;
+      const todayVol = recentVols[recentVols.length - 1] ?? 0;
+      const volumeRatio = avgVol > 0 ? todayVol / avgVol : null;
+
       const closes = candleData.candles.map((c: any) => c.close);
       const tsiRes = await fetch('/api/technical/tsi', {
         method: 'POST',
@@ -81,6 +99,8 @@ const AdvancedWatchlist: React.FC = () => {
                 tsi: tsiData.tsi,
                 isCoiling: coilingData.isCoiling,
                 coilingStrength: coilingData.strength ?? null,
+                sparkline,
+                volumeRatio,
                 loading: false,
               }
             : item
@@ -97,25 +117,37 @@ const AdvancedWatchlist: React.FC = () => {
     }
   }, []);
 
-  // Load watchlist from localStorage on mount
+  // Load watchlist from localStorage on mount + start 60s auto-refresh
   useEffect(() => {
     const saved = localStorage.getItem('advancedWatchlist');
+    let symbols: string[];
     if (saved) {
       try {
-        const symbols = JSON.parse(saved) as string[];
-        initializeWatchlist(symbols);
+        symbols = JSON.parse(saved) as string[];
       } catch {
-        initializeWatchlist(['AAPL', 'MSFT', 'GOOGL']);
+        symbols = ['AAPL', 'MSFT', 'GOOGL'];
       }
     } else {
-      initializeWatchlist(['AAPL', 'MSFT', 'GOOGL']);
+      symbols = ['AAPL', 'MSFT', 'GOOGL'];
     }
-  }, [initializeWatchlist]);
+    initializeWatchlist(symbols);
+
+    refreshTimerRef.current = setInterval(() => {
+      setWatchlist(prev => {
+        prev.forEach(item => fetchSymbolData(item.symbol));
+        return prev;
+      });
+    }, 60_000);
+
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
+  }, [initializeWatchlist, fetchSymbolData]);
 
   const addSymbol = () => {
     const sym = symbolInput.toUpperCase().trim();
     if (sym && /^[A-Z]{1,5}$/.test(sym) && !watchlist.some(w => w.symbol === sym)) {
-      setWatchlist(prev => [...prev, { symbol: sym, tsi: null, price: null, change: null, changePercent: null, isCoiling: null, coilingStrength: null, loading: true, error: null }]);
+      setWatchlist(prev => [...prev, { symbol: sym, tsi: null, price: null, change: null, changePercent: null, isCoiling: null, coilingStrength: null, sparkline: [], volumeRatio: null, loading: true, error: null }]);
       setSymbolInput('');
       localStorage.setItem('advancedWatchlist', JSON.stringify([...watchlist.map(w => w.symbol), sym]));
       fetchSymbolData(sym);
@@ -235,13 +267,24 @@ const AdvancedWatchlist: React.FC = () => {
                   <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('coilingStrength')}>
                     Coiling Strength <SortIcon column="coilingStrength" />
                   </th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('volumeRatio')}>
+                    Vol Ratio <SortIcon column="volumeRatio" />
+                  </th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">5D Chart</th>
                   <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {getSortedWatchlist().map((item, idx) => (
                   <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">{item.symbol}</td>
+                    <td className="px-6 py-4 text-sm font-semibold">
+                      <button
+                        onClick={() => router.push(`/stocks?symbol=${item.symbol}`)}
+                        className="text-blue-700 hover:text-blue-900 hover:underline font-bold"
+                      >
+                        {item.symbol}
+                      </button>
+                    </td>
                     <td className="px-6 py-4 text-right text-sm text-gray-900">
                       {item.loading ? <span className="text-gray-400">Loading...</span> : item.error ? <span className="text-red-600 text-xs">{item.error}</span> : <span>${item.price?.toFixed(2)}</span>}
                     </td>
@@ -297,6 +340,42 @@ const AdvancedWatchlist: React.FC = () => {
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center text-sm">
+                      {item.loading ? (
+                        <span className="text-gray-400">-</span>
+                      ) : item.volumeRatio !== null ? (
+                        <span className={`font-semibold ${
+                          item.volumeRatio >= 2 ? 'text-red-600' :
+                          item.volumeRatio >= 1.5 ? 'text-orange-500' :
+                          item.volumeRatio >= 1 ? 'text-green-600' : 'text-gray-500'
+                        }`}>
+                          {item.volumeRatio.toFixed(2)}x
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {item.loading ? (
+                        <span className="text-gray-400 text-xs">Loading...</span>
+                      ) : item.sparkline.length > 1 ? (
+                        <div className="w-20 h-8 inline-block">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={item.sparkline}>
+                              <Line
+                                type="monotone"
+                                dataKey="v"
+                                dot={false}
+                                strokeWidth={1.5}
+                                stroke={item.change !== null && item.change >= 0 ? '#16a34a' : '#dc2626'}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center text-sm">
