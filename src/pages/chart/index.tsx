@@ -556,7 +556,7 @@ const QUICK_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'GOOGL', 'AMZN', 
 export default function ChartPage() {
   const [input, setInput]       = useState('');
   const [symbol, setSymbol]     = useState('AAPL');
-  const [interval, setInterval] = useState('D');
+  const [interval, setInterval] = useState('1');
   const [candles, setCandles]   = useState<Candle[]>([]);
   const [indicators, setIndicators] = useState<Indicators | null>(null);
   const [tsiSeries, setTsiSeries]   = useState<TSIPoint[]>([]);
