@@ -15,6 +15,8 @@ import {
 } from 'recharts';
 import { Layout } from '@/components/Layout';
 import CandlePatternsPanel from '@/components/CandlePatternsPanel';
+import VWAPPanel from '@/components/VWAPPanel';
+import type { VWAPData } from '@/pages/api/market/vwap';
 
 /* ── Types ─────────────────────────────────────────────────────── */
 interface Candle {
@@ -904,6 +906,7 @@ export default function StockScannerPage() {
   const [setups, setSetups]         = useState<StockSetup[]>([]);
   const [tsiData, setTsiData]       = useState<TSIPoint[]>([]);
   const [allCandles, setAllCandles] = useState<Candle[]>([]);
+  const [vwapData, setVwapData]     = useState<VWAPData | null>(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
   const [lastScanned, setLastScanned] = useState('');
@@ -915,11 +918,19 @@ export default function StockScannerPage() {
     setIndicators(null);
     setTsiData([]);
     setAllCandles([]);
+    setVwapData(null);
     try {
-      const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`);
-      if (!res.ok) throw new Error(`Data fetch failed (${res.status})`);
-      const json = await res.json();
+      const [candlesRes, vwapRes] = await Promise.all([
+        fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`),
+        fetch(`/api/market/vwap?symbol=${encodeURIComponent(sym)}`),
+      ]);
+      if (!candlesRes.ok) throw new Error(`Data fetch failed (${candlesRes.status})`);
+      const json = await candlesRes.json();
       const candles: Candle[] = json.candles ?? [];
+      if (vwapRes.ok) {
+        const vd: VWAPData = await vwapRes.json();
+        setVwapData(vd);
+      }
       if (candles.length < 50) throw new Error('Not enough price history for this symbol');
       const ind   = computeIndicators(candles);
       const found = detectSetups(ind);
@@ -1000,6 +1011,9 @@ export default function StockScannerPage() {
 
         {/* ── Technical Snapshot ── */}
         {indicators && <TechBar ind={indicators} />}
+
+        {/* ── VWAP ── */}
+        {!loading && vwapData && <VWAPPanel data={vwapData} symbol={symbol} />}
 
         {/* ── Candlestick Patterns ── */}
         {!loading && allCandles.length > 0 && (

@@ -6,6 +6,7 @@ import { useTradeStore } from '@/store/tradeStore';
 import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/chain';
 import CandlePatternsPanel from '@/components/CandlePatternsPanel';
 import { detectCandlePatterns } from '@/lib/candlePatterns';
+import type { VWAPData } from '@/pages/api/market/vwap';
 
 /* ── Types ──────────────────────────────────────────────────────── */
 type StratType = 'bull-put' | 'bear-call' | 'iron-condor';
@@ -238,16 +239,17 @@ function calcConfluenceScore(
   oa: OptionsAnalytics,
   md: MarketData,
   candles: ScanCandle[],
+  vwap: VWAPData | null,
 ): ConfluenceResult {
   const signals: ConfluenceSignal[] = [];
 
-  /* ─ 1. IVR (25%) ─ */
+  /* ─ 1. IVR (22%) — reduced from 25% to accommodate VWAP ─ */
   const ivr = oa.ivr ?? 0;
   const ivrScore = ivr >= 80 ? 100 : ivr >= 60 ? 78 : ivr >= 40 ? 55 : ivr >= 20 ? 30 : 10;
   signals.push({
     name: 'IV Rank',
     score: ivrScore,
-    weight: 0.25,
+    weight: 0.22,
     verdict: ivr >= 70 ? 'Elevated — strong premium edge' : ivr >= 40 ? 'Average IV' : 'Compressed — thin premium',
     detail: `IVR ${ivr.toFixed(0)} — ${ivr >= 70 ? 'IV historically expensive, credit spreads have statistical edge' : ivr >= 40 ? 'IV near average, standard edge' : 'IV compressed, premium is thin'}.`,
     positive: ivrScore >= 55,
@@ -274,7 +276,7 @@ function calcConfluenceScore(
     }
     pcDetail = `P/C ${pc.toFixed(2)} for nearest expiry.`;
   }
-  signals.push({ name: 'Put/Call Ratio', score: pcScore, weight: 0.15, verdict: pcVerdict, detail: pcDetail, positive: pcScore >= 55 });
+  signals.push({ name: 'Put/Call Ratio', score: pcScore, weight: 0.13, verdict: pcVerdict, detail: pcDetail, positive: pcScore >= 55 });
 
   /* ─ 3. Candlestick Pattern (20%) ─ */
   const patterns = detectCandlePatterns(candles);
@@ -300,7 +302,7 @@ function calcConfluenceScore(
       patternVerdict = maxW === 0 ? 'Neutral — ideal for condor' : 'Directional signal — risk for condor';
     }
   }
-  signals.push({ name: 'Candle Pattern', score: patternScore, weight: 0.20, verdict: patternVerdict, detail: patternDetail, positive: patternScore >= 55 });
+  signals.push({ name: 'Candle Pattern', score: patternScore, weight: 0.18, verdict: patternVerdict, detail: patternDetail, positive: patternScore >= 55 });
 
   /* ─ 4. Market Trend/Bias (20%) ─ */
   let trendScore = 50;
@@ -315,7 +317,7 @@ function calcConfluenceScore(
     trendScore = md.bias === 'neutral' ? 85 : 40;
     trendVerdict = md.bias === 'neutral' ? 'Neutral — ideal rangebound conditions' : `${md.bias === 'bullish' ? 'Uptrend' : 'Downtrend'} — directional risk for condor`;
   }
-  signals.push({ name: 'Market Trend', score: trendScore, weight: 0.20, verdict: trendVerdict, detail: `Price is ${md.bias} vs EMA20 ($${md.ema20.toFixed(2)}).`, positive: trendScore >= 55 });
+  signals.push({ name: 'Market Trend', score: trendScore, weight: 0.17, verdict: trendVerdict, detail: `Price is ${md.bias} vs EMA20 ($${md.ema20.toFixed(2)}).`, positive: trendScore >= 55 });
 
   /* ─ 5. GEX Regime (10%) ─ */
   const gexScore = oa.totalGex > 0 ? 75 : 35;  // positive GEX = volatility dampener = better for credit spreads
@@ -328,17 +330,48 @@ function calcConfluenceScore(
     positive: gexScore >= 55,
   });
 
-  /* ─ 6. Max Pain Proximity (10%) ─ */
+  /* ─ 6. Max Pain Proximity (8%) ─ */
   const mpDiffPct = md.price > 0 ? Math.abs((oa.maxPain - md.price) / md.price * 100) : 10;
   const mpScore = mpDiffPct < 1 ? 95 : mpDiffPct < 3 ? 75 : mpDiffPct < 6 ? 50 : 25;
   signals.push({
     name: 'Max Pain',
     score: mpScore,
-    weight: 0.10,
+    weight: 0.08,
     verdict: mpDiffPct < 1 ? 'At max pain — pinning likely' : mpDiffPct < 3 ? 'Near max pain — gravity pull' : mpDiffPct < 6 ? 'Moderate distance' : 'Far from max pain',
     detail: `Max Pain at $${oa.maxPain}. Spot is ${mpDiffPct.toFixed(1)}% away. Market makers benefit when price converges to this level.`,
     positive: mpScore >= 55,
   });
+
+  /* ─ 7. VWAP Intraday Bias (12%) ─ */
+  if (vwap !== null) {
+    let vwapScore = 50;
+    let vwapVerdict = 'At VWAP — equilibrium';
+    if (spreadType === 'bull-put') {
+      vwapScore = vwap.location === 'above2' ? 85 : vwap.location === 'above1' ? 80 : vwap.location === 'near' ? 60 : vwap.location === 'below1' ? 30 : 15;
+      vwapVerdict = vwap.location === 'above2' || vwap.location === 'above1'
+        ? 'Above VWAP — buyers in control intraday'
+        : vwap.location === 'near' ? 'At VWAP — fair value, neutral'
+        : 'Below VWAP — sellers in control intraday';
+    } else if (spreadType === 'bear-call') {
+      vwapScore = vwap.location === 'below2' ? 85 : vwap.location === 'below1' ? 80 : vwap.location === 'near' ? 60 : vwap.location === 'above1' ? 30 : 15;
+      vwapVerdict = vwap.location === 'below2' || vwap.location === 'below1'
+        ? 'Below VWAP — sellers in control intraday'
+        : vwap.location === 'near' ? 'At VWAP — fair value, neutral'
+        : 'Above VWAP — buyers in control intraday';
+    } else {
+      // Iron condor: hugging VWAP = low directional conviction = ideal
+      vwapScore = vwap.location === 'near' ? 85 : vwap.location === 'above1' || vwap.location === 'below1' ? 55 : 20;
+      vwapVerdict = vwap.location === 'near' ? 'At VWAP — rangebound, ideal for condor' : 'Extended from VWAP — directional momentum present';
+    }
+    signals.push({
+      name: 'VWAP',
+      score: vwapScore,
+      weight: 0.12,
+      verdict: vwapVerdict,
+      detail: `Intraday: price is ${vwap.distancePct >= 0 ? '+' : ''}${vwap.distancePct}% vs VWAP ($${vwap.vwap.toFixed(2)}). ${vwap.location === 'near' ? '1σ band: $' + vwap.band1Lower + '–$' + vwap.band1Upper + '.' : ''}`,
+      positive: vwapScore >= 55,
+    });
+  }
 
   // Weighted sum
   const weighted = signals.reduce((sum, s) => sum + s.score * s.weight, 0);
@@ -349,11 +382,12 @@ function calcConfluenceScore(
   const positiveCount = signals.filter((s) => s.positive).length;
   const strongestSignal = signals.reduce((best, s) => s.score > best.score ? s : best, signals[0]);
   const weakestSignal  = signals.reduce((weak, s) => s.score < weak.score ? s : weak, signals[0]);
+  const totalSignals = signals.length;
   const summary =
     grade === 'A'
-      ? `Strong confluence (${score}/100) — ${positiveCount}/6 signals aligned. ${strongestSignal.verdict}. High confidence in this setup.`
+      ? `Strong confluence (${score}/100) — ${positiveCount}/${totalSignals} signals aligned. ${strongestSignal.verdict}. High confidence in this setup.`
       : grade === 'B'
-      ? `Good confluence (${score}/100) — ${positiveCount}/6 signals supportive. Watch: ${weakestSignal.name.toLowerCase()} is the weakest link.`
+      ? `Good confluence (${score}/100) — ${positiveCount}/${totalSignals} signals supportive. Watch: ${weakestSignal.name.toLowerCase()} is the weakest link.`
       : grade === 'C'
       ? `Moderate confluence (${score}/100) — mixed signals. ${weakestSignal.verdict}. Size down and wait for clearer confirmation.`
       : `Low confluence (${score}/100) — key signals opposing this trade. ${weakestSignal.verdict}. Consider skipping or reducing risk significantly.`;
@@ -551,7 +585,7 @@ function TVMini({ symbol }: { symbol: string }) {
 }
 
 /* ── Market Bias Bar ───────────────────────────────────────────── */
-function BiasBar({ md, chainIV, ivr, pcRatio }: { md: MarketData; chainIV: number; ivr: number | null; pcRatio: number | null }) {
+function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV: number; ivr: number | null; pcRatio: number | null; vwap: VWAPData | null }) {
   const biasColor = md.bias === 'bullish' ? 'text-green-600' : md.bias === 'bearish' ? 'text-red-600' : 'text-gray-600';
   const biasIcon  = md.bias === 'bullish' ? '▲ Bullish' : md.bias === 'bearish' ? '▼ Bearish' : '→ Neutral';
   const biasTip   = md.bias === 'bullish'
@@ -628,6 +662,24 @@ function BiasBar({ md, chainIV, ivr, pcRatio }: { md: MarketData; chainIV: numbe
           <span className="text-xs text-gray-400 block">Put/Call Ratio</span>
           <span className={`text-lg ${pcColor}`}>{pcRatio.toFixed(2)}</span>
           <span className="text-xs text-gray-500 block max-w-[200px]">{pcVerdict}</span>
+        </div>
+      )}
+      {vwap !== null && (
+        <div>
+          <span className="text-xs text-gray-400 block">VWAP (intraday)</span>
+          <span className={`text-lg font-bold ${
+            vwap.distancePct > 0.5 ? 'text-green-600' : vwap.distancePct < -0.5 ? 'text-red-600' : 'text-gray-700'
+          }`}>
+            ${vwap.vwap.toFixed(2)}
+          </span>
+          <span className={`text-xs block ${vwap.distancePct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {vwap.distancePct >= 0 ? '+' : ''}{vwap.distancePct}% · {
+              vwap.location === 'above2' ? 'Overbought' :
+              vwap.location === 'above1' ? 'Ext. Bullish' :
+              vwap.location === 'near'   ? 'At VWAP' :
+              vwap.location === 'below1' ? 'Ext. Bearish' : 'Oversold'
+            }
+          </span>
         </div>
       )}
       <div className="ml-auto">
@@ -1167,6 +1219,7 @@ export default function ScannerPage() {
   const [chainIV, setChainIV]               = useState(0);
   const [optionsAnalytics, setOptionsAnalytics] = useState<OptionsAnalytics | null>(null);
   const [scanCandles, setScanCandles]       = useState<{ date: string; open: number; high: number; low: number; close: number; volume: number }[]>([]);
+  const [vwapData, setVwapData]             = useState<VWAPData | null>(null);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState('');
   const [lastScanned, setLastScanned]       = useState('');
@@ -1195,16 +1248,22 @@ export default function ScannerPage() {
     setError('');
     setScanResults([]);
     setScanCandles([]);
+    setVwapData(null);
     try {
-      const [candlesRes, chainRes] = await Promise.all([
+      const [candlesRes, chainRes, vwapRes] = await Promise.all([
         fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`),
         fetch(`/api/options/chain?symbol=${encodeURIComponent(sym)}`),
+        fetch(`/api/market/vwap?symbol=${encodeURIComponent(sym)}`),
       ]);
       if (!candlesRes.ok) throw new Error(`Price data fetch failed (${candlesRes.status})`);
       if (!chainRes.ok)   throw new Error(`Options chain fetch failed (${chainRes.status})`);
 
       const candlesJson = await candlesRes.json();
       const chain: OptionsChainResponse = await chainRes.json();
+      if (vwapRes.ok) {
+        const vd: VWAPData = await vwapRes.json();
+        setVwapData(vd);
+      }
 
       const closes: number[] = candlesJson.candles?.map((c: { close: number }) => c.close) ?? [];
       if (!closes.length) throw new Error('No historical price data returned');
@@ -1283,21 +1342,21 @@ export default function ScannerPage() {
 
   const confluenceBP = useMemo(
     () => topBP && optionsAnalytics && marketData
-      ? calcConfluenceScore('bull-put',    optionsAnalytics, marketData, scanCandles)
+      ? calcConfluenceScore('bull-put',    optionsAnalytics, marketData, scanCandles, vwapData)
       : null,
-    [topBP, optionsAnalytics, marketData, scanCandles],
+    [topBP, optionsAnalytics, marketData, scanCandles, vwapData],
   );
   const confluenceBC = useMemo(
     () => topBC && optionsAnalytics && marketData
-      ? calcConfluenceScore('bear-call',   optionsAnalytics, marketData, scanCandles)
+      ? calcConfluenceScore('bear-call',   optionsAnalytics, marketData, scanCandles, vwapData)
       : null,
-    [topBC, optionsAnalytics, marketData, scanCandles],
+    [topBC, optionsAnalytics, marketData, scanCandles, vwapData],
   );
   const confluenceIC = useMemo(
     () => topIC && optionsAnalytics && marketData
-      ? calcConfluenceScore('iron-condor', optionsAnalytics, marketData, scanCandles)
+      ? calcConfluenceScore('iron-condor', optionsAnalytics, marketData, scanCandles, vwapData)
       : null,
-    [topIC, optionsAnalytics, marketData, scanCandles],
+    [topIC, optionsAnalytics, marketData, scanCandles, vwapData],
   );
 
   const inputCls = 'border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300';
@@ -1333,7 +1392,7 @@ export default function ScannerPage() {
         </div>
 
         {/* ── Market Context ── */}
-        {marketData && <BiasBar md={marketData} chainIV={chainIV} ivr={optionsAnalytics?.ivr ?? null} pcRatio={optionsAnalytics?.pcRatio ?? null} />}
+        {marketData && <BiasBar md={marketData} chainIV={chainIV} ivr={optionsAnalytics?.ivr ?? null} pcRatio={optionsAnalytics?.pcRatio ?? null} vwap={vwapData} />}
 
         {/* ── Candlestick Patterns ── */}
         {!loading && scanCandles.length > 0 && (
