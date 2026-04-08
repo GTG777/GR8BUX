@@ -1027,94 +1027,156 @@ export default function StockScannerPage() {
           <TVMini key={symbol} symbol={symbol} />
         </div>
 
-        {/* ── In-house TSI Chart ── */}
-        {tsiData.length > 0 && <TSIChart data={tsiData} />}
-
-        {/* ── Technical Snapshot ── */}
-        {indicators && <TechBar ind={indicators} />}
-
-        {/* ── VWAP ── */}
-        {!loading && vwapData && <VWAPPanel data={vwapData} symbol={symbol} />}
-
-        {/* ── Insider Activity ── */}
-        {!loading && insiderData && <InsiderActivityPanel data={insiderData} symbol={symbol} />}
-
-        {/* ── Candlestick Patterns ── */}
-        {!loading && allCandles.length > 0 && (
-          <CandlePatternsPanel candles={allCandles} symbol={symbol} />
-        )}
-
-        {/* ── Loading ── */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
-            <span className="text-gray-500 text-sm">Scanning {symbol}…</span>
-          </div>
-        )}
-
-        {/* ── Status line ── */}
-        {!loading && lastScanned && (
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs text-gray-400">
-              Scanned at {lastScanned} · {setups.length} setup{setups.length !== 1 ? 's' : ''} detected
-            </span>
-            {setups.length === 0 && !error && (
-              <span className="text-xs text-amber-500">
-                No high-confidence setups match current conditions.
-                Try a different symbol or check back when the market opens.
-              </span>
-            )}
-          </div>
-        )}
-        {error && <p className="text-sm text-red-500">{error}</p>}
-
-        {/* ── Setup Cards ── */}
-        {!loading && setups.length > 0 && (
-          <div>
-            <h2 className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3">
-              Suggested Setups — {symbol}
-            </h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {setups.map((s) => <SetupCard key={s.id} setup={s} />)}
-            </div>
-          </div>
-        )}
-
-        {/* ── Setup Projection Map ── */}
-        {!loading && setups.length > 0 && allCandles.length > 0 && indicators && (
-          <SetupProjectionChart
-            candles={allCandles}
-            indicators={indicators}
-            setups={setups}
-            symbol={symbol}
-          />
-        )}
-
-        {/* ── Glossary ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">How This Works</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-            {[
-              ['Entry',               'The current market price where you would open the position.'],
-              ['Stop Loss',          'Set at 1.5–2×ATR from entry. Limits max risk on the trade.'],
-              ['Target 1 (2:1)',     'First profit target at 2× the stop distance from entry.'],
-              ['Target 2 (3:1)',     'Stretch target at 3× the stop distance. Let your winners run.'],
-              ['Risk : Reward',      '1:2 means you risk $1 to make $2. Always trade positive R:R setups.'],
-              ['Prob. of Success',   'Estimated win rate based on historical performance of this setup type, adjusted by RSI, trend alignment and volume confirmation.'],
-              ['ATR 14',             'Average True Range — daily price volatility. Used to dynamically size stops.'],
-              ['TSI (25/13)',         'True Strength Index. Double-smoothed momentum oscillator. Above 0 = bullish; below 0 = bearish. Extreme readings (> +50 or < −50) signal overextension.'],
-              ['MACD',               'Momentum indicator. Positive histogram = bullish momentum, negative = bearish.'],
-              ['Trend Score',        'Count of EMAs (20/50/200) below price. +3 = strong uptrend; −3 = strong downtrend.'],
-              ['Volume Ratio',       'Today\'s volume vs 20-day average. > 1.3× = elevated = conviction behind the move.'],
-              ['Bollinger Bands',    '20-day moving average ± 2 standard deviations. Price near outer bands is statistically rare.'],
-            ].map(([term, def]) => (
-              <div key={term} className="flex gap-3 text-xs py-1">
-                <span className="font-semibold text-gray-700 w-36 shrink-0">{term}</span>
-                <span className="text-gray-500">{def}</span>
+        {/* ── Tabs ── */}
+        {(() => {
+          const tabs = ['Overview', 'Technicals', 'Insider', 'Setups'] as const;
+          type Tab = typeof tabs[number];
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          const [activeTab, setActiveTab] = React.useState<Tab>('Overview');
+          return (
+            <>
+              {/* Tab bar */}
+              <div className="flex gap-1 border-b border-gray-200">
+                {tabs.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setActiveTab(t)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === t
+                        ? 'border-indigo-600 text-indigo-700'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+
+              {/* ── Overview ── */}
+              {activeTab === 'Overview' && (
+                <div className="space-y-4">
+                  {indicators && <TechBar ind={indicators} />}
+                  {loading && (
+                    <div className="flex items-center justify-center py-20">
+                      <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
+                      <span className="text-gray-500 text-sm">Scanning {symbol}…</span>
+                    </div>
+                  )}
+                  {!loading && lastScanned && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs text-gray-400">
+                        Scanned at {lastScanned} · {setups.length} setup{setups.length !== 1 ? 's' : ''} detected
+                      </span>
+                      {setups.length === 0 && !error && (
+                        <span className="text-xs text-amber-500">
+                          No high-confidence setups match current conditions.
+                          Try a different symbol or check back when the market opens.
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {error && <p className="text-sm text-red-500">{error}</p>}
+                </div>
+              )}
+
+              {/* ── Technicals ── */}
+              {activeTab === 'Technicals' && (
+                <div className="space-y-4">
+                  {tsiData.length > 0 && <TSIChart data={tsiData} />}
+                  {!loading && vwapData && <VWAPPanel data={vwapData} symbol={symbol} />}
+                  {!loading && allCandles.length > 0 && (
+                    <CandlePatternsPanel candles={allCandles} symbol={symbol} />
+                  )}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Indicator Glossary</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                      {[
+                        ['TSI (25/13)',       'True Strength Index. Double-smoothed momentum. Above 0 = bullish momentum.'],
+                        ['VWAP',             'Volume-weighted average price. Intraday mean reversion anchor.'],
+                        ['Bollinger Bands',  '20-day MA ± 2σ. Price near outer bands is statistically rare.'],
+                        ['MACD',             'Momentum indicator. Positive histogram = bullish momentum.'],
+                        ['ATR 14',           'Average True Range. Daily volatility for dynamic stop sizing.'],
+                        ['Trend Score',      'EMAs (20/50/200) below price. +3 = strong uptrend; −3 = downtrend.'],
+                        ['Volume Ratio',     'Today vs 20-day avg volume. > 1.3× = conviction behind the move.'],
+                      ].map(([term, def]) => (
+                        <div key={term} className="flex gap-3 text-xs py-1">
+                          <span className="font-semibold text-gray-700 w-36 shrink-0">{term}</span>
+                          <span className="text-gray-500">{def}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Insider ── */}
+              {activeTab === 'Insider' && (
+                <div className="space-y-4">
+                  {!loading && insiderData
+                    ? <InsiderActivityPanel data={insiderData} symbol={symbol} />
+                    : loading
+                      ? <div className="flex items-center justify-center py-20">
+                          <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
+                          <span className="text-gray-500 text-sm">Loading insider data…</span>
+                        </div>
+                      : <p className="text-sm text-gray-400 py-8 text-center">No insider data available for {symbol}.</p>
+                  }
+                </div>
+              )}
+
+              {/* ── Setups ── */}
+              {activeTab === 'Setups' && (
+                <div className="space-y-4">
+                  {loading && (
+                    <div className="flex items-center justify-center py-20">
+                      <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
+                      <span className="text-gray-500 text-sm">Scanning {symbol}…</span>
+                    </div>
+                  )}
+                  {!loading && setups.length > 0 && (
+                    <>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {setups.map((s) => <SetupCard key={s.id} setup={s} />)}
+                      </div>
+                      {allCandles.length > 0 && indicators && (
+                        <SetupProjectionChart
+                          candles={allCandles}
+                          indicators={indicators}
+                          setups={setups}
+                          symbol={symbol}
+                        />
+                      )}
+                    </>
+                  )}
+                  {!loading && setups.length === 0 && (
+                    <div className="rounded-xl border border-amber-100 bg-amber-50 p-6 text-center text-sm text-amber-700">
+                      No high-confidence setups detected for {symbol} right now.
+                      Check back when price action develops clearer structure.
+                    </div>
+                  )}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">How Setups Are Scored</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                      {[
+                        ['Entry',          'Current market price for the position.'],
+                        ['Stop Loss',      '1.5–2×ATR from entry. Limits max risk.'],
+                        ['Target 1 (2:1)', 'First profit target at 2× stop distance.'],
+                        ['Target 2 (3:1)', 'Stretch target at 3× stop distance.'],
+                        ['Prob. of Success', 'Historical win rate adjusted for RSI, trend & volume.'],
+                        ['Grade A/B/C',    'A = all signals aligned; B = most aligned; C = mixed.'],
+                      ].map(([term, def]) => (
+                        <div key={term} className="flex gap-3 text-xs py-1">
+                          <span className="font-semibold text-gray-700 w-36 shrink-0">{term}</span>
+                          <span className="text-gray-500">{def}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         <p className="text-center text-xs text-gray-400 pb-4">
           Price data via Yahoo Finance. Setups generated algorithmically from EMA, RSI, MACD, ATR and Bollinger Band indicators.
