@@ -21,10 +21,20 @@ interface WatchlistItem {
 const AdvancedWatchlist: React.FC = () => {
   const router = useRouter();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const watchlistRef = useRef<WatchlistItem[]>([]);
   const [symbolInput, setSymbolInput] = useState('');
   const [sortColumn, setSortColumn] = useState<keyof WatchlistItem | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Keep ref in sync so interval always sees latest symbols
+  const setWatchlistSynced = (updater: WatchlistItem[] | ((prev: WatchlistItem[]) => WatchlistItem[])) => {
+    setWatchlist(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      watchlistRef.current = next;
+      return next;
+    });
+  };
 
   const initializeWatchlist = React.useCallback((symbols: string[]) => {
     const items = symbols.map(symbol => ({
@@ -40,12 +50,12 @@ const AdvancedWatchlist: React.FC = () => {
       loading: true,
       error: null,
     }));
-    setWatchlist(items);
+    setWatchlistSynced(items);
     symbols.forEach(sym => fetchSymbolData(sym));
   }, []);
 
   const fetchSymbolData = React.useCallback(async (symbol: string) => {
-    setWatchlist(prev =>
+    setWatchlistSynced(prev =>
       prev.map(item =>
         item.symbol === symbol ? { ...item, loading: true, error: null } : item
       )
@@ -89,7 +99,7 @@ const AdvancedWatchlist: React.FC = () => {
       });
       const coilingData = coilingRes.ok ? await coilingRes.json() : { isCoiling: null };
 
-      setWatchlist(prev =>
+      setWatchlistSynced(prev =>
         prev.map(item =>
           item.symbol === symbol
             ? {
@@ -108,7 +118,7 @@ const AdvancedWatchlist: React.FC = () => {
         )
       );
     } catch (err) {
-      setWatchlist(prev =>
+      setWatchlistSynced(prev =>
         prev.map(item =>
           item.symbol === symbol
             ? { ...item, error: err instanceof Error ? err.message : 'Unknown error', loading: false }
@@ -134,10 +144,7 @@ const AdvancedWatchlist: React.FC = () => {
     initializeWatchlist(symbols);
 
     refreshTimerRef.current = setInterval(() => {
-      setWatchlist(prev => {
-        prev.forEach(item => fetchSymbolData(item.symbol));
-        return prev;
-      });
+      watchlistRef.current.forEach(item => fetchSymbolData(item.symbol));
     }, 60_000);
 
     return () => {
@@ -148,7 +155,7 @@ const AdvancedWatchlist: React.FC = () => {
   const addSymbol = () => {
     const sym = symbolInput.toUpperCase().trim();
     if (sym && /^[A-Z]{1,5}$/.test(sym) && !watchlist.some(w => w.symbol === sym)) {
-      setWatchlist(prev => [...prev, { symbol: sym, tsi: null, price: null, change: null, changePercent: null, isCoiling: null, coilingStrength: null, sparkline: [], volumeRatio: null, loading: true, error: null }]);
+      setWatchlistSynced(prev => [...prev, { symbol: sym, tsi: null, price: null, change: null, changePercent: null, isCoiling: null, coilingStrength: null, sparkline: [], volumeRatio: null, loading: true, error: null }]);
       setSymbolInput('');
       localStorage.setItem('advancedWatchlist', JSON.stringify([...watchlist.map(w => w.symbol), sym]));
       fetchSymbolData(sym);
@@ -156,7 +163,7 @@ const AdvancedWatchlist: React.FC = () => {
   };
 
   const removeSymbol = (symbol: string) => {
-    setWatchlist(prev => prev.filter(w => w.symbol !== symbol));
+    setWatchlistSynced(prev => prev.filter(w => w.symbol !== symbol));
     localStorage.setItem(
       'advancedWatchlist',
       JSON.stringify(watchlist.filter(w => w.symbol !== symbol).map(w => w.symbol))

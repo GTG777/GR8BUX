@@ -97,7 +97,7 @@ export default function Dashboard() {
   const macroVariant = (macro?.riskRegime === 'risk-on' ? 'green' : macro?.riskRegime === 'risk-off' ? 'red' : 'gray') as 'green' | 'red' | 'gray';
   const vixVariant   = (macro?.vixRegime === 'low' ? 'green' : macro?.vixRegime === 'extreme' ? 'red' : macro?.vixRegime === 'elevated' ? 'amber' : 'gray') as 'green' | 'red' | 'amber' | 'gray';
   const cryptoVariant = (crypto?.marketSignal === 'risk-on' ? 'green' : crypto?.marketSignal === 'risk-off' ? 'red' : 'gray') as 'green' | 'red' | 'gray';
-  const sectorVariant = (sectors?.rotationRegime === 'risk-on' ? 'green' : sectors?.rotationRegime === 'risk-off' ? 'red' : sectors?.rotationRegime === 'rotation' ? 'amber' : 'gray') as 'green' | 'red' | 'amber' | 'gray';
+  const sectorVariant = (sectors?.rotationRegime === 'risk-on' ? 'green' : sectors?.rotationRegime === 'defensive' ? 'red' : sectors?.rotationRegime === 'commodity' ? 'amber' : 'gray') as 'green' | 'red' | 'amber' | 'gray';
 
   const macroLabel   = macro  ? (macro.riskRegime  === 'risk-on' ? '▲ Risk-On' : macro.riskRegime  === 'risk-off' ? '▼ Risk-Off' : '◆ Neutral') : '…';
   const cryptoLabel  = crypto ? (crypto.marketSignal === 'risk-on' ? '▲ Risk-On' : crypto.marketSignal === 'risk-off' ? '▼ Risk-Off' : '◆ Neutral') : '…';
