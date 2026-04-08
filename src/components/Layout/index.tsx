@@ -17,6 +17,7 @@ const navItems = [
   { href: '/news',       label: 'News',             icon: NewsIcon          },
   { href: '/community',  label: 'Community',        icon: CommunityIcon     },
   { href: '/technical',  label: 'Technical',        icon: TechnicalIcon     },
+  { href: '/crypto',     label: 'Crypto',           icon: CryptoIcon        },
   { href: '/watchlist',  label: 'Watchlist',        icon: WatchlistIcon     },
   { href: '/help',       label: 'Help',             icon: HelpIcon          },
 ];
@@ -108,6 +109,14 @@ function TechnicalIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+    </svg>
+  );
+}
+
+function CryptoIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
 }
