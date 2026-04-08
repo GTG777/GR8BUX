@@ -4,6 +4,7 @@ import { Layout } from '@/components/Layout';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import { useTradeStore } from '@/store/tradeStore';
 import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/chain';
+import CandlePatternsPanel from '@/components/CandlePatternsPanel';
 
 /* ── Types ──────────────────────────────────────────────────────── */
 type StratType = 'bull-put' | 'bear-call' | 'iron-condor';
@@ -956,6 +957,7 @@ export default function ScannerPage() {
   const [scanResults, setScanResults]       = useState<Spread[]>([]);
   const [chainIV, setChainIV]               = useState(0);
   const [optionsAnalytics, setOptionsAnalytics] = useState<OptionsAnalytics | null>(null);
+  const [scanCandles, setScanCandles]       = useState<{ date: string; open: number; high: number; low: number; close: number; volume: number }[]>([]);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState('');
   const [lastScanned, setLastScanned]       = useState('');
@@ -983,6 +985,7 @@ export default function ScannerPage() {
     setLoading(true);
     setError('');
     setScanResults([]);
+    setScanCandles([]);
     try {
       const [candlesRes, chainRes] = await Promise.all([
         fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`),
@@ -996,6 +999,7 @@ export default function ScannerPage() {
 
       const closes: number[] = candlesJson.candles?.map((c: { close: number }) => c.close) ?? [];
       if (!closes.length) throw new Error('No historical price data returned');
+      setScanCandles(candlesJson.candles ?? []);
 
       const price = chain.underlyingPrice || closes.at(-1)!;
       const hv10  = calcHV(closes, 10);
@@ -1102,6 +1106,11 @@ export default function ScannerPage() {
 
         {/* ── Market Context ── */}
         {marketData && <BiasBar md={marketData} chainIV={chainIV} ivr={optionsAnalytics?.ivr ?? null} pcRatio={optionsAnalytics?.pcRatio ?? null} />}
+
+        {/* ── Candlestick Patterns ── */}
+        {!loading && scanCandles.length > 0 && (
+          <CandlePatternsPanel candles={scanCandles} symbol={symbol} />
+        )}
 
         {/* ── Options Analytics ── */}
         {!loading && optionsAnalytics && marketData && (

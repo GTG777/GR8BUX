@@ -14,6 +14,7 @@ import {
   Legend,
 } from 'recharts';
 import { Layout } from '@/components/Layout';
+import CandlePatternsPanel from '@/components/CandlePatternsPanel';
 
 /* ── Types ─────────────────────────────────────────────────────── */
 interface Candle {
@@ -999,6 +1000,11 @@ export default function StockScannerPage() {
 
         {/* ── Technical Snapshot ── */}
         {indicators && <TechBar ind={indicators} />}
+
+        {/* ── Candlestick Patterns ── */}
+        {!loading && allCandles.length > 0 && (
+          <CandlePatternsPanel candles={allCandles} symbol={symbol} />
+        )}
 
         {/* ── Loading ── */}
         {loading && (
