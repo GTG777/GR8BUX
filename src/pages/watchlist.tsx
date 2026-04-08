@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRouter } from 'next/router';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { Skeleton } from '@/components/Skeleton';
 
 interface WatchlistItem {
   symbol: string;
@@ -286,11 +287,11 @@ const AdvancedWatchlist: React.FC = () => {
                       </button>
                     </td>
                     <td className="px-6 py-4 text-right text-sm text-gray-900">
-                      {item.loading ? <span className="text-gray-400">Loading...</span> : item.error ? <span className="text-red-600 text-xs">{item.error}</span> : <span>${item.price?.toFixed(2)}</span>}
+                      {item.loading ? <Skeleton className="h-4 w-16 ml-auto" /> : item.error ? <span className="text-red-600 text-xs">{item.error}</span> : <span>${item.price?.toFixed(2)}</span>}
                     </td>
                     <td className="px-6 py-4 text-right text-sm">
                       {item.loading ? (
-                        <span className="text-gray-400">Loading...</span>
+                        <Skeleton className="h-4 w-20 ml-auto" />
                       ) : item.change !== null ? (
                         <span className={item.change >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
                           {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)} ({item.changePercent})
@@ -301,7 +302,7 @@ const AdvancedWatchlist: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-center text-sm">
                       {item.loading ? (
-                        <span className="text-gray-400">Loading...</span>
+                        <Skeleton className="h-4 w-12 mx-auto" />
                       ) : item.tsi !== null ? (
                         <span className={item.tsi > 0 ? 'font-semibold text-green-600' : 'font-semibold text-red-600'}>
                           {item.tsi.toFixed(1)}
@@ -312,7 +313,7 @@ const AdvancedWatchlist: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-center text-sm">
                       {item.loading ? (
-                        <span className="text-gray-400">Loading...</span>
+                        <Skeleton className="h-4 w-10 mx-auto" />
                       ) : item.isCoiling === true ? (
                         <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-semibold text-xs">
                           Yes ⚡
@@ -323,7 +324,7 @@ const AdvancedWatchlist: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-center text-sm">
                       {item.loading ? (
-                        <span className="text-gray-400">Loading...</span>
+                        <Skeleton className="h-4 w-14 mx-auto" />
                       ) : item.coilingStrength !== null ? (
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-12 bg-gray-200 rounded-full h-2 overflow-hidden">
@@ -359,7 +360,7 @@ const AdvancedWatchlist: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-center">
                       {item.loading ? (
-                        <span className="text-gray-400 text-xs">Loading...</span>
+                        <Skeleton className="h-8 w-20 mx-auto" />
                       ) : item.sparkline.length > 1 ? (
                         <div className="w-20 h-8 inline-block">
                           <ResponsiveContainer width="100%" height="100%">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Dashboard as TradeAnalytics } from '@/components/Dashboard';
+import { Skeleton } from '@/components/Skeleton';
 import type { MacroData } from '@/pages/api/market/macro';
 import type { SectorData } from '@/pages/api/market/sectors';
 import type { CryptoOverview } from '@/pages/api/crypto/overview';
@@ -37,7 +38,7 @@ function MarketSignalCard({
   title: string;
   badge: string;
   badgeVariant: 'green' | 'red' | 'amber' | 'gray';
-  detail: string;
+  detail?: string;
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
@@ -46,7 +47,10 @@ function MarketSignalCard({
         <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">{title}</p>
         <RegimePill label={badge} variant={badgeVariant} />
       </div>
-      <p className="text-xs text-gray-600 leading-relaxed">{detail}</p>
+      {detail
+        ? <p className="text-xs text-gray-600 leading-relaxed">{detail}</p>
+        : <Skeleton className="h-3 w-full" />
+      }
     </div>
   );
 }
@@ -129,7 +133,7 @@ export default function Dashboard() {
           badgeVariant={macroVariant}
           detail={macro
             ? `SPY ${macro.spy.changePct > 0 ? '+' : ''}${macro.spy.changePct.toFixed(2)}% · VIX ${macro.vix.price.toFixed(1)} · Yield spread ${macro.yieldSpread > 0 ? '+' : ''}${macro.yieldSpread.toFixed(0)} bps · ${macro.yieldCurveRegime} curve`
-            : 'Loading…'}
+            : undefined}
         />
         <MarketSignalCard
           icon="🌡️"
@@ -138,7 +142,7 @@ export default function Dashboard() {
           badgeVariant={vixVariant}
           detail={macro
             ? `VIX ${macro.vix.price.toFixed(1)} (${macro.vix.changePct > 0 ? '+' : ''}${macro.vix.changePct.toFixed(2)}%) · Gold ${macro.gold.changePct > 0 ? '+' : ''}${macro.gold.changePct.toFixed(2)}% · USD ${macro.dollar.changePct > 0 ? '+' : ''}${macro.dollar.changePct.toFixed(2)}%`
-            : 'Loading…'}
+            : undefined}
         />
         <MarketSignalCard
           icon="🔄"
@@ -147,7 +151,7 @@ export default function Dashboard() {
           badgeVariant={sectorVariant}
           detail={sectors
             ? `Leading: ${sectors.leaders.slice(0, 2).join(', ')} · Lagging: ${sectors.laggards.slice(0, 2).join(', ')}`
-            : 'Loading…'}
+            : undefined}
         />
         <MarketSignalCard
           icon="₿"
@@ -156,12 +160,12 @@ export default function Dashboard() {
           badgeVariant={cryptoVariant}
           detail={crypto
             ? `F&G ${crypto.fearGreed.value} (${crypto.fearGreed.label}) · BTC dom ${crypto.btcDominance?.toFixed(1) ?? '—'}% · ${crypto.tickers.find(t => t.symbol === 'BTC')?.trendLabel ?? '…'}`
-            : 'Loading…'}
+            : undefined}
         />
       </div>
 
       {/* ── Market stat tiles ── */}
-      {macro && (
+      {macro ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
           <StatTile label="SPY" value={`$${macro.spy.price.toFixed(2)}`} sub={`${macro.spy.changePct > 0 ? '+' : ''}${macro.spy.changePct.toFixed(2)}%`} accent={macro.spy.changePct >= 0 ? 'border-green-200' : 'border-red-200'} />
           <StatTile label="VIX" value={macro.vix.price.toFixed(1)} sub={`${macro.vix.changePct > 0 ? '+' : ''}${macro.vix.changePct.toFixed(2)}%`} accent={macro.vix.price > 25 ? 'border-red-200' : 'border-gray-200'} />
@@ -169,6 +173,16 @@ export default function Dashboard() {
           <StatTile label="Gold" value={`$${macro.gold.price.toFixed(0)}`} sub={`${macro.gold.changePct > 0 ? '+' : ''}${macro.gold.changePct.toFixed(2)}%`} accent={macro.gold.changePct >= 0 ? 'border-yellow-200' : 'border-gray-200'} />
           <StatTile label="Oil (WTI)" value={`$${macro.oil.price.toFixed(2)}`} sub={`${macro.oil.changePct > 0 ? '+' : ''}${macro.oil.changePct.toFixed(2)}%`} />
           <StatTile label="USD Index" value={macro.dollar.price.toFixed(2)} sub={`${macro.dollar.changePct > 0 ? '+' : ''}${macro.dollar.changePct.toFixed(2)}%`} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+          {['SPY', 'VIX', '10Y Yield', 'Gold', 'Oil (WTI)', 'USD Index'].map(label => (
+            <div key={label} className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+              <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">{label}</p>
+              <Skeleton className="h-7 w-20 mb-1" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+          ))}
         </div>
       )}
 
