@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import type { CryptoOverview, CryptoTicker } from '@/pages/api/crypto/overview';
+import type { CryptoTrendingData, TrendingCoin, CryptoNewsItem } from '@/pages/api/crypto/trending';
 
 /* ── Format helpers ─────────────────────────────────────────────── */
 function fmtPrice(n: number): string {
@@ -9,10 +10,102 @@ function fmtPrice(n: number): string {
   return `$${n.toFixed(4)}`;
 }
 
+function fmtCoinPrice(n: number): string {
+  if (n >= 10000) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  if (n >= 100)   return `$${n.toFixed(2)}`;
+  if (n >= 1)     return `$${n.toFixed(4)}`;
+  if (n >= 0.0001) return `$${n.toFixed(6)}`;
+  return n > 0 ? `$${n.toExponential(2)}` : '—';
+}
+
 function fmtVol(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
   return `$${(n / 1e3).toFixed(1)}K`;
+}
+
+function timeAgo(unix: number): string {
+  const diff = Math.floor((Date.now() / 1000) - unix);
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+/* ── Trending coin card ─────────────────────────────────────────── */
+function TrendingCoinCard({ coin }: { coin: TrendingCoin }) {
+  const up = coin.change24h >= 0;
+  return (
+    <div className={`rounded-xl border bg-white shadow-sm p-3 flex flex-col gap-2 ${
+      coin.coinbaseListed ? 'border-blue-100' : 'border-gray-200'
+    }`}>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold text-gray-300 w-5">#{coin.rank}</span>
+        {coin.thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={coin.thumb} alt={coin.symbol} className="w-6 h-6 rounded-full" />
+        ) : (
+          <div className="w-6 h-6 rounded-full bg-gray-200" />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-800 truncate">{coin.symbol}</p>
+          <p className="text-[10px] text-gray-400 truncate">{coin.name}</p>
+        </div>
+        {coin.coinbaseListed && (
+          <span className="text-[10px] bg-blue-50 border border-blue-200 text-blue-600 px-1.5 py-0.5 rounded font-semibold">CB</span>
+        )}
+      </div>
+      <div className="flex justify-between items-center">
+        <span className="text-sm font-semibold text-gray-700">{fmtCoinPrice(coin.price)}</span>
+        <span className={`text-xs font-bold ${up ? 'text-green-600' : 'text-red-500'}`}>
+          {up ? '+' : ''}{coin.change24h.toFixed(2)}%
+        </span>
+      </div>
+      {coin.marketCapRank && (
+        <p className="text-[10px] text-gray-400">MCap rank #{coin.marketCapRank}</p>
+      )}
+    </div>
+  );
+}
+
+/* ── News item ───────────────────────────────────────────────────── */
+function NewsItem({ item }: { item: CryptoNewsItem }) {
+  return (
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-blue-200 hover:shadow-sm transition-all group"
+    >
+      {item.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.imageUrl}
+          alt=""
+          className="w-16 h-16 rounded-lg object-cover shrink-0"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-800 group-hover:text-blue-700 line-clamp-2 leading-snug">
+          {item.title}
+        </p>
+        <div className="flex flex-wrap items-center gap-2 mt-1.5">
+          <span className="text-[10px] text-gray-400">{item.source}</span>
+          <span className="text-[10px] text-gray-300">·</span>
+          <span className="text-[10px] text-gray-400">{timeAgo(item.publishedAt)}</span>
+          {item.categories && (
+            <>
+              <span className="text-[10px] text-gray-300">·</span>
+              <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                {item.categories.split('|').slice(0, 3).join(' · ')}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    </a>
+  );
 }
 
 /* ── Signal badge ───────────────────────────────────────────────── */
@@ -208,9 +301,10 @@ function FundingTable({ tickers }: { tickers: CryptoTicker[] }) {
 
 /* ── Page ───────────────────────────────────────────────────────── */
 export default function CryptoPage() {
-  const [data, setData]       = useState<CryptoOverview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
+  const [data, setData]             = useState<CryptoOverview | null>(null);
+  const [trending, setTrending]     = useState<CryptoTrendingData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState('');
   const [lastRefresh, setLastRefresh] = useState('');
 
   const fetchData = useCallback(async () => {
@@ -228,11 +322,22 @@ export default function CryptoPage() {
     }
   }, []);
 
+  const fetchTrending = useCallback(async () => {
+    try {
+      const res = await fetch('/api/crypto/trending');
+      if (!res.ok) return;
+      const json: CryptoTrendingData = await res.json();
+      setTrending(json);
+    } catch { /* non-fatal */ }
+  }, []);
+
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60_000); // refresh every 60s
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    fetchTrending();
+    const overviewInterval  = setInterval(fetchData, 60_000);     // 60s
+    const trendingInterval  = setInterval(fetchTrending, 300_000); // 5 min
+    return () => { clearInterval(overviewInterval); clearInterval(trendingInterval); };
+  }, [fetchData, fetchTrending]);
 
   return (
     <Layout>
@@ -304,6 +409,38 @@ export default function CryptoPage() {
 
             {/* Funding rates */}
             <FundingTable tickers={data.tickers} />
+
+            {/* Trending coins */}
+            {trending && trending.coins.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Trending Cryptos</h3>
+                  <span className="text-xs text-gray-400">· top searched on CoinGecko · last 24h</span>
+                  <span className="ml-auto text-[10px] text-blue-600 font-semibold">CB = listed on Coinbase (USA)</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {trending.coins.map((coin) => (
+                    <TrendingCoinCard key={coin.cgId} coin={coin} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Crypto news */}
+            {trending && trending.news.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Trending Crypto News</h3>
+                  <span className="text-xs text-gray-400">· latest for trending coins</span>
+                  <span className="ml-auto text-[10px] text-gray-400">via CryptoCompare</span>
+                </div>
+                <div className="space-y-2">
+                  {trending.news.map((item) => (
+                    <NewsItem key={item.id} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Signal methodology */}
             <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
