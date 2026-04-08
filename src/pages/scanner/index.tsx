@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import { useTradeStore } from '@/store/tradeStore';
 import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/chain';
 import CandlePatternsPanel from '@/components/CandlePatternsPanel';
+import { detectCandlePatterns } from '@/lib/candlePatterns';
 
 /* ── Types ──────────────────────────────────────────────────────── */
 type StratType = 'bull-put' | 'bear-call' | 'iron-condor';
@@ -211,6 +212,153 @@ function computeOptionsAnalytics(contracts: OptionContract[], spot: number): Opt
   const { gexByStrike, totalGex, nearestExpiry } = calcGEX(contracts, spot, r);
   const pcRatio = calcPCRatio(contracts);
   return { ivr, maxPain, gex: gexByStrike, totalGex, nearestExpiry, pcRatio };
+}
+
+/* ── Confluence Score ───────────────────────────────────────── */
+export interface ConfluenceSignal {
+  name: string;
+  score: number;     // 0–100 for this signal
+  weight: number;    // fraction of total (sum = 1)
+  verdict: string;   // label shown in breakdown
+  detail: string;    // one-sentence explanation
+  positive: boolean; // drives colour coding
+}
+
+export interface ConfluenceResult {
+  score: number;                 // 0–100 weighted
+  grade: 'A' | 'B' | 'C' | 'D';
+  signals: ConfluenceSignal[];
+  summary: string;               // 1-2 sentence prose
+}
+
+type ScanCandle = { date: string; open: number; high: number; low: number; close: number; volume: number };
+
+function calcConfluenceScore(
+  spreadType: StratType,
+  oa: OptionsAnalytics,
+  md: MarketData,
+  candles: ScanCandle[],
+): ConfluenceResult {
+  const signals: ConfluenceSignal[] = [];
+
+  /* ─ 1. IVR (25%) ─ */
+  const ivr = oa.ivr ?? 0;
+  const ivrScore = ivr >= 80 ? 100 : ivr >= 60 ? 78 : ivr >= 40 ? 55 : ivr >= 20 ? 30 : 10;
+  signals.push({
+    name: 'IV Rank',
+    score: ivrScore,
+    weight: 0.25,
+    verdict: ivr >= 70 ? 'Elevated — strong premium edge' : ivr >= 40 ? 'Average IV' : 'Compressed — thin premium',
+    detail: `IVR ${ivr.toFixed(0)} — ${ivr >= 70 ? 'IV historically expensive, credit spreads have statistical edge' : ivr >= 40 ? 'IV near average, standard edge' : 'IV compressed, premium is thin'}.`,
+    positive: ivrScore >= 55,
+  });
+
+  /* ─ 2. Put/Call Ratio (15%) ─ */
+  const pc = oa.pcRatio;
+  let pcScore = 50;
+  let pcVerdict = 'Neutral';
+  let pcDetail = 'P/C data unavailable.';
+  if (pc !== null) {
+    if (spreadType === 'bull-put') {
+      // Fear (high P/C) = contrarian bullish = good for bull-put
+      pcScore = pc >= 1.3 ? 85 : pc >= 1.0 ? 65 : pc >= 0.7 ? 45 : 20;
+      pcVerdict = pc >= 1.3 ? 'Fear driven — contrarian bullish' : pc >= 1.0 ? 'Mildly bearish sentiment' : pc >= 0.7 ? 'Balanced' : 'Euphoric — call buying heavy';
+    } else if (spreadType === 'bear-call') {
+      // Greed (low P/C) = contrarian bearish = good for bear-call
+      pcScore = pc <= 0.7 ? 85 : pc <= 1.0 ? 65 : pc <= 1.3 ? 45 : 20;
+      pcVerdict = pc <= 0.7 ? 'Euphoric — contrarian bearish' : pc <= 1.0 ? 'Mildly bullish sentiment' : pc <= 1.3 ? 'Balanced' : 'Extreme fear — put buying heavy';
+    } else {
+      // Iron condor: balanced P/C is ideal
+      pcScore = pc >= 0.8 && pc <= 1.2 ? 80 : pc >= 0.6 && pc <= 1.5 ? 60 : 35;
+      pcVerdict = pc >= 0.8 && pc <= 1.2 ? 'Balanced — ideal for condor' : 'Slight skew in sentiment';
+    }
+    pcDetail = `P/C ${pc.toFixed(2)} for nearest expiry.`;
+  }
+  signals.push({ name: 'Put/Call Ratio', score: pcScore, weight: 0.15, verdict: pcVerdict, detail: pcDetail, positive: pcScore >= 55 });
+
+  /* ─ 3. Candlestick Pattern (20%) ─ */
+  const patterns = detectCandlePatterns(candles);
+  const bullWeight = patterns.filter((p) => p.signal === 'bullish').reduce((s, p) => s + p.strength, 0);
+  const bearWeight = patterns.filter((p) => p.signal === 'bearish').reduce((s, p) => s + p.strength, 0);
+  let patternScore = 50;
+  let patternVerdict = 'No pattern detected';
+  let patternDetail = 'No classic candlestick patterns on the last 3 candles.';
+  if (bullWeight > 0 || bearWeight > 0) {
+    const topPattern = patterns[0];
+    patternDetail = `${topPattern.emoji} ${topPattern.name} detected.`;
+    if (spreadType === 'bull-put') {
+      // Bullish patterns help bull-put
+      patternScore = bullWeight >= 6 ? 95 : bullWeight >= 3 ? 80 : bullWeight > 0 && bearWeight === 0 ? 65 : bearWeight > bullWeight ? 20 : 45;
+      patternVerdict = bullWeight > bearWeight ? 'Bullish pattern — aligns with bull-put' : bearWeight > bullWeight ? 'Bearish pattern — opposes bull-put' : 'Mixed signals';
+    } else if (spreadType === 'bear-call') {
+      patternScore = bearWeight >= 6 ? 95 : bearWeight >= 3 ? 80 : bearWeight > 0 && bullWeight === 0 ? 65 : bullWeight > bearWeight ? 20 : 45;
+      patternVerdict = bearWeight > bullWeight ? 'Bearish pattern — aligns with bear-call' : bullWeight > bearWeight ? 'Bullish pattern — opposes bear-call' : 'Mixed signals';
+    } else {
+      // Iron condor: neutral is best, strong moves are bad
+      const maxW = Math.max(bullWeight, bearWeight);
+      patternScore = maxW === 0 ? 80 : maxW <= 2 ? 60 : maxW <= 5 ? 35 : 15;
+      patternVerdict = maxW === 0 ? 'Neutral — ideal for condor' : 'Directional signal — risk for condor';
+    }
+  }
+  signals.push({ name: 'Candle Pattern', score: patternScore, weight: 0.20, verdict: patternVerdict, detail: patternDetail, positive: patternScore >= 55 });
+
+  /* ─ 4. Market Trend/Bias (20%) ─ */
+  let trendScore = 50;
+  let trendVerdict = 'Neutral trend';
+  if (spreadType === 'bull-put') {
+    trendScore = md.bias === 'bullish' ? 90 : md.bias === 'neutral' ? 60 : 20;
+    trendVerdict = md.bias === 'bullish' ? 'Uptrend — strong support for bull-put' : md.bias === 'neutral' ? 'Sideways — acceptable for bull-put' : 'Downtrend — headwind for bull-put';
+  } else if (spreadType === 'bear-call') {
+    trendScore = md.bias === 'bearish' ? 90 : md.bias === 'neutral' ? 60 : 20;
+    trendVerdict = md.bias === 'bearish' ? 'Downtrend — strong support for bear-call' : md.bias === 'neutral' ? 'Sideways — acceptable for bear-call' : 'Uptrend — headwind for bear-call';
+  } else {
+    trendScore = md.bias === 'neutral' ? 85 : 40;
+    trendVerdict = md.bias === 'neutral' ? 'Neutral — ideal rangebound conditions' : `${md.bias === 'bullish' ? 'Uptrend' : 'Downtrend'} — directional risk for condor`;
+  }
+  signals.push({ name: 'Market Trend', score: trendScore, weight: 0.20, verdict: trendVerdict, detail: `Price is ${md.bias} vs EMA20 ($${md.ema20.toFixed(2)}).`, positive: trendScore >= 55 });
+
+  /* ─ 5. GEX Regime (10%) ─ */
+  const gexScore = oa.totalGex > 0 ? 75 : 35;  // positive GEX = volatility dampener = better for credit spreads
+  signals.push({
+    name: 'GEX Regime',
+    score: gexScore,
+    weight: 0.10,
+    verdict: oa.totalGex > 0 ? 'Positive GEX — vol dampener' : 'Negative GEX — vol expander',
+    detail: `Net GEX ${oa.totalGex > 0 ? '+' : ''}${(oa.totalGex / 1e6).toFixed(1)}M. ${oa.totalGex > 0 ? 'Dealers buy dips/sell rips — favours spread premium collection.' : 'Dealers amplify moves — increases risk of breaching spread.'}`,
+    positive: gexScore >= 55,
+  });
+
+  /* ─ 6. Max Pain Proximity (10%) ─ */
+  const mpDiffPct = md.price > 0 ? Math.abs((oa.maxPain - md.price) / md.price * 100) : 10;
+  const mpScore = mpDiffPct < 1 ? 95 : mpDiffPct < 3 ? 75 : mpDiffPct < 6 ? 50 : 25;
+  signals.push({
+    name: 'Max Pain',
+    score: mpScore,
+    weight: 0.10,
+    verdict: mpDiffPct < 1 ? 'At max pain — pinning likely' : mpDiffPct < 3 ? 'Near max pain — gravity pull' : mpDiffPct < 6 ? 'Moderate distance' : 'Far from max pain',
+    detail: `Max Pain at $${oa.maxPain}. Spot is ${mpDiffPct.toFixed(1)}% away. Market makers benefit when price converges to this level.`,
+    positive: mpScore >= 55,
+  });
+
+  // Weighted sum
+  const weighted = signals.reduce((sum, s) => sum + s.score * s.weight, 0);
+  const score = Math.round(weighted);
+  const grade: ConfluenceResult['grade'] = score >= 75 ? 'A' : score >= 60 ? 'B' : score >= 45 ? 'C' : 'D';
+
+  // Prose summary
+  const positiveCount = signals.filter((s) => s.positive).length;
+  const strongestSignal = signals.reduce((best, s) => s.score > best.score ? s : best, signals[0]);
+  const weakestSignal  = signals.reduce((weak, s) => s.score < weak.score ? s : weak, signals[0]);
+  const summary =
+    grade === 'A'
+      ? `Strong confluence (${score}/100) — ${positiveCount}/6 signals aligned. ${strongestSignal.verdict}. High confidence in this setup.`
+      : grade === 'B'
+      ? `Good confluence (${score}/100) — ${positiveCount}/6 signals supportive. Watch: ${weakestSignal.name.toLowerCase()} is the weakest link.`
+      : grade === 'C'
+      ? `Moderate confluence (${score}/100) — mixed signals. ${weakestSignal.verdict}. Size down and wait for clearer confirmation.`
+      : `Low confluence (${score}/100) — key signals opposing this trade. ${weakestSignal.verdict}. Consider skipping or reducing risk significantly.`;
+
+  return { score, grade, signals, summary };
 }
 
 /* ── Build spreads from real options chain ──────────────────────── */
@@ -647,8 +795,65 @@ function StrikeLabel({ r }: { r: Spread }) {
   );
 }
 
+/* ── Confluence Score Badge + Breakdown ────────────────────────── */
+function ConfluenceScoreBadge({ result }: { result: ConfluenceResult }) {
+  const cls =
+    result.grade === 'A' ? 'bg-green-500 text-white' :
+    result.grade === 'B' ? 'bg-lime-500 text-white' :
+    result.grade === 'C' ? 'bg-amber-400 text-white' :
+                           'bg-red-400 text-white';
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${cls}`}>
+      ★ {result.score}/100 · {result.grade}
+    </span>
+  );
+}
+
+function ConfluenceBreakdown({ result }: { result: ConfluenceResult }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-3 border-t border-gray-200 pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+      >
+        <span>★ Confluence Score: {result.score}/100 · Grade {result.grade}</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+      </button>
+      <p className="text-xs text-gray-500 mt-1 leading-relaxed">{result.summary}</p>
+      {open && (
+        <div className="mt-3 space-y-1.5">
+          {result.signals.map((s) => {
+            const barW = `${s.score}%`;
+            const barCls = s.score >= 70 ? 'bg-green-400' : s.score >= 45 ? 'bg-amber-400' : 'bg-red-400';
+            return (
+              <div key={s.name} className="grid grid-cols-[100px_1fr_36px] items-center gap-2 text-xs">
+                <span className="text-gray-500 font-medium truncate">{s.name}</span>
+                <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`absolute h-full rounded-full ${barCls}`} style={{ width: barW }} />
+                  <span
+                    className="absolute inset-0 flex items-center px-1.5 text-[9px] font-bold text-gray-700 truncate"
+                    title={`${s.verdict} — ${s.detail}`}
+                  >
+                    {s.verdict}
+                  </span>
+                </div>
+                <span className={`text-right font-bold ${s.positive ? 'text-green-600' : 'text-red-500'}`}>{s.score}</span>
+              </div>
+            );
+          })}
+          <p className="text-[10px] text-gray-400 pt-1">
+            Weights: IVR 25% · P/C 15% · Pattern 20% · Trend 20% · GEX 10% · Max Pain 10%
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Top Opportunity Card ───────────────────────────────────────── */
-function TopCard({ result, symbol, rank, ivr }: { result: Spread; symbol: string; rank: string; ivr: number | null }) {
+function TopCard({ result, symbol, rank, ivr, confluence }: { result: Spread; symbol: string; rank: string; ivr: number | null; confluence: ConfluenceResult | null }) {
   const { createTrade } = useTradeStore();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -740,10 +945,11 @@ function TopCard({ result, symbol, rank, ivr }: { result: Spread; symbol: string
   return (
     <div className={`rounded-xl border p-5 shadow-sm ${bg[result.type]}`}>
       {/* Header */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span className="text-lg">{icon[result.type]}</span>
         <TypeBadge type={result.type} />
         <span className="text-xs text-gray-500 font-medium">{rank}</span>
+        {confluence && <ConfluenceScoreBadge result={confluence} />}
       </div>
 
       {/* ── Expiry · Strikes · Probability — hero block ── */}
@@ -815,6 +1021,9 @@ function TopCard({ result, symbol, rank, ivr }: { result: Spread; symbol: string
           {saved ? '✓ Added to Journal — redirecting…' : saving ? 'Saving…' : '📒 Add to Journal'}
         </button>
       </div>
+
+      {/* Confluence Breakdown */}
+      {confluence && <ConfluenceBreakdown result={confluence} />}
     </div>
   );
 }
@@ -1072,6 +1281,25 @@ export default function ScannerPage() {
   const topBC = scanResults.find((r) => r.type === 'bear-call');
   const topIC = scanResults.find((r) => r.type === 'iron-condor');
 
+  const confluenceBP = useMemo(
+    () => topBP && optionsAnalytics && marketData
+      ? calcConfluenceScore('bull-put',    optionsAnalytics, marketData, scanCandles)
+      : null,
+    [topBP, optionsAnalytics, marketData, scanCandles],
+  );
+  const confluenceBC = useMemo(
+    () => topBC && optionsAnalytics && marketData
+      ? calcConfluenceScore('bear-call',   optionsAnalytics, marketData, scanCandles)
+      : null,
+    [topBC, optionsAnalytics, marketData, scanCandles],
+  );
+  const confluenceIC = useMemo(
+    () => topIC && optionsAnalytics && marketData
+      ? calcConfluenceScore('iron-condor', optionsAnalytics, marketData, scanCandles)
+      : null,
+    [topIC, optionsAnalytics, marketData, scanCandles],
+  );
+
   const inputCls = 'border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300';
 
   return (
@@ -1186,9 +1414,9 @@ export default function ScannerPage() {
           <div>
             <h2 className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3">Top Opportunities</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {topBP && <TopCard result={topBP} symbol={symbol} rank="Best Bull Put" ivr={optionsAnalytics?.ivr ?? null} />}
-              {topBC && <TopCard result={topBC} symbol={symbol} rank="Best Bear Call" ivr={optionsAnalytics?.ivr ?? null} />}
-              {topIC && <TopCard result={topIC} symbol={symbol} rank="Best Iron Condor" ivr={optionsAnalytics?.ivr ?? null} />}
+              {topBP && <TopCard result={topBP} symbol={symbol} rank="Best Bull Put"    ivr={optionsAnalytics?.ivr ?? null} confluence={confluenceBP} />}
+              {topBC && <TopCard result={topBC} symbol={symbol} rank="Best Bear Call"   ivr={optionsAnalytics?.ivr ?? null} confluence={confluenceBC} />}
+              {topIC && <TopCard result={topIC} symbol={symbol} rank="Best Iron Condor" ivr={optionsAnalytics?.ivr ?? null} confluence={confluenceIC} />}
             </div>
           </div>
         )}
