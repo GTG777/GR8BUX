@@ -7,6 +7,24 @@ const NewsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'symbols' | 'sectors'>('symbols');
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>(['AAPL', 'GOOGL', 'MSFT', 'TSLA']);
   const [symbolInput, setSymbolInput] = useState('');
+  const [watchlistLoaded, setWatchlistLoaded] = useState(false);
+
+  const loadFromWatchlist = () => {
+    try {
+      const saved = localStorage.getItem('advancedWatchlist');
+      if (saved) {
+        const symbols = JSON.parse(saved) as string[];
+        setSelectedSymbols(prev => {
+          const merged = [...new Set([...prev, ...symbols])];
+          return merged;
+        });
+        setWatchlistLoaded(true);
+        setTimeout(() => setWatchlistLoaded(false), 2000);
+      }
+    } catch {
+      // ignore parse errors
+    }
+  };
 
   const handleAddSymbol = () => {
     const sym = symbolInput.toUpperCase().trim();
@@ -52,7 +70,15 @@ const NewsPage: React.FC = () => {
         <>
           {/* Symbol Selection */}
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-3">Symbols</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-gray-900">Symbols</h2>
+              <button
+                onClick={loadFromWatchlist}
+                className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+              >
+                {watchlistLoaded ? '✓ Loaded!' : '📋 Load from Watchlist'}
+              </button>
+            </div>
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
