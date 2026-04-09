@@ -403,6 +403,33 @@ function TVWidget({ symbol }: { symbol: string }) {
   return <div className="tradingview-widget-container" ref={containerRef} style={{ height: CHART_H, width: '100%' }} />;
 }
 
+/* ── Info tooltip ───────────────────────────────────────────────── */
+function InfoTip({ text }: { text: string }) {
+  const [visible, setVisible] = React.useState(false);
+  const [pos, setPos] = React.useState({ x: 0, y: 0 });
+  return (
+    <>
+      <span
+        className="cursor-help text-gray-400 hover:text-indigo-500 select-none text-xs leading-none"
+        onMouseEnter={(e) => { setPos({ x: e.clientX + 12, y: e.clientY - 8 }); setVisible(true); }}
+        onMouseLeave={() => setVisible(false)}
+        onMouseMove={(e) => setPos({ x: e.clientX + 12, y: e.clientY - 8 })}
+        aria-label="More info"
+      >
+        ⓘ
+      </span>
+      {visible && (
+        <div
+          className="fixed z-[9999] w-72 bg-gray-900 text-white text-xs rounded-lg px-3 py-2.5 shadow-xl pointer-events-none leading-relaxed"
+          style={{ left: pos.x, top: pos.y }}
+        >
+          {text}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ── Options Analytics Panel (full-width) ───────────────────────── */
 function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number }) {
   const ivrColor = oa.ivr === null ? 'text-gray-400'
@@ -427,7 +454,10 @@ function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number
 
         {/* IVR */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">IV Rank (IVR)</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            IV Rank (IVR)
+            <InfoTip text="IV Rank (IVR) compares the current Implied Volatility to its 52-week high/low range. A reading of 70+ means IV is historically expensive — option sellers have a statistical edge collecting inflated premium. Below 30 means IV is cheap — buyers have the edge. Use IVR to time your entries: sell spreads when IVR is high, consider buying when it's low." />
+          </p>
           <div className="flex items-end gap-2">
             <span className={`text-4xl font-extrabold leading-none ${ivrColor}`}>
               {oa.ivr !== null ? oa.ivr.toFixed(0) : '—'}
@@ -453,7 +483,10 @@ function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number
 
         {/* Max Pain */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Max Pain</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            Max Pain
+            <InfoTip text="Max Pain is the strike price where the largest number of open option contracts (puts + calls combined) would expire worthless — causing maximum financial loss to option buyers. Market makers, who are net short options, are incentivised to hedge in ways that pull the stock toward this level near expiry. The closer spot is to Max Pain, the stronger the gravitational pull. Use it as a short-term price magnet when selecting your spread strikes." />
+          </p>
           <div className="flex items-end gap-2">
             <span className="text-4xl font-extrabold leading-none text-indigo-600">${oa.maxPain}</span>
           </div>
@@ -474,7 +507,10 @@ function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number
 
         {/* GEX */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Gamma Exposure (GEX)</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            Gamma Exposure (GEX)
+            <InfoTip text="Gamma Exposure (GEX) measures how much market makers must buy or sell shares as the stock price moves, due to their options hedging obligations. Positive GEX (green) means dealers buy dips and sell rips — acting as a volatility dampener, keeping the stock in a range. Negative GEX (red) means dealers amplify moves — buying when price rises and selling when it falls — expanding volatility. The largest GEX strike acts as a support/resistance wall. Sell premium when GEX is positive; widen stops or avoid selling when GEX is negative." />
+          </p>
           <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${gexRegime.bg} ${gexRegime.color}`}>
             {oa.totalGex > 0 ? '🛡️' : '⚡'} {gexRegime.label}
           </div>
