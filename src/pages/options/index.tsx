@@ -383,7 +383,7 @@ function TVWidget({ symbol }: { symbol: string }) {
       height: CHART_H,
       symbol,
       interval: 'D',
-      timezone: 'America/New_York',
+      timezone: 'America/Chicago',
       theme: 'light',
       style: '1',
       locale: 'en',

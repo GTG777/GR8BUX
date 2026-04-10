@@ -487,7 +487,7 @@ function TVMini({ symbol }: { symbol: string }) {
     sc.async = true;
     sc.innerHTML = JSON.stringify({
       width: '100%', height: 320, symbol,
-      interval: 'D', timezone: 'America/New_York', theme: 'light',
+      interval: 'D', timezone: 'America/Chicago', theme: 'light',
       style: '1', locale: 'en',
       enable_publishing: false, allow_symbol_change: false,
       hide_side_toolbar: true, withdateranges: false, save_image: false,

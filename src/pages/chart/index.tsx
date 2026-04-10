@@ -309,7 +309,7 @@ function AdvancedChart({ symbol, interval }: { symbol: string; interval: string 
       height: CHART_H,
       symbol,
       interval,
-      timezone: 'America/New_York',
+      timezone: 'America/Chicago',
       theme: 'light',
       style: '1',
       locale: 'en',

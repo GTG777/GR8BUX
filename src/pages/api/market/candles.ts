@@ -55,11 +55,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const timestamps: number[] = result.timestamp ?? [];
       const quote = result.indicators?.quote?.[0] ?? {};
       const isIntraday = mapping.yInterval !== '1d' && mapping.yInterval !== '1wk';
+      const cstFmt = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'America/Chicago',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      });
 
       const candles = timestamps
         .map((ts, i) => ({
           date: isIntraday
-            ? new Date(ts * 1000).toISOString().slice(0, 16) // 'YYYY-MM-DDTHH:mm'
+            ? cstFmt.format(new Date(ts * 1000)).replace(' ', 'T').slice(0, 16) // 'YYYY-MM-DDTHH:mm' in CST
             : new Date(ts * 1000).toISOString().slice(0, 10),
           open:   (quote.open?.[i]   ?? 0),
           high:   (quote.high?.[i]   ?? 0),
