@@ -175,9 +175,32 @@ function computeIndicators(candles: Candle[]): Indicators {
 ───────────────────────────────────────────── */
 interface TSIPoint { date: string; tsi: number; signal: number; }
 
-function TSIChart({ data, timeframeLabel }: { data: TSIPoint[]; timeframeLabel?: string }) {
-  // Only show last 120 data points for clarity
-  const visible = data.slice(-120);
+function getTodayCst(): string {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
+function TSIChart({ data, timeframeLabel, interval }: { data: TSIPoint[]; timeframeLabel?: string; interval?: string }) {
+  const todayCst = getTodayCst();
+
+  // Visible slice mirrors TradingView chart's default viewport per timeframe
+  const visible = React.useMemo(() => {
+    if (!data.length) return [];
+    const iv = interval ?? 'D';
+    if (iv === '1') {
+      // 1m: today's CST session only (market open → now)
+      const today = data.filter((d) => d.date.startsWith(todayCst));
+      return today.length >= 10 ? today : data.slice(-390); // fallback if pre-market/weekend
+    }
+    if (iv === '5')   return data.slice(-390);  // ~5 sessions × 78 bars
+    if (iv === '15')  return data.slice(-260);  // ~2 weeks × 26 bars
+    if (iv === '60')  return data.slice(-390);  // ~6 weeks × 13 bars
+    if (iv === '240') return data.slice(-120);  // ~6 months
+    if (iv === 'W')   return data;              // weekly: full history
+    return data.slice(-252);                    // daily: ~1 year
+  }, [data, interval, todayCst]);
 
   const tsiColor  = '#6366f1'; // indigo
   const sigColor  = '#f59e0b'; // amber
@@ -188,9 +211,15 @@ function TSIChart({ data, timeframeLabel }: { data: TSIPoint[]; timeframeLabel?:
   const lastSig = visible[visible.length - 1]?.signal ?? 0;
   const isBull  = lastTSI > lastSig;
 
-  // Intraday dates come as 'YYYY-MM-DDTHH:mm'; daily as 'YYYY-MM-DD'
   const isIntraday = (visible[0]?.date ?? '').length > 10;
-  const fmtTick = (d: string) => d.slice(5).replace('T', ' ');
+
+  // Tick format: intraday short → HH:mm only; intraday long → MM-DD HH:mm; daily → MM-DD
+  const fmtTick = (d: string) => {
+    const iv = interval ?? 'D';
+    if (iv === '1' || iv === '5' || iv === '15') return d.slice(11);         // HH:mm
+    if (iv === '60' || iv === '240')             return d.slice(5).replace('T', ' '); // MM-DD HH:mm
+    return d.slice(5);                                                        // MM-DD
+  };
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
@@ -669,7 +698,7 @@ export default function ChartPage() {
         </div>
 
         {/* ── TSI Chart ── */}
-        {tsiSeries.length > 0 && <TSIChart data={tsiSeries} timeframeLabel={INTERVALS.find((iv) => iv.value === interval)?.label} />}
+        {tsiSeries.length > 0 && <TSIChart data={tsiSeries} interval={interval} timeframeLabel={INTERVALS.find((iv) => iv.value === interval)?.label} />}
         {loading && tsiSeries.length === 0 && (
           <div className="bg-white rounded-lg shadow p-4 animate-pulse">
             <div className="h-3 bg-gray-200 rounded w-48 mb-4" />
