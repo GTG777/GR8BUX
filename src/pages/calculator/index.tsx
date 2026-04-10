@@ -3,13 +3,17 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import {
   ResponsiveContainer,
-  LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ReferenceLine,
+  Area,
+  ComposedChart,
+  Cell,
+  BarChart,
+  Bar,
 } from 'recharts';
 import { Layout } from '@/components/Layout';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
@@ -304,44 +308,248 @@ function calcHV(closes: number[], period: number): number {
   return parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
 }
 
-/* ── P&L Diagram ────────────────────────────────────────────────── */
+/* ── P&L Diagram (tabbed) ───────────────────────────────────────── */
 const fmt$ = (v: number) => v >= 0 ? `+$${v.toFixed(0)}` : `-$${Math.abs(v).toFixed(0)}`;
 
-function PnLDiagram({ data, spot, breakevenPrices }: { data: PnLPoint[]; spot: number; breakevenPrices: number[] }) {
+type ChartTab = 'graph' | 'table' | 'pnl-pct' | 'max-risk';
+
+function PnLDiagram({ data, spot, breakevenPrices, maxLoss }: {
+  data: PnLPoint[];
+  spot: number;
+  breakevenPrices: number[];
+  maxLoss: number | null;
+}) {
+  const [tab, setTab] = useState<ChartTab>('graph');
+  const [rangeIdx, setRangeIdx] = useState(50);   // 0=±1% ... 100=±15%
+  const [ivAdjust, setIvAdjust] = useState(50);   // 0=0.5x ... 100=1.5x
+
   if (!data.length) return null;
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-700">P&amp;L at Expiration</h3>
-        <div className="flex gap-4 text-xs text-gray-500">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-6 h-0.5 bg-indigo-500" />At Expiry
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-6 h-0.5 bg-amber-400" style={{ borderBottom: '2px dashed' }} />Today (if price moves)
-          </span>
+
+  // Range slider: maps 0–100 → ±1%–±20% of spot
+  const rangePct = 1 + (rangeIdx / 100) * 19; // 1% to 20%
+  const lo = spot * (1 - rangePct / 100);
+  const hi = spot * (1 + rangePct / 100);
+  const visible = data.filter((d) => d.price >= lo && d.price <= hi);
+
+  const absMaxLoss = maxLoss !== null ? Math.abs(maxLoss) : Math.max(...data.map((d) => Math.abs(d.expiry)));
+
+  // Tabs config
+  const TABS: { id: ChartTab; label: string }[] = [
+    { id: 'graph',    label: '📈 Graph' },
+    { id: 'table',    label: '☰ Table' },
+    { id: 'pnl-pct',  label: 'P&L %' },
+    { id: 'max-risk', label: '% of Max Risk' },
+  ];
+
+  // Custom dot to colour the area chart by profit/loss
+  const gradientId = 'pnlGrad';
+
+  const GraphView = () => (
+    <>
+      {/* Sliders */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 px-1">
+        <div>
+          <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+            <span>RANGE</span>
+            <span className="font-semibold text-gray-600">±{rangePct.toFixed(0)}%</span>
+          </div>
+          <input
+            type="range" min={0} max={100} value={rangeIdx}
+            onChange={(e) => setRangeIdx(Number(e.target.value))}
+            className="w-full h-1.5 rounded-full accent-indigo-500 cursor-pointer"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+            <span>VIEW SCALE</span>
+            <span className="font-semibold text-gray-600">{ivAdjust < 50 ? 'compressed' : ivAdjust > 50 ? 'expanded' : 'default'}</span>
+          </div>
+          <input
+            type="range" min={0} max={100} value={ivAdjust}
+            onChange={(e) => setIvAdjust(Number(e.target.value))}
+            className="w-full h-1.5 rounded-full accent-indigo-500 cursor-pointer"
+          />
         </div>
       </div>
+
+      {/* Chart */}
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 8, right: 32, left: 16, bottom: 8 }}>
+        <ComposedChart data={visible} margin={{ top: 8, right: 32, left: 16, bottom: 8 }}>
+          <defs>
+            <linearGradient id={`${gradientId}-expiry`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#ef4444" stopOpacity={0.25} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis dataKey="price" tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} />
+          <XAxis dataKey="price" tickFormatter={(v) => `$${(v as number).toFixed(0)}`} tick={{ fontSize: 10 }} />
           <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} />
           <Tooltip
+            contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 11 }}
+            labelStyle={{ color: '#94a3b8' }}
+            itemStyle={{ color: '#e2e8f0' }}
             formatter={(val: number, name: string) => [fmt$(val), name === 'expiry' ? 'At Expiry' : 'Today']}
-            labelFormatter={(l) => `Underlying: $${l}`}
+            labelFormatter={(l) => `Price: $${(l as number).toFixed(2)}`}
           />
           <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5} />
-          <ReferenceLine x={spot} stroke="#6b7280" strokeDasharray="4 4"
-            label={{ value: 'Spot', fill: '#6b7280', fontSize: 10 }} />
+          <ReferenceLine x={spot} stroke="#94a3b8" strokeDasharray="4 4"
+            label={{ value: 'Spot', fill: '#94a3b8', fontSize: 10 }} />
           {breakevenPrices.map((be, i) => (
             <ReferenceLine key={i} x={be} stroke="#10b981" strokeDasharray="3 3"
               label={{ value: `BE $${be}`, fill: '#10b981', fontSize: 9 }} />
           ))}
-          <Line type="monotone" dataKey="expiry" stroke="#6366f1" strokeWidth={2} dot={false} name="expiry" />
-          <Line type="monotone" dataKey="today"  stroke="#f59e0b" strokeWidth={1.5} dot={false} strokeDasharray="5 3" name="today" />
-        </LineChart>
+          <Area
+            type="monotone" dataKey="expiry"
+            stroke="#6366f1" strokeWidth={2.5} dot={false} name="expiry"
+            fill={`url(#${gradientId}-expiry)`}
+          />
+          <Line type="monotone" dataKey="today" stroke="#f59e0b" strokeWidth={1.5}
+            dot={false} strokeDasharray="5 3" name="today" />
+        </ComposedChart>
       </ResponsiveContainer>
+
+      {/* Legend */}
+      <div className="flex gap-5 text-xs text-gray-400 mt-3 justify-center">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-6 h-0.5 bg-indigo-500 rounded" />At Expiry
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-5 h-0.5 bg-amber-400" style={{ border: '1px dashed #f59e0b', height: 0 }} />Today
+        </span>
+      </div>
+    </>
+  );
+
+  const TableView = () => (
+    <div className="overflow-auto max-h-72">
+      <table className="w-full text-xs min-w-[400px]">
+        <thead className="sticky top-0 bg-gray-50">
+          <tr className="text-gray-400 border-b border-gray-200">
+            <th className="text-right py-2 px-3">Price</th>
+            <th className="text-right py-2 px-3">P&L at Expiry</th>
+            <th className="text-right py-2 px-3">P&L Today</th>
+            <th className="text-right py-2 px-3">P&L %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visible.filter((_, i) => i % 4 === 0).map((row) => {
+            const pct = absMaxLoss > 0 ? ((row.expiry / absMaxLoss) * 100) : 0;
+            return (
+              <tr key={row.price} className={`border-b border-gray-50 ${row.price >= (breakevenPrices[0] ?? Infinity) && (breakevenPrices.length < 2 || row.price <= (breakevenPrices[1] ?? Infinity)) ? 'bg-green-50' : row.expiry >= 0 ? 'bg-green-50' : ''}`}>
+                <td className={`text-right py-1.5 px-3 font-medium ${Math.abs(row.price - spot) < (spot * 0.002) ? 'text-indigo-600 font-bold' : 'text-gray-700'}`}>
+                  ${row.price.toFixed(2)}
+                </td>
+                <td className={`text-right py-1.5 px-3 font-semibold ${row.expiry >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {fmt$(row.expiry)}
+                </td>
+                <td className={`text-right py-1.5 px-3 ${row.today >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {fmt$(row.today)}
+                </td>
+                <td className={`text-right py-1.5 px-3 ${pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const PnLPctView = () => {
+    const maxAbsExpiry = Math.max(...visible.map((d) => Math.abs(d.expiry)), 1);
+    const pctData = visible.map((d) => ({ ...d, pct: parseFloat((d.expiry / maxAbsExpiry * 100).toFixed(1)) }));
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={pctData.filter((_, i) => i % 2 === 0)} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis dataKey="price" tickFormatter={(v) => `$${(v as number).toFixed(0)}`} tick={{ fontSize: 10 }} />
+          <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} />
+          <Tooltip
+            contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 11 }}
+            labelStyle={{ color: '#94a3b8' }}
+            itemStyle={{ color: '#e2e8f0' }}
+            formatter={(val: number) => [`${val >= 0 ? '+' : ''}${val.toFixed(1)}%`, 'P&L %']}
+            labelFormatter={(l) => `Price: $${(l as number).toFixed(2)}`}
+          />
+          <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5} />
+          <ReferenceLine x={spot} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: 'Spot', fill: '#94a3b8', fontSize: 10 }} />
+          <Bar dataKey="pct" radius={[2, 2, 0, 0]}>
+            {pctData.filter((_, i) => i % 2 === 0).map((entry, i) => (
+              <Cell key={i} fill={entry.pct >= 0 ? '#22c55e' : '#ef4444'} fillOpacity={0.8} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  };
+
+  const MaxRiskView = () => {
+    const mrData = visible.map((d) => ({
+      ...d,
+      pct: absMaxLoss > 0 ? parseFloat((d.expiry / absMaxLoss * 100).toFixed(1)) : 0,
+    }));
+    return (
+      <>
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={mrData.filter((_, i) => i % 2 === 0)} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="price" tickFormatter={(v) => `$${(v as number).toFixed(0)}`} tick={{ fontSize: 10 }} />
+            <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} />
+            <Tooltip
+              contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 11 }}
+              labelStyle={{ color: '#94a3b8' }}
+              itemStyle={{ color: '#e2e8f0' }}
+              formatter={(val: number) => [`${val >= 0 ? '+' : ''}${val.toFixed(1)}%`, '% of Max Risk']}
+              labelFormatter={(l) => `Price: $${(l as number).toFixed(2)}`}
+            />
+            <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5} />
+            <ReferenceLine y={100} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Max Profit', fill: '#22c55e', fontSize: 9 }} />
+            <ReferenceLine y={-100} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Max Loss', fill: '#ef4444', fontSize: 9 }} />
+            <ReferenceLine x={spot} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: 'Spot', fill: '#94a3b8', fontSize: 10 }} />
+            {breakevenPrices.map((be, i) => (
+              <ReferenceLine key={i} x={be} stroke="#10b981" strokeDasharray="3 3" label={{ value: `BE`, fill: '#10b981', fontSize: 9 }} />
+            ))}
+            <Area type="monotone" dataKey="pct" stroke="#6366f1" strokeWidth={2} dot={false}
+              fill="url(#pctGrad)" name="% of Max Risk" />
+            <defs>
+              <linearGradient id="pctGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#ef4444" stopOpacity={0.2} />
+              </linearGradient>
+            </defs>
+          </ComposedChart>
+        </ResponsiveContainer>
+        <p className="text-xs text-center text-gray-400 mt-2">100% = Max Profit · −100% = Max Loss</p>
+      </>
+    );
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-100 bg-gray-50">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+              tab === t.id
+                ? 'bg-white border-b-2 border-indigo-500 text-indigo-700'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-white'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-5">
+        {tab === 'graph'    && <GraphView />}
+        {tab === 'table'    && <TableView />}
+        {tab === 'pnl-pct'  && <PnLPctView />}
+        {tab === 'max-risk' && <MaxRiskView />}
+      </div>
     </div>
   );
 }
@@ -759,6 +967,44 @@ export default function CalculatorPage() {
     setCalcResult(null);
   };
 
+  // AI Suggest: fills strikes based on strategy + spot + IV
+  const handleAISuggest = useCallback(() => {
+    const s = parseFloat(spot);
+    if (!s || s <= 0) return;
+    const ivVal = parseFloat(iv) || 25;
+    // Use expected move (1 SD) for smarter placement: ~IV/sqrt(365/DTE)
+    const dteVal = parseInt(dte) || 30;
+    const oneSd = s * (ivVal / 100) * Math.sqrt(dteVal / 365);
+    const r = (val: number) => (Math.round(val * 4) / 4).toFixed(2);  // round to $0.25
+
+    switch (stratId) {
+      // Directional buys: slight OTM for defined-risk directional plays
+      case 'long-call':    setK1(r(s + oneSd * 0.6)); break;
+      case 'long-put':     setK1(r(s - oneSd * 0.6)); break;
+      // Income / assignment strategies: use 1 SD OTM for high probability
+      case 'covered-call': setK1(r(s + oneSd * 1.0)); break;
+      case 'csp':          setK1(r(s - oneSd * 1.0)); break;
+      // Bull call: buy ATM, sell 1 SD OTM
+      case 'bull-call':    setK1(r(s)); setK2(r(s + oneSd * 1.0)); break;
+      // Bear put: sell 1 SD below, buy ATM
+      case 'bear-put':     setK1(r(s - oneSd * 1.0)); setK2(r(s)); break;
+      // Credit spreads: short at 0.8 SD, long at 1.5 SD
+      case 'bull-put':     setK1(r(s - oneSd * 1.5)); setK2(r(s - oneSd * 0.8)); break;
+      case 'bear-call':    setK1(r(s + oneSd * 0.8)); setK2(r(s + oneSd * 1.5)); break;
+      // Volatility plays: ATM for straddle
+      case 'straddle':     setK1(r(s)); break;
+      // Strangle: ±0.7 SD
+      case 'strangle':     setK1(r(s - oneSd * 0.7)); setK2(r(s + oneSd * 0.7)); break;
+      // Iron condor: 0.5 SD inner, 1.2 SD outer
+      case 'iron-condor':
+        setK1(r(s - oneSd * 1.2)); setK2(r(s - oneSd * 0.5));
+        setK3(r(s + oneSd * 0.5)); setK4(r(s + oneSd * 1.2));
+        break;
+      // Butterfly: equidistant wings = 0.5 SD
+      case 'butterfly':    setK1(r(s - oneSd * 0.5)); setK2(r(s)); setK3(r(s + oneSd * 0.5)); break;
+    }
+  }, [spot, iv, dte, stratId]);
+
   const handleCalculate = () => {
     setCalcError('');
     const sp = parseFloat(spot);
@@ -879,19 +1125,50 @@ export default function CalculatorPage() {
             </p>
           </div>
 
-          {/* Common inputs */}
+          {/* Common inputs — Spot & Rate as text, DTE & IV with sliders */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            {[
-              { label: 'Spot Price ($)', val: spot, set: setSpot, ph: '0.00' },
-              { label: 'DTE (days)',     val: dte,  set: setDte,  ph: '30'   },
-              { label: 'IV (%)',         val: iv,   set: setIv,   ph: '25'   },
-              { label: 'Risk-Free (%)', val: rate, set: setRate, ph: '4.5'  },
-            ].map(({ label, val, set, ph }) => (
-              <div key={label}>
-                <label className="text-xs font-medium text-gray-500 block mb-1">{label}</label>
-                <input value={val} onChange={(e) => set(e.target.value)} placeholder={ph} className={inputCls} />
+            {/* Spot */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Spot Price ($)</label>
+              <input value={spot} onChange={(e) => setSpot(e.target.value)} placeholder="0.00" className={inputCls} />
+            </div>
+            {/* DTE with slider */}
+            <div>
+              <div className="flex justify-between mb-1">
+                <label className="text-xs font-medium text-gray-500">DTE (days)</label>
+                <span className="text-xs font-bold text-indigo-600">{dte}d</span>
               </div>
-            ))}
+              <input value={dte} onChange={(e) => setDte(e.target.value)} placeholder="30" className={inputCls} />
+              <input
+                type="range" min={1} max={365} value={parseInt(dte) || 30}
+                onChange={(e) => { setDte(e.target.value); setCalcResult(null); }}
+                className="w-full mt-1.5 h-1.5 rounded-full accent-indigo-500 cursor-pointer"
+              />
+              <div className="flex justify-between text-[9px] text-gray-300 mt-0.5">
+                <span>1d</span><span>365d</span>
+              </div>
+            </div>
+            {/* IV with slider */}
+            <div>
+              <div className="flex justify-between mb-1">
+                <label className="text-xs font-medium text-gray-500">IV (%)</label>
+                <span className="text-xs font-bold text-indigo-600">{iv}%</span>
+              </div>
+              <input value={iv} onChange={(e) => setIv(e.target.value)} placeholder="25" className={inputCls} />
+              <input
+                type="range" min={1} max={200} value={parseFloat(iv) || 25}
+                onChange={(e) => { setIv(e.target.value); setCalcResult(null); }}
+                className="w-full mt-1.5 h-1.5 rounded-full accent-indigo-500 cursor-pointer"
+              />
+              <div className="flex justify-between text-[9px] text-gray-300 mt-0.5">
+                <span>1%</span><span>200%</span>
+              </div>
+            </div>
+            {/* Risk-free */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Risk-Free (%)</label>
+              <input value={rate} onChange={(e) => setRate(e.target.value)} placeholder="4.5" className={inputCls} />
+            </div>
           </div>
 
           {/* Strike inputs */}
@@ -919,12 +1196,26 @@ export default function CalculatorPage() {
 
           {calcError && <p className="text-xs text-red-500 mb-3">{calcError}</p>}
 
-          <button
-            onClick={handleCalculate}
-            className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
-          >
-            Calculate P&amp;L
-          </button>
+          <div className="flex flex-wrap gap-3 items-center">
+            <button
+              onClick={handleCalculate}
+              className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            >
+              Calculate P&amp;L
+            </button>
+            <button
+              onClick={() => { handleAISuggest(); }}
+              disabled={!parseFloat(spot)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="AI fills strikes using expected move (1 SD) based on spot, IV, and DTE"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              AI Suggest Strikes
+            </button>
+            <span className="text-xs text-gray-400">← uses expected move from IV &amp; DTE</span>
+          </div>
         </div>
 
         {/* ── Key metrics bar (shown after calculation) ── */}
@@ -964,12 +1255,13 @@ export default function CalculatorPage() {
           </div>
         )}
 
-        {/* ── P&L diagram ── */}
+        {/* ── P&L diagram (tabbed) ── */}
         {calcResult && (
           <PnLDiagram
             data={calcResult.pnlChart}
             spot={parseFloat(spot)}
             breakevenPrices={calcResult.breakevenPrices}
+            maxLoss={calcResult.maxLoss}
           />
         )}
 
