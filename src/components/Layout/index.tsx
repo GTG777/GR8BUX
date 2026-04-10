@@ -13,6 +13,7 @@ const navItems = [
   { href: '/chart',      label: 'Chart',            icon: ChartIcon         },
   { href: '/options',    label: 'Options',          icon: OptionsIcon       },
   { href: '/scanner',    label: 'Options Screener', icon: ScannerIcon       },
+  { href: '/strategies', label: 'Strategies',       icon: StrategiesIcon    },
   { href: '/stocks',     label: 'Stock Scanner',    icon: StockScannerIcon  },
   { href: '/news',       label: 'News',             icon: NewsIcon          },
   { href: '/community',  label: 'Community',        icon: CommunityIcon     },
@@ -35,6 +36,15 @@ function ScannerIcon() {
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+
+function StrategiesIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6M9 16h4" />
     </svg>
   );
 }
