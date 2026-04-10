@@ -14,6 +14,7 @@ const navItems = [
   { href: '/options',    label: 'Options',          icon: OptionsIcon       },
   { href: '/scanner',    label: 'Options Screener', icon: ScannerIcon       },
   { href: '/strategies', label: 'Strategies',       icon: StrategiesIcon    },
+  { href: '/calculator', label: 'Calculator',       icon: CalculatorIcon    },
   { href: '/stocks',     label: 'Stock Scanner',    icon: StockScannerIcon  },
   { href: '/news',       label: 'News',             icon: NewsIcon          },
   { href: '/community',  label: 'Community',        icon: CommunityIcon     },
@@ -45,6 +46,15 @@ function StrategiesIcon() {
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6M9 16h4" />
+    </svg>
+  );
+}
+
+function CalculatorIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M9 7h6" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h.01M12 12h.01M15 12h.01M9 15h.01M12 15h.01M15 15h.01M9 18h.01M12 18h.01M15 18h.01" />
     </svg>
   );
 }

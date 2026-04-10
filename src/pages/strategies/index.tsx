@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 
 /* ─────────────────────────────────────────────
@@ -31,6 +32,7 @@ interface Strategy {
   description: string;
   legs: string[];
   diagram: DiagramT;
+  calcId?: string;  // maps to /calculator?strategy=calcId
 }
 
 interface Group {
@@ -61,6 +63,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy a call option. Profits when the stock rises above the strike + premium paid.',
             legs: ['Buy 1 call at strike A'],
             diagram: 'long-call',
+            calcId: 'long-call',
           },
           {
             name: 'Long Put',
@@ -68,6 +71,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy a put option. Profits when the stock falls below the strike minus premium paid.',
             legs: ['Buy 1 put at strike A'],
             diagram: 'long-put',
+            calcId: 'long-put',
           },
         ],
       },
@@ -80,6 +84,7 @@ const CATEGORIES: Category[] = [
             description: 'Own 100 shares and sell an OTM call to generate income. Caps upside but reduces cost basis.',
             legs: ['Own 100 shares', 'Sell 1 call at strike A (OTM)'],
             diagram: 'covered-call',
+            calcId: 'covered-call',
           },
           {
             name: 'Cash-Secured Put',
@@ -87,6 +92,7 @@ const CATEGORIES: Category[] = [
             description: 'Sell an OTM put backed by enough cash to buy the shares. Collect premium; get paid to wait.',
             legs: ['Sell 1 put at strike A', 'Hold cash equal to 100 × strike A'],
             diagram: 'cash-secured-put',
+            calcId: 'csp',
           },
         ],
       },
@@ -117,6 +123,7 @@ const CATEGORIES: Category[] = [
             description: 'Sell a higher-strike put, buy a lower-strike put. Collect net credit. Profits if price stays above short put at expiry.',
             legs: ['Sell 1 put at strike B (higher)', 'Buy 1 put at strike A (lower)'],
             diagram: 'bull-put',
+            calcId: 'bull-put',
           },
           {
             name: 'Bear Call Spread',
@@ -124,6 +131,7 @@ const CATEGORIES: Category[] = [
             description: 'Sell a lower-strike call, buy a higher-strike call. Collect net credit. Profits if price stays below short call at expiry.',
             legs: ['Sell 1 call at strike A (lower)', 'Buy 1 call at strike B (higher)'],
             diagram: 'bear-call',
+            calcId: 'bear-call',
           },
         ],
       },
@@ -143,6 +151,7 @@ const CATEGORIES: Category[] = [
             description: 'Sell OTM strangle, buy wider strangle wings. Profits in a defined range. Most popular income strategy.',
             legs: ['Buy 1 put at strike A', 'Sell 1 put at strike B', 'Sell 1 call at strike C', 'Buy 1 call at strike D'],
             diagram: 'iron-condor',
+            calcId: 'iron-condor',
           },
           {
             name: 'Long Put Butterfly',
@@ -150,6 +159,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy two OTM puts, sell two ATM puts. Low cost debit spread that profits if price ends near the short strikes.',
             legs: ['Buy 1 put at strike A (lower wing)', 'Sell 2 puts at strike B (body)', 'Buy 1 put at strike C (upper wing)'],
             diagram: 'long-butterfly-call',
+            calcId: 'butterfly',
           },
           {
             name: 'Long Call Butterfly',
@@ -157,6 +167,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy two OTM calls, sell two ATM calls. Low cost debit spread that profits if price ends near the short strikes.',
             legs: ['Buy 1 call at strike A', 'Sell 2 calls at strike B (body)', 'Buy 1 call at strike C'],
             diagram: 'long-butterfly-call',
+            calcId: 'butterfly',
           },
         ],
       },
@@ -202,6 +213,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy a lower-strike call, sell a higher-strike call for a net debit. Cheaper than a naked long call with capped upside.',
             legs: ['Buy 1 call at strike A (lower)', 'Sell 1 call at strike B (higher)'],
             diagram: 'bull-call',
+            calcId: 'bull-call',
           },
           {
             name: 'Bear Put Spread',
@@ -209,6 +221,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy a higher-strike put, sell a lower-strike put for a net debit. Cheaper than a naked long put with capped profit.',
             legs: ['Buy 1 put at strike B (higher)', 'Sell 1 put at strike A (lower)'],
             diagram: 'bear-put',
+            calcId: 'bear-put',
           },
         ],
       },
@@ -249,6 +262,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy an ATM call and ATM put at the same strike and expiry. Profits from large moves in either direction.',
             legs: ['Buy 1 call at strike A (ATM)', 'Buy 1 put at strike A (ATM)'],
             diagram: 'straddle',
+            calcId: 'straddle',
           },
           {
             name: 'Strangle',
@@ -256,6 +270,7 @@ const CATEGORIES: Category[] = [
             description: 'Buy an OTM call and OTM put at different strikes. Cheaper than a straddle but needs a bigger move to profit.',
             legs: ['Buy 1 put at strike A (OTM below)', 'Buy 1 call at strike B (OTM above)'],
             diagram: 'strangle',
+            calcId: 'strangle',
           },
         ],
       },
@@ -938,13 +953,25 @@ function StrategyPill({
   };
 
   return (
-    <span
-      className={`cursor-pointer text-sm font-medium hover:underline underline-offset-2 transition-colors ${biasColor[strategy.bias]}`}
-      onMouseEnter={(e) => onEnter(strategy, e)}
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-    >
-      {strategy.name}
+    <span className="flex items-center gap-1.5">
+      <span
+        className={`cursor-pointer text-sm font-medium hover:underline underline-offset-2 transition-colors ${biasColor[strategy.bias]}`}
+        onMouseEnter={(e) => onEnter(strategy, e)}
+        onMouseMove={onMove}
+        onMouseLeave={onLeave}
+      >
+        {strategy.name}
+      </span>
+      {strategy.calcId && (
+        <Link
+          href={`/calculator?strategy=${strategy.calcId}`}
+          className="text-[10px] text-indigo-400 hover:text-indigo-200 font-medium shrink-0 leading-none"
+          title={`Build ${strategy.name} in the calculator`}
+          onMouseEnter={(e) => e.stopPropagation()}
+        >
+          Build →
+        </Link>
+      )}
     </span>
   );
 }
