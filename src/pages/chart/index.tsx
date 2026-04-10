@@ -175,7 +175,7 @@ function computeIndicators(candles: Candle[]): Indicators {
 ───────────────────────────────────────────── */
 interface TSIPoint { date: string; tsi: number; signal: number; }
 
-function TSIChart({ data }: { data: TSIPoint[] }) {
+function TSIChart({ data, timeframeLabel }: { data: TSIPoint[]; timeframeLabel?: string }) {
   // Only show last 120 data points for clarity
   const visible = data.slice(-120);
 
@@ -188,12 +188,19 @@ function TSIChart({ data }: { data: TSIPoint[] }) {
   const lastSig = visible[visible.length - 1]?.signal ?? 0;
   const isBull  = lastTSI > lastSig;
 
+  // Intraday dates come as 'YYYY-MM-DDTHH:mm'; daily as 'YYYY-MM-DD'
+  const isIntraday = (visible[0]?.date ?? '').length > 10;
+  const fmtTick = (d: string) => d.slice(5).replace('T', ' ');
+
   return (
     <div className="bg-white rounded-lg shadow p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-gray-900">True Strength Index (25, 13, 7)</h3>
+          <h3 className="text-sm font-semibold text-gray-900">
+            True Strength Index (25, 13, 7)
+            {timeframeLabel && <span className="ml-1.5 text-xs font-normal text-gray-400">· {timeframeLabel}</span>}
+          </h3>
           <span className={`px-2 py-0.5 rounded text-xs font-bold ${
             isBull ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
           }`}>
@@ -218,7 +225,7 @@ function TSIChart({ data }: { data: TSIPoint[] }) {
             dataKey="date"
             tick={{ fontSize: 10, fill: '#9ca3af' }}
             interval={Math.floor(visible.length / 8)}
-            tickFormatter={(d: string) => d.slice(5)} // show MM-DD
+            tickFormatter={fmtTick}
           />
           <YAxis
             domain={['auto', 'auto']}
@@ -563,12 +570,12 @@ export default function ChartPage() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
-  const fetchCandles = useCallback(async (sym: string) => {
+  const fetchCandles = useCallback(async (sym: string, iv: string) => {
     setLoading(true);
     setError('');
     setIndicators(null);
     try {
-      const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`);
+      const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(iv)}`);
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? 'Failed to fetch data'); return; }
       setCandles(json.candles);
@@ -581,15 +588,15 @@ export default function ChartPage() {
     }
   }, []);
 
-  // Load default on mount
-  useEffect(() => { fetchCandles('AAPL'); }, [fetchCandles]);
+  // Load on mount and whenever interval changes
+  useEffect(() => { fetchCandles(symbol, interval); }, [interval]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = () => {
     const sym = input.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
     if (!sym) return;
     setSymbol(sym);
     setInput('');
-    fetchCandles(sym);
+    fetchCandles(sym, interval);
   };
 
   return (
@@ -624,7 +631,7 @@ export default function ChartPage() {
               {INTERVALS.map((iv) => (
               <button
                 key={iv.value}
-                onClick={() => setInterval(iv.value)}
+                onClick={() => { setInterval(iv.value); fetchCandles(symbol, iv.value); }}
                 className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${interval === iv.value ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-600'}`}
               >
                 {iv.label}
@@ -638,7 +645,7 @@ export default function ChartPage() {
             {QUICK_TICKERS.map((t) => (
               <button
                 key={t}
-                onClick={() => { setSymbol(t); setInput(''); fetchCandles(t); }}
+                onClick={() => { setSymbol(t); setInput(''); fetchCandles(t, interval); }}
                 className={`px-2.5 py-1 rounded text-xs font-mono font-semibold border transition-colors ${symbol === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-blue-400 hover:bg-blue-50'}`}
               >
                 {t}
@@ -662,7 +669,7 @@ export default function ChartPage() {
         </div>
 
         {/* ── TSI Chart ── */}
-        {tsiSeries.length > 0 && <TSIChart data={tsiSeries} />}
+        {tsiSeries.length > 0 && <TSIChart data={tsiSeries} timeframeLabel={INTERVALS.find((iv) => iv.value === interval)?.label} />}
         {loading && tsiSeries.length === 0 && (
           <div className="bg-white rounded-lg shadow p-4 animate-pulse">
             <div className="h-3 bg-gray-200 rounded w-48 mb-4" />
