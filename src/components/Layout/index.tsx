@@ -6,23 +6,68 @@ import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-const navItems = [
-  { href: '/dashboard',  label: 'Dashboard',        icon: DashboardIcon     },
-  { href: '/trades',     label: 'Trades',           icon: TradesIcon        },
-  { href: '/market',     label: 'Market',           icon: MarketIcon        },
-  { href: '/chart',      label: 'Chart',            icon: ChartIcon         },
-  { href: '/options',    label: 'Options',          icon: OptionsIcon       },
-  { href: '/scanner',    label: 'Options Screener', icon: ScannerIcon       },
-  { href: '/strategies', label: 'Strategies',       icon: StrategiesIcon    },
-  { href: '/calculator', label: 'Calculator',       icon: CalculatorIcon    },
-  { href: '/leaps',      label: 'LEAPS',            icon: LeapsIcon         },
-  { href: '/stocks',     label: 'Stock Scanner',    icon: StockScannerIcon  },
-  { href: '/news',       label: 'News',             icon: NewsIcon          },
-  { href: '/community',  label: 'Community',        icon: CommunityIcon     },
-  { href: '/technical',  label: 'Technical',        icon: TechnicalIcon     },
-  { href: '/crypto',     label: 'Crypto',           icon: CryptoIcon        },
-  { href: '/watchlist',  label: 'Watchlist',        icon: WatchlistIcon     },
-  { href: '/help',       label: 'Help',             icon: HelpIcon          },
+interface NavItem  { href: string; label: string; icon: React.FC }
+interface NavGroup { id: string; label: string; emoji: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    emoji: '🏠',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
+      { href: '/watchlist', label: 'Watchlist',  icon: WatchlistIcon },
+    ],
+  },
+  {
+    id: 'trading',
+    label: 'Trading',
+    emoji: '📒',
+    items: [
+      { href: '/trades', label: 'Trades', icon: TradesIcon },
+      { href: '/chart',  label: 'Chart',  icon: ChartIcon  },
+    ],
+  },
+  {
+    id: 'options',
+    label: 'Options',
+    emoji: '🎯',
+    items: [
+      { href: '/options',    label: 'Options Chain',    icon: OptionsIcon     },
+      { href: '/scanner',    label: 'Options Screener', icon: ScannerIcon     },
+      { href: '/strategies', label: 'Strategies',       icon: StrategiesIcon  },
+      { href: '/calculator', label: 'Calculator',       icon: CalculatorIcon  },
+      { href: '/leaps',      label: 'LEAPS',            icon: LeapsIcon       },
+    ],
+  },
+  {
+    id: 'stocks',
+    label: 'Stocks',
+    emoji: '📈',
+    items: [
+      { href: '/stocks',    label: 'Stock Scanner', icon: StockScannerIcon },
+      { href: '/technical', label: 'Technical',     icon: TechnicalIcon    },
+      { href: '/market',    label: 'Market',        icon: MarketIcon       },
+    ],
+  },
+  {
+    id: 'research',
+    label: 'Research',
+    emoji: '🔬',
+    items: [
+      { href: '/news',      label: 'News',      icon: NewsIcon      },
+      { href: '/crypto',    label: 'Crypto',    icon: CryptoIcon    },
+      { href: '/community', label: 'Community', icon: CommunityIcon },
+    ],
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    emoji: '❓',
+    items: [
+      { href: '/help', label: 'Help', icon: HelpIcon },
+    ],
+  },
 ];
 
 function HelpIcon() {
@@ -201,6 +246,11 @@ export function Layout({ children, title }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  // Track which groups are collapsed; default all open
+  const [closedGroups, setClosedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (id: string) =>
+    setClosedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Initialise dark mode from localStorage on mount
   useEffect(() => {
@@ -258,25 +308,64 @@ export function Layout({ children, title }: LayoutProps) {
             </button>
           </div>
 
-          {/* Nav Items */}
-          <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
-            {navItems.map(({ href, label, icon: Icon }) => {
-              const active = router.pathname.startsWith(href);
+          {/* Nav Groups */}
+          <nav className="flex-1 py-3 px-2 overflow-y-auto">
+            {NAV_GROUPS.map((group) => {
+              const isClosed = !!closedGroups[group.id];
+              const anyActive = group.items.some((i) => router.pathname.startsWith(i.href));
               return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
-                    active
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-                  }`}
-                  title={collapsed ? label : undefined}
-                >
-                  <Icon />
-                  {!collapsed && <span className="truncate">{label}</span>}
-                </Link>
+                <div key={group.id} className="mb-1">
+                  {/* Group header — hidden when sidebar is icon-only */}
+                  {!collapsed && (
+                    <button
+                      onClick={() => toggleGroup(group.id)}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors ${
+                        anyActive ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span>{group.emoji}</span>
+                        {group.label}
+                      </span>
+                      <svg
+                        className={`w-3 h-3 transition-transform duration-200 ${
+                          isClosed ? '-rotate-90' : ''
+                        }`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Items — always show when collapsed (icon-only mode) */}
+                  {(!isClosed || collapsed) && (
+                    <div className={`space-y-0.5 ${!collapsed ? 'mt-0.5 mb-1' : 'mb-2'}`}>
+                      {group.items.map(({ href, label, icon: Icon }) => {
+                        const active = router.pathname.startsWith(href);
+                        return (
+                          <Link
+                            key={href}
+                            href={href}
+                            onClick={() => setMobileOpen(false)}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium transition-colors ${
+                              active
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                            }`}
+                            title={collapsed ? label : undefined}
+                          >
+                            <Icon />
+                            {!collapsed && <span className="truncate text-sm">{label}</span>}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Divider between groups (expanded sidebar only) */}
+                  {!collapsed && <div className="border-t border-gray-700/50 mx-1 mt-1" />}
+                </div>
               );
             })}
           </nav>
