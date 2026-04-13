@@ -204,7 +204,7 @@ function ScreenerTable({
 /* ─────────────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────────────── */
-type Tab = 'screener' | 'chain' | 'builder' | 'portfolio';
+type Tab = 'screener' | 'chain' | 'builder' | 'portfolio' | 'rules';
 type SortKey = 'expiry' | 'strike' | 'delta' | 'premium' | 'theta' | 'oi' | 'be';
 
 // Portfolio position (persisted to localStorage)
@@ -465,6 +465,7 @@ export default function LeapsPage() {
     { id: 'chain',    label: '📋 Chain Viewer' },
     { id: 'builder',  label: '🛠️ Builder' },
     { id: 'portfolio',label: '💼 Portfolio' },
+    { id: 'rules',    label: '📖 Rules & Tips' },
   ];
 
   return (
@@ -1097,6 +1098,225 @@ export default function LeapsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            TAB: RULES & TIPS
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'rules' && (
+          <div className="space-y-5">
+
+            {/* ── 1. Stock Selection ── */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-indigo-600 flex items-center gap-2">
+                <span className="text-lg">📈</span>
+                <h2 className="text-sm font-bold text-white">1. Stock Selection</h2>
+              </div>
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { icon: '🔺', title: 'Upward-trending stock',   body: 'Only buy LEAPS on stocks with strong fundamentals and a clear bullish trend. Avoid sideways or downtrending names — theta works against you every day.' },
+                  { icon: '💰', title: 'P/E ratio below 100',      body: 'High P/E stocks have more valuation compression risk. Ideally target P/E < 100 so you\u2019re not paying two premiums: an expensive stock AND expensive options.' },
+                  { icon: '📅', title: '1–1.5 year chart uptrend', body: 'Look for a consistent series of higher highs and higher lows on the weekly chart. A stock that has been trending up for 12–18 months is far more likely to continue.' },
+                ].map(({ icon, title, body }) => (
+                  <div key={title} className="rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{icon}</span>
+                      <p className="text-sm font-bold text-gray-800">{title}</p>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">{body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── 2. Entry Rules ── */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-emerald-600 flex items-center gap-2">
+                <span className="text-lg">🎯</span>
+                <h2 className="text-sm font-bold text-white">2. Entry Rules</h2>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+                    <p className="text-sm font-bold text-emerald-800 mb-1">📉 Enter at / near lower Bollinger Band</p>
+                    <p className="text-xs text-emerald-700 leading-relaxed">
+                      The lower BB is a mean-reversion zone on an uptrending stock — statistically cheap. Buying LEAPS here captures both the
+                      bounce AND gives you time to be right. IV is often elevated during dips, so consider waiting a day or two for IV to cool before entering.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                    <p className="text-sm font-bold text-blue-800 mb-1">⚡ High-beta exception (β &gt; 2.0)</p>
+                    <p className="text-xs text-blue-700 leading-relaxed">
+                      High-beta stocks (TSLA, NVDA, PLTR) rarely touch the lower BB before reversing. For these,
+                      entering <strong>below the mid-band</strong> is acceptable — waiting for the lower band risks missing the whole move.
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                  <p className="text-sm font-bold text-gray-700 mb-2">✅ Full Entry Checklist</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      'Stock is in a confirmed uptrend (weekly chart)',
+                      'Price is at or below lower Bollinger Band (or mid-band for β > 2)',
+                      'IV Rank is ideally below 30% — options are cheap',
+                      'No earnings within 2 weeks (IV crush risk)',
+                      'Market indices (SPY/QQQ) are not in a downtrend',
+                      'Choose expiry ≥ 12 months — never less than 9 months',
+                      'Select strike with delta 0.70–0.80 for deep ITM LEAPS',
+                      'Position size: risk ≤ 2–5% of total portfolio per LEAPS',
+                    ].map((item) => (
+                      <div key={item} className="flex items-start gap-2 text-xs text-gray-600">
+                        <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 3. Exit Rules ── */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-amber-500 flex items-center gap-2">
+                <span className="text-lg">🚪</span>
+                <h2 className="text-sm font-bold text-white">3. Exit Rules</h2>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[
+                    {
+                      icon: '⚡', title: 'Quick Profit Target',
+                      tag: '10–20% gain', tagCls: 'bg-green-100 text-green-700',
+                      time: 'Within 7 days',
+                      body: 'If you enter near the lower BB and the stock bounces sharply, take the quick win. 10–20% on a LEAPS in under a week compounds beautifully over a year.',
+                    },
+                    {
+                      icon: '🏌️', title: 'Swing Profit Target',
+                      tag: '20–40% gain', tagCls: 'bg-blue-100 text-blue-700',
+                      time: 'Within 4 weeks',
+                      body: 'For swing holds, aim for 20–40% premium gain. At this point your delta has expanded (ITM) and theta is starting to eat faster. Lock in the win.',
+                    },
+                    {
+                      icon: '📅', title: 'Long-hold Exit',
+                      tag: 'DTE < 90 days', tagCls: 'bg-red-100 text-red-700',
+                      time: 'Close or roll',
+                      body: 'Never hold a LEAPS inside 90 DTE. Theta decay accelerates sharply. Either sell-to-close, or roll forward to a new 12–18 month expiry to preserve your position.',
+                    },
+                  ].map(({ icon, title, tag, tagCls, time, body }) => (
+                    <div key={title} className="rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-lg">{icon}</span>
+                        <p className="text-sm font-bold text-gray-800">{title}</p>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tagCls}`}>{tag}</span>
+                      </div>
+                      <p className="text-[11px] text-indigo-600 font-semibold">{time}</p>
+                      <p className="text-xs text-gray-500 leading-relaxed">{body}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-lg border border-red-100 bg-red-50 p-4">
+                  <p className="text-sm font-bold text-red-700 mb-2">🛡️ Black Swan Protection Rule</p>
+                  <p className="text-xs text-red-600 leading-relaxed">
+                    If the broad market (SPY) drops more than <strong>10% in a single week</strong> or breaks a major support on the weekly chart,
+                    close all open LEAPS immediately — regardless of P&amp;L. LEAPS bleed fast in a crash: IV spikes, delta collapses, and premium can
+                    fall 50–70% even if you are directionally right. Capital preservation is the priority.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 4. Strike & Expiry Selection ── */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-violet-600 flex items-center gap-2">
+                <span className="text-lg">🎲</span>
+                <h2 className="text-sm font-bold text-white">4. Strike & Expiry Selection Guide</h2>
+              </div>
+              <div className="p-5 overflow-x-auto">
+                <table className="w-full text-xs min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-gray-400">
+                      <th className="text-left py-2 px-3">Strategy Goal</th>
+                      <th className="text-left py-2 px-3">Delta Target</th>
+                      <th className="text-left py-2 px-3">Expiry</th>
+                      <th className="text-left py-2 px-3">Risk Level</th>
+                      <th className="text-left py-2 px-3">Best For</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { goal: 'Stock Replacement',  delta: '0.75–0.90',  expiry: '12–24 months', risk: '🟢 Low',    best: 'Long-term investors wanting leverage without margin' },
+                      { goal: 'Directional Swing',  delta: '0.55–0.75',  expiry: '12–18 months', risk: '🟡 Medium', best: 'Swing traders with 1–3 month thesis' },
+                      { goal: 'Speculative Move',   delta: '0.35–0.55',  expiry: '12–15 months', risk: '🟠 High',   best: 'Catalyst plays, earnings recovery, sector rotation' },
+                      { goal: 'PMCC Base Leg',       delta: '0.80–0.90',  expiry: '18–24 months', risk: '🟢 Low',    best: 'Selling monthly calls against it to reduce cost basis' },
+                      { goal: 'Bull Call Spread',    delta: '0.50 long',  expiry: '12–18 months', risk: '🟡 Medium', best: 'Capped upside, lower cost, defined max loss' },
+                    ].map((row) => (
+                      <tr key={row.goal} className="border-b border-gray-50 hover:bg-violet-50/30">
+                        <td className="py-2.5 px-3 font-semibold text-gray-700">{row.goal}</td>
+                        <td className="py-2.5 px-3 text-indigo-600 font-bold">{row.delta}</td>
+                        <td className="py-2.5 px-3 text-gray-600">{row.expiry}</td>
+                        <td className="py-2.5 px-3">{row.risk}</td>
+                        <td className="py-2.5 px-3 text-gray-500">{row.best}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ── 5. Common Mistakes ── */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-red-500 flex items-center gap-2">
+                <span className="text-lg">⚠️</span>
+                <h2 className="text-sm font-bold text-white">5. Common Mistakes to Avoid</h2>
+              </div>
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { bad: 'Buying LEAPS on downtrending stocks',        fix: 'Even cheap IV doesn\'t help if the stock keeps falling. Only buy LEAPS on stocks above their 200-day MA.' },
+                  { bad: 'Choosing expiry too close (< 9 months)',      fix: 'Below 9 months, you no longer have a LEAPS — you have a short-dated option with fast theta decay. Always stay ≥ 12 months.' },
+                  { bad: 'Buying during IV spikes (earnings, events)',  fix: 'IV crush after an event can wipe out gains even if you are right on the direction. Buy in low-IV environments (IV Rank < 30).' },
+                  { bad: 'Exercising the option early',                 fix: 'Never exercise a LEAPS early. You forfeit all remaining extrinsic/time value. Always sell-to-close instead.' },
+                  { bad: 'Holding past 90 DTE without a plan',         fix: 'Theta decay accelerates sharply below 90 DTE. Either have a clear exit or roll to a new expiry at least 12 months out.' },
+                  { bad: 'Sizing too large (> 5% of portfolio)',        fix: 'LEAPS can drop 50–70% in a correction. Keep each position small. Total LEAPS exposure should be < 20% of portfolio.' },
+                  { bad: 'Ignoring liquidity / bid-ask spread',        fix: 'Wide spreads (> $0.50) destroy your edge on entry and exit. Only trade LEAPS with open interest > 500 and volume > 50/day.' },
+                  { bad: 'Averaging down on losing LEAPS',             fix: 'If the thesis is broken, exit. Adding to a losing position doubles your loss when the stock continues against you.' },
+                ].map(({ bad, fix }) => (
+                  <div key={bad} className="rounded-lg border border-red-100 bg-red-50 p-3">
+                    <div className="flex gap-2 mb-1">
+                      <span className="text-red-500 font-bold text-xs shrink-0">✗</span>
+                      <p className="text-xs font-semibold text-red-700">{bad}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-green-500 font-bold text-xs shrink-0">✓</span>
+                      <p className="text-xs text-gray-600">{fix}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── 6. Quick-reference card ── */}
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+              <h3 className="text-sm font-bold text-indigo-800 mb-3">📌 Quick-Reference Card</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                {[
+                  { label: 'Min expiry',       value: '≥ 12 months' },
+                  { label: 'Delta target',     value: '0.70 – 0.80' },
+                  { label: 'Max IV Rank',      value: '< 30 to buy' },
+                  { label: 'Entry signal',     value: 'Near lower BB' },
+                  { label: 'Quick target',     value: '+10–20% / 7d' },
+                  { label: 'Swing target',     value: '+20–40% / 4wk' },
+                  { label: 'Roll at DTE',      value: '< 180 days' },
+                  { label: 'Hard stop',        value: '-40 to -50%' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded-lg bg-white border border-indigo-100 p-3">
+                    <p className="text-[10px] text-indigo-400 font-medium mb-0.5">{label}</p>
+                    <p className="text-sm font-extrabold text-indigo-800">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         )}
 
