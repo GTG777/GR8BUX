@@ -1,0 +1,1109 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
+import { Layout } from '@/components/Layout';
+import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
+import type { LeapsContract, LeapsChainResponse } from '@/pages/api/options/leaps-chain';
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip, ReferenceLine,
+} from 'recharts';
+
+/* ─────────────────────────────────────────────────────────────────
+   Constants & helpers
+───────────────────────────────────────────────────────────────── */
+const TODAY = new Date();
+const fmt$ = (v: number) => v >= 0 ? `+$${v.toFixed(2)}` : `-$${Math.abs(v).toFixed(2)}`;
+const fmtPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+
+// Screener watchlist — popular LEAPS candidates
+const LEAPS_UNIVERSE = [
+  { symbol: 'SPY',  name: 'S&P 500 ETF',     sector: 'Index' },
+  { symbol: 'QQQ',  name: 'Nasdaq 100 ETF',   sector: 'Index' },
+  { symbol: 'AAPL', name: 'Apple',            sector: 'Technology' },
+  { symbol: 'MSFT', name: 'Microsoft',        sector: 'Technology' },
+  { symbol: 'NVDA', name: 'Nvidia',           sector: 'Technology' },
+  { symbol: 'META', name: 'Meta Platforms',   sector: 'Technology' },
+  { symbol: 'AMZN', name: 'Amazon',           sector: 'Consumer' },
+  { symbol: 'GOOGL',name: 'Alphabet',         sector: 'Technology' },
+  { symbol: 'TSLA', name: 'Tesla',            sector: 'Consumer' },
+  { symbol: 'JPM',  name: 'JPMorgan',         sector: 'Financials' },
+  { symbol: 'GS',   name: 'Goldman Sachs',    sector: 'Financials' },
+  { symbol: 'BRK-B',name: 'Berkshire Hathaway',sector: 'Financials' },
+  { symbol: 'XOM',  name: 'ExxonMobil',       sector: 'Energy' },
+  { symbol: 'UNH',  name: 'UnitedHealth',     sector: 'Healthcare' },
+  { symbol: 'LLY',  name: 'Eli Lilly',        sector: 'Healthcare' },
+  { symbol: 'V',    name: 'Visa',             sector: 'Financials' },
+  { symbol: 'AMD',  name: 'AMD',              sector: 'Technology' },
+  { symbol: 'PLTR', name: 'Palantir',         sector: 'Technology' },
+];
+
+const SECTORS = ['All', ...Array.from(new Set(LEAPS_UNIVERSE.map((s) => s.sector)))];
+
+// Delta-based categorisation for the chain viewer
+function deltaLabel(d: number, type: 'call' | 'put'): { label: string; cls: string } {
+  const abs = Math.abs(d);
+  if (abs >= 0.75) return { label: 'Deep ITM', cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+  if (abs >= 0.55) return { label: 'ITM',      cls: 'text-green-700 bg-green-50 border-green-200' };
+  if (abs >= 0.45) return { label: 'ATM',      cls: 'text-indigo-700 bg-indigo-50 border-indigo-200' };
+  if (abs >= 0.30) return { label: 'OTM',      cls: 'text-amber-700 bg-amber-50 border-amber-200' };
+  return               { label: 'Far OTM',  cls: 'text-red-600 bg-red-50 border-red-200' };
+}
+
+// PMCC income projection: assume rolling short calls every ~45 days
+function pmccProjection(leapsMid: number, spot: number, ivPct: number, dteLeaps: number) {
+  const cycles = Math.floor(dteLeaps / 45);
+  const weeklyYield = (ivPct / 100) * spot * Math.sqrt(45 / 365) * 0.30; // rough 30Δ call premium
+  const totalIncome = cycles * weeklyYield;
+  const netCost = Math.max(0, leapsMid * 100 - totalIncome);
+  return { cycles, weeklyYield, totalIncome, netCost };
+}
+
+// Build simple P&L curve for the builder
+function buildLeapsPnL(
+  type: 'call' | 'put',
+  strike: number,
+  premium: number,
+  spot: number,
+  daysHeld: number,
+  daysTotal: number,
+  ivFrac: number,
+  qty: number,
+): { price: number; expiry: number; theta: number }[] {
+  const lo = spot * 0.60;
+  const hi = spot * 1.50;
+  const steps = 100;
+  const rate = 0.045;
+  const out = [];
+  for (let i = 0; i <= steps; i++) {
+    const s = lo + (hi - lo) * (i / steps);
+    const intrinsic = type === 'call' ? Math.max(0, s - strike) : Math.max(0, strike - s);
+    const expiry = (intrinsic - premium) * qty * 100;
+    // Current value (time remaining = daysTotal - daysHeld)
+    const T = Math.max((daysTotal - daysHeld), 1) / 365;
+    const g = type === 'call'
+      ? calculateCallGreeks({ spotPrice: s, strikePrice: strike, timeToExpiration: T, volatility: ivFrac, riskFreeRate: rate })
+      : calculatePutGreeks({ spotPrice: s, strikePrice: strike, timeToExpiration: T, volatility: ivFrac, riskFreeRate: rate });
+    const currentVal = (g.premium ?? 0) * qty * 100;
+    const thetaPnL = (currentVal - premium * qty * 100);
+    out.push({
+      price: parseFloat(s.toFixed(2)),
+      expiry: parseFloat(expiry.toFixed(2)),
+      theta: parseFloat(thetaPnL.toFixed(2)),
+    });
+  }
+  return out;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Sub-components
+───────────────────────────────────────────────────────────────── */
+
+// Small badge
+function Badge({ children, cls }: { children: React.ReactNode; cls: string }) {
+  return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold ${cls}`}>{children}</span>;
+}
+
+// Loading spinner
+function Spinner() {
+  return (
+    <div className="flex justify-center py-10">
+      <svg className="animate-spin h-6 w-6 text-indigo-500" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+      </svg>
+    </div>
+  );
+}
+
+// Screener row
+interface ScreenerRow {
+  symbol: string;
+  name: string;
+  sector: string;
+  price: number | null;
+  hv20: number | null;
+  ivr: number | null;
+  bestDelta: number | null;
+  bestExpiry: string | null;
+  bestPremium: number | null;
+  loading: boolean;
+  error: boolean;
+}
+
+function ScreenerTable({
+  rows,
+  onPick,
+}: {
+  rows: ScreenerRow[];
+  onPick: (sym: string) => void;
+}) {
+  const ivrColor = (ivr: number | null) => {
+    if (ivr === null) return 'text-gray-400';
+    if (ivr <= 30) return 'text-green-600 font-bold';
+    if (ivr <= 60) return 'text-amber-600';
+    return 'text-red-600';
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs min-w-[720px]">
+        <thead>
+          <tr className="text-gray-400 border-b border-gray-100">
+            <th className="text-left py-2.5 px-3">Symbol</th>
+            <th className="text-left py-2.5 px-3">Sector</th>
+            <th className="text-right py-2.5 px-3">Price</th>
+            <th className="text-right py-2.5 px-3">HV20</th>
+            <th className="text-right py-2.5 px-3">IV Rank</th>
+            <th className="text-right py-2.5 px-3">Best LEAPS</th>
+            <th className="text-right py-2.5 px-3">Delta</th>
+            <th className="text-right py-2.5 px-3">Premium</th>
+            <th className="text-center py-2.5 px-3">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.symbol} className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors">
+              <td className="py-2 px-3 font-bold text-gray-800">
+                {row.symbol}
+                <span className="block text-[10px] font-normal text-gray-400">{row.name}</span>
+              </td>
+              <td className="py-2 px-3 text-gray-500">{row.sector}</td>
+              <td className="py-2 px-3 text-right font-semibold text-gray-800">
+                {row.loading ? '…' : row.price ? `$${row.price.toFixed(2)}` : '—'}
+              </td>
+              <td className="py-2 px-3 text-right text-gray-600">
+                {row.loading ? '…' : row.hv20 !== null ? `${row.hv20}%` : '—'}
+              </td>
+              <td className={`py-2 px-3 text-right ${ivrColor(row.ivr)}`}>
+                {row.loading ? '…' : row.ivr !== null ? `${row.ivr.toFixed(0)}` : '—'}
+              </td>
+              <td className="py-2 px-3 text-right text-indigo-600 text-[10px]">{row.bestExpiry ?? '—'}</td>
+              <td className="py-2 px-3 text-right">
+                {row.bestDelta !== null
+                  ? <Badge cls={deltaLabel(row.bestDelta, 'call').cls}>{row.bestDelta.toFixed(2)}</Badge>
+                  : '—'}
+              </td>
+              <td className="py-2 px-3 text-right font-semibold text-gray-700">
+                {row.bestPremium !== null ? `$${(row.bestPremium * 100).toFixed(0)}` : '—'}
+              </td>
+              <td className="py-2 px-3 text-center">
+                <button
+                  onClick={() => onPick(row.symbol)}
+                  className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700"
+                >
+                  Analyze →
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Main Page
+───────────────────────────────────────────────────────────────── */
+type Tab = 'screener' | 'chain' | 'builder' | 'portfolio';
+type SortKey = 'expiry' | 'strike' | 'delta' | 'premium' | 'theta' | 'oi' | 'be';
+
+// Portfolio position (persisted to localStorage)
+interface PortfolioPosition {
+  id: string;
+  symbol: string;
+  type: 'call' | 'put';
+  strike: number;
+  expiryStr: string;
+  entryPremium: number;  // price per share (e.g. 12.50)
+  qty: number;
+  entryDate: string;     // YYYY-MM-DD
+  notes: string;
+}
+
+const STORAGE_KEY = 'gr8bux_leaps_portfolio';
+
+function loadPortfolio(): PortfolioPosition[] {
+  if (typeof window === 'undefined') return [];
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'); } catch { return []; }
+}
+function savePortfolio(positions: PortfolioPosition[]) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
+}
+
+export default function LeapsPage() {
+  const [tab, setTab] = useState<Tab>('screener');
+
+  // ── Screener state ──────────────────────────────────────────────
+  const [sectorFilter, setSectorFilter] = useState('All');
+  const [maxIvr, setMaxIvr] = useState(50);
+  const [screenerData, setScreenerData] = useState<ScreenerRow[]>(
+    LEAPS_UNIVERSE.map((u) => ({ ...u, price: null, hv20: null, ivr: null, bestDelta: null, bestExpiry: null, bestPremium: null, loading: false, error: false }))
+  );
+  const screenerLoaded = useRef(false);
+
+  const loadScreenerRow = useCallback(async (symbol: string) => {
+    setScreenerData((prev) =>
+      prev.map((r) => r.symbol === symbol ? { ...r, loading: true, error: false } : r)
+    );
+    try {
+      const res = await fetch(`/api/options/leaps-chain?symbol=${encodeURIComponent(symbol)}`);
+      if (!res.ok) throw new Error('fetch failed');
+      const data: LeapsChainResponse = await res.json();
+
+      // Find the best ATM call (delta closest to 0.70, expiry 12–18mo)
+      const targetMs = Date.now() + 18 * 30 * 24 * 60 * 60 * 1000;
+      const best = data.contracts
+        .filter((c) => c.type === 'call' && c.delta > 0 && c.openInterest >= 10)
+        .sort((a, b) => {
+          const aDeltaDiff = Math.abs(Math.abs(a.delta) - 0.70);
+          const bDeltaDiff = Math.abs(Math.abs(b.delta) - 0.70);
+          return aDeltaDiff - bDeltaDiff;
+        })[0] ?? null;
+
+      // Compute IVR from all contracts
+      const ivs = data.contracts.map((c) => c.impliedVolatility).filter((v) => v > 0);
+      let ivr: number | null = null;
+      if (ivs.length >= 4) {
+        ivs.sort((a, b) => a - b);
+        const mid = ivs.slice(Math.floor(ivs.length * 0.3), Math.ceil(ivs.length * 0.7));
+        const current = mid.reduce((s, v) => s + v, 0) / mid.length;
+        const mn = Math.min(...ivs), mx = Math.max(...ivs);
+        if (mx !== mn) ivr = parseFloat(((current - mn) / (mx - mn) * 100).toFixed(1));
+      }
+
+      setScreenerData((prev) =>
+        prev.map((r) => r.symbol === symbol ? {
+          ...r,
+          loading: false,
+          price: data.underlyingPrice,
+          hv20: data.hv20,
+          ivr,
+          bestDelta: best?.delta ?? null,
+          bestExpiry: best?.expirationStr ?? null,
+          bestPremium: best?.mid ?? null,
+        } : r)
+      );
+    } catch {
+      setScreenerData((prev) =>
+        prev.map((r) => r.symbol === symbol ? { ...r, loading: false, error: true } : r)
+      );
+    }
+  }, []);
+
+  // Load screener when that tab is first visited
+  useEffect(() => {
+    if (tab !== 'screener' || screenerLoaded.current) return;
+    screenerLoaded.current = true;
+    // Stagger loads to avoid hammering the API
+    LEAPS_UNIVERSE.forEach((u, i) => {
+      setTimeout(() => loadScreenerRow(u.symbol), i * 400);
+    });
+  }, [tab, loadScreenerRow]);
+
+  // ── Chain state ─────────────────────────────────────────────────
+  const [chainSymbol, setChainSymbol] = useState('AAPL');
+  const [chainInput, setChainInput] = useState('AAPL');
+  const [chainData, setChainData] = useState<LeapsChainResponse | null>(null);
+  const [chainLoading, setChainLoading] = useState(false);
+  const [chainError, setChainError] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'call' | 'put' | 'both'>('call');
+  const [expiryFilter, setExpiryFilter] = useState<string>('');
+  const [deltaFilter, setDeltaFilter] = useState<[number, number]>([0.20, 1.0]);
+  const [sortKey, setSortKey] = useState<SortKey>('delta');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const fetchChain = useCallback(async (sym: string) => {
+    setChainLoading(true);
+    setChainError('');
+    setChainData(null);
+    try {
+      const res = await fetch(`/api/options/leaps-chain?symbol=${encodeURIComponent(sym)}`);
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data: LeapsChainResponse = await res.json();
+      setChainData(data);
+      if (data.leapsExpirations.length) setExpiryFilter(data.leapsExpirations[0]);
+    } catch (e: unknown) {
+      setChainError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setChainLoading(false);
+    }
+  }, []);
+
+  // When user switches to chain tab from screener via "Analyze →"
+  const handlePickFromScreener = (sym: string) => {
+    setChainSymbol(sym);
+    setChainInput(sym);
+    setTab('chain');
+    fetchChain(sym);
+  };
+
+  // Sort handler
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir(key === 'delta' ? 'desc' : 'asc'); }
+  };
+
+  const chainContracts = (chainData?.contracts ?? [])
+    .filter((c) => {
+      if (typeFilter !== 'both' && c.type !== typeFilter) return false;
+      if (expiryFilter && c.expirationStr !== expiryFilter) return false;
+      const abs = Math.abs(c.delta);
+      if (abs < deltaFilter[0] || abs > deltaFilter[1]) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      switch (sortKey) {
+        case 'expiry':  return (a.expiration - b.expiration) * dir;
+        case 'strike':  return (a.strike - b.strike) * dir;
+        case 'delta':   return (Math.abs(a.delta) - Math.abs(b.delta)) * dir;
+        case 'premium': return (a.mid - b.mid) * dir;
+        case 'theta':   return (Math.abs(a.theta) - Math.abs(b.theta)) * dir;
+        case 'oi':      return (a.openInterest - b.openInterest) * dir;
+        case 'be':      return (a.breakeven - b.breakeven) * dir;
+        default:        return 0;
+      }
+    });
+
+  // ── Builder state ───────────────────────────────────────────────
+  const [bldStrategy, setBldStrategy] = useState<'pure' | 'pmcc' | 'spread'>('pure');
+  const [bldSymbol, setBldSymbol] = useState('AAPL');
+  const [bldSpot, setBldSpot] = useState('');
+  const [bldType, setBldType] = useState<'call' | 'put'>('call');
+  const [bldStrike, setBldStrike] = useState('');
+  const [bldStrike2, setBldStrike2] = useState('');    // for PMCC short call or spread upper
+  const [bldExpiry, setBldExpiry] = useState('');
+  const [bldIV, setBldIV] = useState('25');
+  const [bldQty, setBldQty] = useState('1');
+  const [bldDaysHeld, setBldDaysHeld] = useState('0');
+  const [bldPremium, setBldPremium] = useState('');
+  const [bldPnL, setBldPnL] = useState<{ price: number; expiry: number; theta: number }[] | null>(null);
+  const [bldError, setBldError] = useState('');
+
+  const handleBldCalc = () => {
+    setBldError('');
+    const spot = parseFloat(bldSpot);
+    const strike = parseFloat(bldStrike);
+    const premium = parseFloat(bldPremium);
+    const iv = parseFloat(bldIV) / 100;
+    const qty = parseInt(bldQty) || 1;
+    const daysHeld = parseInt(bldDaysHeld) || 0;
+
+    if (!spot || !strike || !premium || !bldExpiry) { setBldError('Fill in all fields.'); return; }
+    const daysTotal = Math.max(1, Math.round((new Date(bldExpiry).getTime() - Date.now()) / 86400000) + daysHeld);
+    if (daysTotal < 1) { setBldError('Expiry must be in the future.'); return; }
+
+    const curve = buildLeapsPnL(bldType, strike, premium, spot, daysHeld, daysTotal, iv, qty);
+    setBldPnL(curve);
+  };
+
+  const bldPmcc = (() => {
+    const spot = parseFloat(bldSpot);
+    const premium = parseFloat(bldPremium);
+    const iv = parseFloat(bldIV);
+    if (!spot || !premium || !bldExpiry) return null;
+    const daysTotal = Math.max(1, Math.round((new Date(bldExpiry).getTime() - Date.now()) / 86400000));
+    return pmccProjection(premium, spot, iv, daysTotal);
+  })();
+
+  // ── Portfolio state ─────────────────────────────────────────────
+  const [portfolio, setPortfolio] = useState<PortfolioPosition[]>([]);
+  const [newPos, setNewPos] = useState<Partial<PortfolioPosition>>({ type: 'call', qty: 1 });
+  const [addOpen, setAddOpen] = useState(false);
+
+  useEffect(() => { setPortfolio(loadPortfolio()); }, []);
+
+  const addPosition = () => {
+    if (!newPos.symbol || !newPos.strike || !newPos.expiryStr || !newPos.entryPremium) return;
+    const pos: PortfolioPosition = {
+      id: Date.now().toString(),
+      symbol: (newPos.symbol as string).toUpperCase(),
+      type: newPos.type as 'call' | 'put',
+      strike: newPos.strike as number,
+      expiryStr: newPos.expiryStr as string,
+      entryPremium: newPos.entryPremium as number,
+      qty: newPos.qty as number ?? 1,
+      entryDate: newPos.entryDate ?? new Date().toISOString().slice(0, 10),
+      notes: newPos.notes ?? '',
+    };
+    const updated = [...portfolio, pos];
+    setPortfolio(updated);
+    savePortfolio(updated);
+    setNewPos({ type: 'call', qty: 1 });
+    setAddOpen(false);
+  };
+
+  const removePosition = (id: string) => {
+    const updated = portfolio.filter((p) => p.id !== id);
+    setPortfolio(updated);
+    savePortfolio(updated);
+  };
+
+  const daysToExpiry = (expiryStr: string) =>
+    Math.max(0, Math.round((new Date(expiryStr).getTime() - Date.now()) / 86400000));
+
+  const rollAlert = (dte: number) =>
+    dte <= 180 ? 'bg-red-100 text-red-700' :
+    dte <= 270 ? 'bg-amber-100 text-amber-700' :
+    'bg-green-100 text-green-700';
+
+  const rollMsg = (dte: number) =>
+    dte <= 60  ? '🚨 Roll immediately' :
+    dte <= 180 ? '⚠️ Consider rolling (< 6mo)' :
+    dte <= 270 ? '📅 Roll in ~3–4 months' :
+    '✅ Holding comfortably';
+
+  /* ── shared input class ─────────────────────────────────────── */
+  const iCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full bg-white';
+
+  /* ─────────────────────────────────────────────────────────────
+     RENDER
+  ──────────────────────────────────────────────────────────────*/
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'screener', label: '🔍 Screener' },
+    { id: 'chain',    label: '📋 Chain Viewer' },
+    { id: 'builder',  label: '🛠️ Builder' },
+    { id: 'portfolio',label: '💼 Portfolio' },
+  ];
+
+  return (
+    <Layout title="LEAPS">
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
+
+        {/* ── Page Header ── */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-5">
+          <div className="flex items-start justify-between flex-wrap gap-3">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">LEAPS Options</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Long-term Equity Anticipation Securities — expirations ≥ 12 months
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {[
+                { emoji: '📅', label: 'Min 12 months to expiry' },
+                { emoji: '🎯', label: 'Target 0.60–0.80 Delta' },
+                { emoji: '📉', label: 'Enter when IV Rank < 30' },
+              ].map(({ emoji, label }) => (
+                <span key={label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-medium">
+                  {emoji} {label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Tab Bar ── */}
+        <div className="flex border-b border-gray-200 bg-white rounded-t-xl overflow-hidden shadow-sm">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-5 py-3 text-sm font-semibold transition-colors whitespace-nowrap ${
+                tab === t.id
+                  ? 'border-b-2 border-indigo-600 text-indigo-700 bg-white'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ══════════════════════════════════════════════════════
+            TAB: SCREENER
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'screener' && (
+          <div className="space-y-4">
+            {/* Filters */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Sector</label>
+                <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+                  {SECTORS.map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Max IV Rank: <strong>{maxIvr}</strong></label>
+                <input type="range" min={10} max={100} value={maxIvr} onChange={(e) => setMaxIvr(Number(e.target.value))}
+                  className="w-32 accent-indigo-500" />
+              </div>
+              <p className="text-xs text-gray-400 self-center">Green IV Rank = IV is cheap → good for LEAPS buyers</p>
+            </div>
+
+            {/* Education bar */}
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-xs text-indigo-700 space-y-1">
+              <p className="font-bold mb-1">📚 Screener Guide</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <p><strong>IV Rank &lt; 30</strong> — options are cheap. Buy now, don&apos;t sell.</p>
+                <p><strong>Delta 0.70–0.80</strong> — moves like stock at a fraction of capital (deep ITM LEAPS).</p>
+                <p><strong>Premium</strong> shown per contract (×100 shares). Compare to owning 100 shares outright.</p>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <ScreenerTable
+                rows={screenerData.filter((r) =>
+                  (sectorFilter === 'All' || r.sector === sectorFilter) &&
+                  (r.ivr === null || r.ivr <= maxIvr)
+                )}
+                onPick={handlePickFromScreener}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            TAB: CHAIN VIEWER
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'chain' && (
+          <div className="space-y-4">
+            {/* Search bar */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-wrap gap-3 items-end">
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Symbol</label>
+                <form onSubmit={(e) => { e.preventDefault(); setChainSymbol(chainInput.toUpperCase()); fetchChain(chainInput.toUpperCase()); }}
+                  className="flex gap-2">
+                  <input value={chainInput} onChange={(e) => setChainInput(e.target.value.toUpperCase())}
+                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    placeholder="AAPL" />
+                  <button type="submit" className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">
+                    Load
+                  </button>
+                </form>
+              </div>
+              {/* Type filter */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Type</label>
+                <div className="flex gap-1">
+                  {(['call', 'put', 'both'] as const).map((t) => (
+                    <button key={t} onClick={() => setTypeFilter(t)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${typeFilter === t ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Expiry filter */}
+              {chainData && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Expiry</label>
+                  <select value={expiryFilter} onChange={(e) => setExpiryFilter(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+                    <option value="">All LEAPS</option>
+                    {chainData.leapsExpirations.map((ex) => <option key={ex}>{ex}</option>)}
+                  </select>
+                </div>
+              )}
+              {/* Delta filter */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">
+                  Min Delta: <strong>{deltaFilter[0].toFixed(2)}</strong>
+                </label>
+                <input type="range" min={0.10} max={0.95} step={0.05}
+                  value={deltaFilter[0]}
+                  onChange={(e) => setDeltaFilter([Number(e.target.value), deltaFilter[1]])}
+                  className="w-28 accent-indigo-500" />
+              </div>
+            </div>
+
+            {/* Status / price */}
+            {chainData && !chainLoading && (
+              <div className="flex flex-wrap gap-4 text-sm">
+                <span className="font-bold text-gray-800">{chainData.symbol}</span>
+                <span className="text-indigo-700 font-bold">${chainData.underlyingPrice.toFixed(2)}</span>
+                {chainData.hv20 !== null && <span className="text-gray-500">HV20: <strong>{chainData.hv20}%</strong></span>}
+                <span className="text-gray-400 text-xs">{chainContracts.length} contracts shown</span>
+              </div>
+            )}
+
+            {chainLoading && <Spinner />}
+            {chainError && <p className="text-sm text-red-500">{chainError}</p>}
+
+            {/* Chain table */}
+            {chainData && !chainLoading && (
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs min-w-[900px]">
+                    <thead className="bg-gray-50">
+                      <tr className="text-gray-400 border-b border-gray-100">
+                        <th className="text-left py-3 px-3 cursor-pointer hover:text-gray-600" onClick={() => handleSort('expiry')}>
+                          Expiry {sortKey === 'expiry' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                        <th className="text-left py-3 px-3">Type</th>
+                        <th className="text-right py-3 px-3 cursor-pointer hover:text-gray-600" onClick={() => handleSort('strike')}>
+                          Strike {sortKey === 'strike' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                        <th className="text-right py-3 px-3 cursor-pointer hover:text-gray-600" onClick={() => handleSort('delta')}>
+                          Δ Delta {sortKey === 'delta' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                        <th className="text-right py-3 px-3">IV %</th>
+                        <th className="text-right py-3 px-3 cursor-pointer hover:text-gray-600" onClick={() => handleSort('theta')}>
+                          Θ /day {sortKey === 'theta' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                        <th className="text-right py-3 px-3 cursor-pointer hover:text-gray-600" onClick={() => handleSort('oi')}>
+                          OI {sortKey === 'oi' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                        <th className="text-right py-3 px-3 cursor-pointer hover:text-gray-600" onClick={() => handleSort('premium')}>
+                          Bid / Ask {sortKey === 'premium' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                        <th className="text-right py-3 px-3 cursor-pointer hover:text-gray-600" onClick={() => handleSort('be')}>
+                          Breakeven {sortKey === 'be' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                        <th className="text-right py-3 px-3">vs. Shares</th>
+                        <th className="text-center py-3 px-3">Build</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chainContracts.length === 0 && (
+                        <tr><td colSpan={11} className="text-center py-8 text-gray-400">No contracts match your filters.</td></tr>
+                      )}
+                      {chainContracts.map((c) => {
+                        const dl = deltaLabel(c.delta, c.type);
+                        const beVsSpot = chainData.underlyingPrice > 0
+                          ? ((c.breakeven - chainData.underlyingPrice) / chainData.underlyingPrice * 100)
+                          : 0;
+                        return (
+                          <tr key={c.contractSymbol} className="border-b border-gray-50 hover:bg-indigo-50/30">
+                            <td className="py-2 px-3 font-medium text-gray-700">
+                              {c.expirationStr}
+                              <span className="block text-[9px] text-gray-400">{c.daysToExpiry}d</span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <Badge cls={c.type === 'call' ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200'}>
+                                {c.type.toUpperCase()}
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-3 text-right font-bold text-gray-800">${c.strike}</td>
+                            <td className="py-2 px-3 text-right">
+                              <Badge cls={dl.cls}>{c.delta.toFixed(2)}</Badge>
+                            </td>
+                            <td className="py-2 px-3 text-right text-gray-600">{c.impliedVolatility.toFixed(1)}%</td>
+                            <td className={`py-2 px-3 text-right font-semibold ${c.theta < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                              ${c.theta.toFixed(2)}
+                            </td>
+                            <td className="py-2 px-3 text-right text-gray-600">{c.openInterest.toLocaleString()}</td>
+                            <td className="py-2 px-3 text-right text-gray-700">
+                              ${c.bid.toFixed(2)} / ${c.ask.toFixed(2)}
+                              <span className="block text-[10px] text-indigo-600 font-semibold">mid ${c.mid.toFixed(2)}</span>
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <span className="font-semibold text-gray-800">${c.breakeven.toFixed(2)}</span>
+                              <span className={`block text-[10px] ${beVsSpot > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                                {beVsSpot > 0 ? '+' : ''}{beVsSpot.toFixed(1)}% from spot
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <span className="font-semibold text-indigo-700">{c.costVs100Shares.toFixed(1)}%</span>
+                              <span className="block text-[10px] text-gray-400">of ${(chainData.underlyingPrice * 100).toFixed(0)}</span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                onClick={() => {
+                                  setBldSymbol(chainData.symbol);
+                                  setBldSpot(chainData.underlyingPrice.toFixed(2));
+                                  setBldType(c.type);
+                                  setBldStrike(c.strike.toString());
+                                  setBldExpiry(c.expirationStr);
+                                  setBldIV(c.impliedVolatility.toFixed(1));
+                                  setBldPremium(c.mid.toFixed(2));
+                                  setBldPnL(null);
+                                  setTab('builder');
+                                }}
+                                className="px-2 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-semibold hover:bg-indigo-100"
+                              >
+                                Build →
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Education bar */}
+            {!chainLoading && !chainError && !chainData && (
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-5 text-xs text-gray-500 space-y-2">
+                <p className="font-semibold text-gray-700">📋 What to look for in the LEAPS chain:</p>
+                <ul className="space-y-1 list-disc list-inside">
+                  <li><strong>Delta 0.70–0.80</strong> — deep ITM, moves like stock, slowest theta decay</li>
+                  <li><strong>Delta 0.50–0.60</strong> — ATM, best balance of cost and leverage</li>
+                  <li><strong>Delta 0.30–0.40</strong> — OTM, cheapest but needs a large move to profit</li>
+                  <li><strong>Theta/day</strong> — how much the option loses per day from time decay alone</li>
+                  <li><strong>vs. Shares</strong> — the option costs this % of buying 100 shares outright</li>
+                  <li><strong>Breakeven</strong> — the stock price where you break even <em>at expiration</em></li>
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            TAB: BUILDER
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'builder' && (
+          <div className="space-y-4">
+            {/* Strategy selector */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">LEAPS Strategy</h3>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {([
+                  { id: 'pure',  label: 'Pure LEAPS',          desc: 'Buy and hold for directional move. Exit at target or stop.' },
+                  { id: 'pmcc',  label: 'Poor Man\'s Covered Call', desc: 'Buy deep ITM LEAPS + sell 30-45 DTE OTM calls monthly for income.' },
+                  { id: 'spread',label: 'LEAPS Bull Call Spread', desc: 'Buy ATM LEAPS + sell same-expiry OTM call. Lower cost, capped profit.' },
+                ] as { id: 'pure' | 'pmcc' | 'spread'; label: string; desc: string }[]).map(({ id, label, desc }) => (
+                  <button key={id} onClick={() => setBldStrategy(id)}
+                    className={`px-4 py-2.5 rounded-lg text-xs font-semibold border text-left transition-colors ${bldStrategy === id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-indigo-300'}`}>
+                    {label}
+                    <span className={`block mt-0.5 font-normal leading-tight ${bldStrategy === id ? 'text-indigo-200' : 'text-gray-400'}`}>{desc}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Inputs grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Symbol</label>
+                  <input value={bldSymbol} onChange={(e) => setBldSymbol(e.target.value.toUpperCase())} className={iCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Spot Price ($)</label>
+                  <input value={bldSpot} onChange={(e) => setBldSpot(e.target.value)} placeholder="0.00" className={iCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Type</label>
+                  <select value={bldType} onChange={(e) => setBldType(e.target.value as 'call' | 'put')} className={iCls}>
+                    <option value="call">Call</option>
+                    <option value="put">Put</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">LEAPS Strike ($)</label>
+                  <input value={bldStrike} onChange={(e) => setBldStrike(e.target.value)} placeholder="e.g. 190" className={iCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Expiry (YYYY-MM-DD)</label>
+                  <input type="date" value={bldExpiry} onChange={(e) => setBldExpiry(e.target.value)} className={iCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">IV (%)</label>
+                  <input value={bldIV} onChange={(e) => setBldIV(e.target.value)} placeholder="25" className={iCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Premium Paid ($)</label>
+                  <input value={bldPremium} onChange={(e) => setBldPremium(e.target.value)} placeholder="per share" className={iCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Contracts</label>
+                  <input value={bldQty} onChange={(e) => setBldQty(e.target.value)} placeholder="1" className={iCls} />
+                </div>
+                {bldStrategy === 'pmcc' && (
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Short Call Strike ($)</label>
+                    <input value={bldStrike2} onChange={(e) => setBldStrike2(e.target.value)} placeholder="e.g. 210 OTM" className={iCls} />
+                  </div>
+                )}
+              </div>
+
+              {/* Days held slider */}
+              <div className="mb-4">
+                <div className="flex justify-between mb-1">
+                  <label className="text-xs font-medium text-gray-500">Days held for &quot;today&quot; P&L curve</label>
+                  <span className="text-xs font-bold text-indigo-600">{bldDaysHeld}d</span>
+                </div>
+                <input type="range" min={0} max={300} value={bldDaysHeld}
+                  onChange={(e) => { setBldDaysHeld(e.target.value); setBldPnL(null); }}
+                  className="w-full accent-indigo-500" />
+                <div className="flex justify-between text-[9px] text-gray-300">
+                  <span>Entry (0d)</span><span>300 days in</span>
+                </div>
+              </div>
+
+              {bldError && <p className="text-xs text-red-500 mb-3">{bldError}</p>}
+              <button onClick={handleBldCalc}
+                className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700">
+                Analyze LEAPS
+              </button>
+            </div>
+
+            {/* P&L Chart */}
+            {bldPnL && (
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4">P&L Analysis — {bldSymbol} {bldType.toUpperCase()} ${bldStrike}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {(() => {
+                    const premium = parseFloat(bldPremium);
+                    const qty = parseInt(bldQty) || 1;
+                    const totalCost = premium * qty * 100;
+                    const maxProfit = bldType === 'call'
+                      ? (parseFloat(bldSpot) * 1.50 - parseFloat(bldStrike) - premium) * qty * 100
+                      : (parseFloat(bldStrike) - parseFloat(bldSpot) * 0.50 - premium) * qty * 100;
+                    const be = bldType === 'call'
+                      ? parseFloat(bldStrike) + premium
+                      : parseFloat(bldStrike) - premium;
+                    const dte = Math.max(0, Math.round((new Date(bldExpiry).getTime() - Date.now()) / 86400000));
+                    const items = [
+                      { label: 'Total Cost', value: `$${totalCost.toFixed(2)}`, color: 'text-red-600' },
+                      { label: 'Breakeven',  value: `$${be.toFixed(2)}`,       color: 'text-indigo-600' },
+                      { label: 'DTE',        value: `${dte} days`,             color: 'text-gray-700' },
+                      { label: 'Stop Loss',  value: `$${(totalCost * 0.50).toFixed(2)} (50%)`, color: 'text-red-500' },
+                    ];
+                    return items.map(({ label, value, color }) => (
+                      <div key={label} className="rounded-lg border border-gray-100 p-3 bg-gray-50">
+                        <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>
+                        <p className={`text-base font-extrabold ${color}`}>{value}</p>
+                      </div>
+                    ));
+                  })()}
+                </div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={bldPnL} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="price" tickFormatter={(v) => `$${(v as number).toFixed(0)}`} tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: '#94a3b8' }}
+                      formatter={(val: number, name: string) => [fmt$(val), name === 'expiry' ? 'At Expiry' : `Today (+${bldDaysHeld}d)`]}
+                      labelFormatter={(l) => `Price: $${(l as number).toFixed(2)}`}
+                    />
+                    <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5} />
+                    <ReferenceLine x={parseFloat(bldSpot)} stroke="#94a3b8" strokeDasharray="4 4"
+                      label={{ value: 'Spot', fill: '#94a3b8', fontSize: 10 }} />
+                    <Line type="monotone" dataKey="expiry" stroke="#6366f1" strokeWidth={2.5} dot={false} name="expiry" />
+                    <Line type="monotone" dataKey="theta" stroke="#f59e0b" strokeWidth={1.5} dot={false}
+                      strokeDasharray="5 3" name="theta" />
+                  </LineChart>
+                </ResponsiveContainer>
+                <div className="flex gap-5 text-xs text-gray-400 mt-3 justify-center">
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-6 h-0.5 bg-indigo-500 rounded" />At Expiry</span>
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0" style={{ border: '1px dashed #f59e0b' }} />Today (+{bldDaysHeld}d)</span>
+                </div>
+              </div>
+            )}
+
+            {/* PMCC Income Projection */}
+            {bldStrategy === 'pmcc' && bldPmcc && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 shadow-sm p-5">
+                <h3 className="text-sm font-bold text-blue-800 mb-3">💰 PMCC Income Projection</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Sell cycles (~45d)',    value: `${bldPmcc.cycles}x` },
+                    { label: 'Est. per cycle (30Δ)',  value: `$${(bldPmcc.weeklyYield).toFixed(0)}` },
+                    { label: 'Total income (est.)',   value: `$${bldPmcc.totalIncome.toFixed(0)}` },
+                    { label: 'Net cost after income', value: `$${bldPmcc.netCost.toFixed(0)}` },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-lg bg-white border border-blue-100 p-3">
+                      <p className="text-[10px] text-blue-400 mb-0.5">{label}</p>
+                      <p className="text-base font-extrabold text-blue-800">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-blue-600 mt-3">
+                  ⚠️ That&apos;s {bldPmcc.cycles} short call rolls, each approximately 45 days, selling a 30Δ call for ~{((bldPmcc.weeklyYield / (parseFloat(bldSpot) || 100)) * 100).toFixed(1)}% of spot.
+                  Actual income varies with IV and spot movement. Always check the short call delta stays above the LEAPS delta before selling.
+                </p>
+              </div>
+            )}
+
+            {/* Management rules */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">📋 Management Playbook</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {[
+                  { trigger: '🟢 Profit hits +50–100%',     action: 'Sell or roll strike closer to stock; bank partial gains' },
+                  { trigger: '🔴 Loss hits -40–50%',        action: 'Hard stop — exit. Thesis is broken or IV imploded.' },
+                  { trigger: '📅 DTE crosses 180 days',      action: 'Prepare to roll forward to a later expiry, same strike' },
+                  { trigger: '📈 Delta > 0.95 (deep ITM)',   action: 'Roll down to a lower strike; recapture extrinsic value' },
+                  { trigger: '📊 IV spikes before event',    action: 'Sell a short call against LEAPS to capture premium (PMCC)' },
+                  { trigger: '🎯 Target price reached',      action: 'Sell to close — almost never exercise (lose extrinsic)' },
+                ].map(({ trigger, action }) => (
+                  <div key={trigger} className="flex gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                    <span className="font-semibold text-gray-700 w-48 shrink-0">{trigger}</span>
+                    <span className="text-gray-500">{action}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            TAB: PORTFOLIO
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'portfolio' && (
+          <div className="space-y-4">
+            {/* Add position button */}
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-500">{portfolio.length} open LEAPS position{portfolio.length !== 1 ? 's' : ''}</p>
+              <button onClick={() => setAddOpen(!addOpen)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Position
+              </button>
+            </div>
+
+            {/* Add form */}
+            {addOpen && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-indigo-800 mb-3">New LEAPS Position</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                  {[
+                    { label: 'Symbol',         key: 'symbol',        ph: 'AAPL', type: 'text' },
+                    { label: 'Strike ($)',      key: 'strike',        ph: '190',  type: 'number' },
+                    { label: 'Expiry',          key: 'expiryStr',     ph: '',     type: 'date' },
+                    { label: 'Entry Premium',   key: 'entryPremium',  ph: '12.50',type: 'number' },
+                    { label: 'Contracts',       key: 'qty',           ph: '1',    type: 'number' },
+                    { label: 'Entry Date',      key: 'entryDate',     ph: '',     type: 'date' },
+                  ].map(({ label, key, ph, type }) => (
+                    <div key={key}>
+                      <label className="text-xs font-medium text-indigo-700 block mb-1">{label}</label>
+                      <input
+                        type={type}
+                        placeholder={ph}
+                        value={(newPos as Record<string, unknown>)[key] as string ?? ''}
+                        onChange={(e) => setNewPos((p) => ({ ...p, [key]: type === 'number' ? parseFloat(e.target.value) || e.target.value : e.target.value }))}
+                        className="border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full bg-white"
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="text-xs font-medium text-indigo-700 block mb-1">Type</label>
+                    <select value={newPos.type ?? 'call'} onChange={(e) => setNewPos((p) => ({ ...p, type: e.target.value as 'call' | 'put' }))}
+                      className="border border-indigo-200 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none">
+                      <option value="call">Call</option>
+                      <option value="put">Put</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-medium text-indigo-700 block mb-1">Notes</label>
+                    <input placeholder="Thesis, target price, etc."
+                      value={newPos.notes ?? ''}
+                      onChange={(e) => setNewPos((p) => ({ ...p, notes: e.target.value }))}
+                      className="border border-indigo-200 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={addPosition}
+                    className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700">Save Position</button>
+                  <button onClick={() => setAddOpen(false)}
+                    className="bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Portfolio table */}
+            {portfolio.length === 0 && !addOpen && (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
+                <p className="text-gray-400 text-sm mb-2">No positions tracked yet.</p>
+                <p className="text-xs text-gray-300">Use the Screener and Chain Viewer to find LEAPS, then add them here to track.</p>
+              </div>
+            )}
+            {portfolio.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs min-w-[800px]">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr className="text-gray-400">
+                        <th className="text-left py-3 px-3">Symbol</th>
+                        <th className="text-left py-3 px-3">Position</th>
+                        <th className="text-right py-3 px-3">Entry</th>
+                        <th className="text-right py-3 px-3">Total Cost</th>
+                        <th className="text-right py-3 px-3">DTE</th>
+                        <th className="text-left py-3 px-3">Roll Status</th>
+                        <th className="text-left py-3 px-3">Notes</th>
+                        <th className="text-center py-3 px-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {portfolio.map((pos) => {
+                        const dte = daysToExpiry(pos.expiryStr);
+                        const totalCost = pos.entryPremium * pos.qty * 100;
+                        const rollCls = rollAlert(dte);
+                        return (
+                          <tr key={pos.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-gray-800">{pos.symbol}</span>
+                              <span className="block text-[10px] text-gray-400">entered {pos.entryDate}</span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className={`font-semibold ${pos.type === 'call' ? 'text-green-700' : 'text-red-600'}`}>
+                                {pos.qty}× {pos.type.toUpperCase()}
+                              </span>
+                              <span className="block text-gray-500">${pos.strike} · {pos.expiryStr}</span>
+                            </td>
+                            <td className="py-3 px-3 text-right font-semibold text-gray-700">
+                              ${pos.entryPremium.toFixed(2)}/sh
+                            </td>
+                            <td className="py-3 px-3 text-right font-bold text-red-600">
+                              ${totalCost.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-bold text-gray-800">{dte}d</td>
+                            <td className="py-3 px-3">
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${rollCls}`}>
+                                {rollMsg(dte)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-gray-500 max-w-[200px] truncate">{pos.notes || '—'}</td>
+                            <td className="py-3 px-3 text-center">
+                              <button onClick={() => removePosition(pos.id)}
+                                className="text-red-400 hover:text-red-600 text-[11px] font-semibold px-2 py-1 rounded hover:bg-red-50">
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Roll alerts summary */}
+                {portfolio.some((p) => daysToExpiry(p.expiryStr) <= 180) && (
+                  <div className="px-5 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700 font-medium">
+                    ⚠️ {portfolio.filter((p) => daysToExpiry(p.expiryStr) <= 180).length} position(s) within 180 days — review roll timing.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cheat sheet */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">📌 LEAPS Management Cheat Sheet</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-gray-600">
+                <div className="space-y-2">
+                  <p className="font-bold text-gray-700">⏰ When to Roll</p>
+                  <p>DTE &lt; 180: begin looking for a roll date.</p>
+                  <p>DTE &lt; 90: aggressive roll — theta decay accelerates below 90 days.</p>
+                  <p>Roll to same strike, 12+ months farther. Cost = debit/credit of the roll.</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="font-bold text-gray-700">🎯 Profit Targets</p>
+                  <p>+50% of premium paid: excellent — take it.</p>
+                  <p>+100% of premium paid: exceptional — exit fully.</p>
+                  <p>If the stock hits your thesis target early, sell — don&apos;t wait for expiry.</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="font-bold text-gray-700">🛑 Stop Loss Rules</p>
+                  <p>-40 to -50% of premium paid: hard stop. No averaging down on LEAPS.</p>
+                  <p>If IV collapses dramatically, that can cause losses even if the stock is flat — reassess.</p>
+                  <p>Never exercise early — you lose all remaining extrinsic value.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-gray-400 pb-4">
+          LEAPS data via Yahoo Finance. Black-Scholes greeks computed server-side. For educational purposes — not financial advice.
+        </p>
+      </div>
+    </Layout>
+  );
+}
