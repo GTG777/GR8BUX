@@ -202,6 +202,104 @@ function ScreenerTable({
 }
 
 /* ─────────────────────────────────────────────────────────────────
+   Tab Guide banner
+───────────────────────────────────────────────────────────────── */
+interface GuideData {
+  headline: string;
+  bg: string; border: string; accent: string; badge: string;
+  steps: string[];
+  tip: string;
+}
+
+function GuideBox({ data, onClose }: { data: GuideData; onClose: () => void }) {
+  return (
+    <div className={`rounded-xl border ${data.border} ${data.bg} p-4 relative`}>
+      <button
+        onClick={onClose}
+        aria-label="Dismiss guide"
+        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-white/70 text-lg leading-none shrink-0"
+      >
+        ×
+      </button>
+      <p className={`text-xs font-bold ${data.accent} mb-3 flex items-center gap-1.5 pr-8`}>
+        <span className="text-base">ⓘ</span> {data.headline}
+      </p>
+      <div className="space-y-2 mb-3">
+        {data.steps.map((s, i) => (
+          <div key={i} className="flex items-start gap-2.5">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shrink-0 ${data.badge}`}>{i + 1}</span>
+            <p className="text-xs text-gray-600 leading-relaxed">{s}</p>
+          </div>
+        ))}
+      </div>
+      <p className={`text-xs ${data.accent} font-semibold border-t ${data.border} pt-2.5`}>
+        💡 {data.tip}
+      </p>
+    </div>
+  );
+}
+
+const GUIDES: Record<string, GuideData> = {
+  screener: {
+    headline: 'How to use the Screener — find the right LEAPS candidate in 4 steps',
+    bg: 'bg-indigo-50', border: 'border-indigo-200', accent: 'text-indigo-700', badge: 'bg-indigo-600 text-white',
+    steps: [
+      'Set the Sector filter and drag Max IV Rank ≤ 30. IV Rank < 30 means options are historically cheap — the best time to buy LEAPS.',
+      'Wait a few seconds for rows to auto-load live price, HV20, and the best available LEAPS contract. Data loads staggered to avoid rate-limiting.',
+      'Scan for a green IV Rank number and a best delta near 0.70. Green = you are buying cheap time value. High IV Rank = you are overpaying.',
+      'Click Analyze → on any row to jump to the Chain Viewer with that symbol pre-loaded and ready to filter.',
+    ],
+    tip: 'Start with SPY or QQQ to learn the workflow — index LEAPS are the most liquid and easiest to enter and exit.',
+  },
+  chain: {
+    headline: 'How to use the Chain Viewer — read the LEAPS chain and pick the right contract',
+    bg: 'bg-teal-50', border: 'border-teal-200', accent: 'text-teal-700', badge: 'bg-teal-600 text-white',
+    steps: [
+      'Type a ticker and click Load. Only expirations ≥ 12 months appear. Toggle Calls or Puts based on your directional view (bullish → calls).',
+      'Use the Expiry dropdown — 12–18 months is the sweet spot. 18–24 months is ideal for a PMCC base leg or stock replacement.',
+      'Drag the Min Delta slider: 0.70+ for deep ITM (moves like stock), 0.50 for balanced cost/leverage, 0.30 for speculative plays.',
+      'Before trading, confirm OI > 500 and bid/ask spread < $0.50 — a wide spread destroys edge on both entry and exit.',
+      'Click Build → on any row to send that contract to the Builder tab with all fields pre-filled automatically.',
+    ],
+    tip: 'The “vs. Shares %” column shows your committed capital vs. buying 100 shares outright. 10–20% is the typical LEAPS leverage sweet spot.',
+  },
+  builder: {
+    headline: 'How to use the Builder — model P&L before risking real money',
+    bg: 'bg-violet-50', border: 'border-violet-200', accent: 'text-violet-700', badge: 'bg-violet-600 text-white',
+    steps: [
+      'Choose a strategy: Pure LEAPS (directional hold), PMCC / Poor Man\'s Covered Call (sell monthly calls for income), or Bull Call Spread (capped profit, lower cost).',
+      'If you came from the Chain Viewer, all fields pre-fill automatically. Otherwise enter: Symbol, Spot, Strike, Expiry, IV %, premium paid per share, and contracts.',
+      'Click Analyze LEAPS to generate the P&L chart. The solid indigo line = profit at expiration. The dashed amber line = current estimated value with time remaining.',
+      'Drag the Days Held slider to simulate time decay — watch how the dashed amber line shifts downward as theta erodes your premium gradually.',
+      'For PMCC: check the Income Projection card below the chart to see how many 45-day short call cycles reduce your net cost basis toward zero.',
+    ],
+    tip: 'If the dashed amber line stays close to the solid line even at 180 days held, your LEAPS has excellent time-decay resistance — a good entry.',
+  },
+  portfolio: {
+    headline: 'How to use the Portfolio — track positions and never miss a roll',
+    bg: 'bg-emerald-50', border: 'border-emerald-200', accent: 'text-emerald-700', badge: 'bg-emerald-600 text-white',
+    steps: [
+      'Click Add Position and fill in symbol, option type, strike, expiry date, premium paid per share (e.g. $12.50), and number of contracts.',
+      'Each row automatically calculates DTE. Roll Status updates on every visit: ✅ > 270d (holding fine), ⚠️ ≤ 270d (plan your roll), 🚨 ≤ 180d (act now).',
+      'At the red alert: go to Chain Viewer, find the same strike at a +12 month expiry, and execute a roll — sell current + buy new in one order.',
+      'When you close a trade (profit target, stop-loss, or roll completed), click Remove to clear it from the tracker.',
+    ],
+    tip: 'Positions are saved in your browser (localStorage) and persist between visits on this device. They do not sync across browsers or devices.',
+  },
+  rules: {
+    headline: 'How to use Rules & Tips — your LEAPS reference guide before every trade',
+    bg: 'bg-amber-50', border: 'border-amber-200', accent: 'text-amber-700', badge: 'bg-amber-500 text-white',
+    steps: [
+      'Before entering any LEAPS: run through the Entry Checklist in Section 2. All 8 items should pass. If 2+ are red flags, skip the trade.',
+      'Use the Strike & Expiry Selection table (Section 4) to match your goal to the right delta and expiry for your risk tolerance.',
+      'After any losing position: re-read Common Mistakes (Section 5). Understanding why a trade failed is more valuable than the next entry.',
+      'Memorize the 8 numbers in the Quick-Reference Card at the bottom — these cover every key decision in the LEAPS lifecycle.',
+    ],
+    tip: 'Screenshot or print the Quick-Reference Card. The most common LEAPS mistake is holding past 90 DTE without rolling forward.',
+  },
+};
+
+/* ─────────────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────────────── */
 type Tab = 'screener' | 'chain' | 'builder' | 'portfolio' | 'rules';
@@ -412,7 +510,24 @@ export default function LeapsPage() {
   const [newPos, setNewPos] = useState<Partial<PortfolioPosition>>({ type: 'call', qty: 1 });
   const [addOpen, setAddOpen] = useState(false);
 
-  useEffect(() => { setPortfolio(loadPortfolio()); }, []);
+  // ── Tab guide state (dismissed per tab, persisted to localStorage) ──
+  const [guideClosed, setGuideClosed] = useState<Partial<Record<string, boolean>>>({});
+
+  useEffect(() => {
+    setPortfolio(loadPortfolio());
+    try {
+      const stored = JSON.parse(localStorage.getItem('gr8bux_leaps_guide') ?? '{}');
+      setGuideClosed(stored);
+    } catch { /* ignore */ }
+  }, []);
+
+  const toggleGuide = useCallback((t: string) => {
+    setGuideClosed((prev) => {
+      const next = { ...prev, [t]: !prev[t] };
+      try { localStorage.setItem('gr8bux_leaps_guide', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   const addPosition = () => {
     if (!newPos.symbol || !newPos.strike || !newPos.expiryStr || !newPos.entryPremium) return;
@@ -510,6 +625,17 @@ export default function LeapsPage() {
               {t.label}
             </button>
           ))}
+          <div className="ml-auto flex items-center px-4 border-l border-gray-100 shrink-0">
+            <button
+              onClick={() => toggleGuide(tab)}
+              title={guideClosed[tab] ? 'Show how-to guide for this tab' : 'Hide guide'}
+              className="flex items-center gap-1.5 text-xs font-medium text-indigo-500 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+            >
+              {guideClosed[tab]
+                ? <><span className="text-sm">ⓘ</span> Guide</>
+                : <><span className="text-sm opacity-60">✕</span> Hide guide</>}
+            </button>
+          </div>
         </div>
 
         {/* ══════════════════════════════════════════════════════
@@ -517,6 +643,7 @@ export default function LeapsPage() {
         ══════════════════════════════════════════════════════ */}
         {tab === 'screener' && (
           <div className="space-y-4">
+            {!guideClosed['screener'] && <GuideBox data={GUIDES.screener} onClose={() => toggleGuide('screener')} />}
             {/* Filters */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-wrap gap-4 items-end">
               <div>
@@ -561,6 +688,7 @@ export default function LeapsPage() {
         ══════════════════════════════════════════════════════ */}
         {tab === 'chain' && (
           <div className="space-y-4">
+            {!guideClosed['chain'] && <GuideBox data={GUIDES.chain} onClose={() => toggleGuide('chain')} />}
             {/* Search bar */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-wrap gap-3 items-end">
               <div>
@@ -749,6 +877,7 @@ export default function LeapsPage() {
         ══════════════════════════════════════════════════════ */}
         {tab === 'builder' && (
           <div className="space-y-4">
+            {!guideClosed['builder'] && <GuideBox data={GUIDES.builder} onClose={() => toggleGuide('builder')} />}
             {/* Strategy selector */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
               <h3 className="text-sm font-bold text-gray-700 mb-3">LEAPS Strategy</h3>
@@ -939,6 +1068,7 @@ export default function LeapsPage() {
         ══════════════════════════════════════════════════════ */}
         {tab === 'portfolio' && (
           <div className="space-y-4">
+            {!guideClosed['portfolio'] && <GuideBox data={GUIDES.portfolio} onClose={() => toggleGuide('portfolio')} />}
             {/* Add position button */}
             <div className="flex justify-between items-center">
               <p className="text-sm text-gray-500">{portfolio.length} open LEAPS position{portfolio.length !== 1 ? 's' : ''}</p>
@@ -1106,6 +1236,7 @@ export default function LeapsPage() {
         ══════════════════════════════════════════════════════ */}
         {tab === 'rules' && (
           <div className="space-y-5">
+            {!guideClosed['rules'] && <GuideBox data={GUIDES.rules} onClose={() => toggleGuide('rules')} />}
 
             {/* ── 1. Stock Selection ── */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
