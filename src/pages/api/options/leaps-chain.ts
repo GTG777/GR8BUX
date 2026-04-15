@@ -69,19 +69,33 @@ async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: st
   if (!force && crumbStore.crumb && Date.now() - crumbStore.ts < CRUMB_TTL) {
     return { crumb: crumbStore.crumb, cookie: crumbStore.cookie };
   }
-  const fcRes = await fetch('https://fc.yahoo.com', {
-    headers: { 'User-Agent': UA },
-    redirect: 'follow',
-  });
-  const cookie = extractCookieHeader(fcRes.headers);
-  const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-    headers: { 'User-Agent': UA, Cookie: cookie },
-  });
-  const crumb = (await crumbRes.text()).trim();
-  if (!crumb || crumb.includes('<')) {
-    return { crumb: '', cookie };
+
+  // Try multiple consent endpoints in case one is blocked
+  const consentUrls = ['https://fc.yahoo.com', 'https://consent.yahoo.com', 'https://yahoo.com'];
+  let cookie = '';
+  for (const url of consentUrls) {
+    try {
+      const fcRes = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
+      const extracted = extractCookieHeader(fcRes.headers);
+      if (extracted) { cookie = extracted; break; }
+    } catch { /* try next */ }
   }
-  Object.assign(crumbStore, { crumb, cookie, ts: Date.now() });
+
+  // Try both crumb endpoints
+  const crumbEndpoints = [
+    'https://query1.finance.yahoo.com/v1/test/getcrumb',
+    'https://query2.finance.yahoo.com/v1/test/getcrumb',
+  ];
+  let crumb = '';
+  for (const endpoint of crumbEndpoints) {
+    try {
+      const crumbRes = await fetch(endpoint, { headers: { 'User-Agent': UA, Cookie: cookie } });
+      const text = (await crumbRes.text()).trim();
+      if (text && !text.includes('<') && !text.includes('{')) { crumb = text; break; }
+    } catch { /* try next */ }
+  }
+
+  if (crumb) Object.assign(crumbStore, { crumb, cookie, ts: Date.now() });
   return { crumb, cookie };
 }
 
@@ -125,8 +139,8 @@ const epochToDate = (ep: number) => new Date(ep * 1000).toISOString().slice(0, 1
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const symbol = (req.query.symbol as string)?.toUpperCase().trim();
-  if (!symbol || !/^[A-Z]{1,10}$/.test(symbol)) {
+  const symbol = (req.query.symbol as string)?.toUpperCase().trim().replace(/[^A-Z0-9.-]/g, '');
+  if (!symbol || !/^[A-Z][A-Z0-9.-]{0,10}$/.test(symbol)) {
     return res.status(400).json({ error: 'Invalid symbol' });
   }
 
@@ -144,8 +158,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const symbolPath = `/v7/finance/options/${encodeURIComponent(symbol)}`;
 
     // ── 1. Get all available expirations ──────────────────────────────
-    let first = await fetchYahooJson(symbolPath, cookie, crumb);
-    if (first.status === 401) {
+    // Try without crumb first (works for many symbols without auth)
+    let first = await fetchYahooJson(symbolPath, cookie, '');
+    if (!first.ok) {
+      first = await fetchYahooJson(symbolPath, cookie, crumb);
+    }
+    if (!first.ok && first.status === 401) {
       ({ crumb, cookie } = await getYahooCrumb(true));
       first = await fetchYahooJson(symbolPath, cookie, crumb);
     }

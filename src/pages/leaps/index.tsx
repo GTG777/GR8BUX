@@ -407,6 +407,14 @@ export default function LeapsPage() {
       if (!res.ok) throw new Error('fetch failed');
       const data: LeapsChainResponse = await res.json();
 
+      // If upstream is down, mark row as error with a soft indicator
+      if (data.upstreamError || data.contracts.length === 0 && data.underlyingPrice === 0) {
+        setScreenerData((prev) =>
+          prev.map((r) => r.symbol === symbol ? { ...r, loading: false, error: true } : r)
+        );
+        return;
+      }
+
       // Find the best ATM call (delta closest to 0.70, expiry 12–18mo)
       const targetMs = Date.now() + 18 * 30 * 24 * 60 * 60 * 1000;
       const best = data.contracts
@@ -477,6 +485,11 @@ export default function LeapsPage() {
       const res = await fetch(`/api/options/leaps-chain?symbol=${encodeURIComponent(sym)}`);
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data: LeapsChainResponse = await res.json();
+      if (data.upstreamError) {
+        setChainError('Options data unavailable — market data provider is temporarily unreachable. Try again in a few minutes.');
+        setChainData(data);
+        return;
+      }
       setChainData(data);
       if (data.leapsExpirations.length) setExpiryFilter(data.leapsExpirations[0]);
     } catch (e: unknown) {

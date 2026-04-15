@@ -82,8 +82,8 @@ export interface OptionsChainResponse {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const symbol = (req.query.symbol as string)?.toUpperCase().trim();
-  if (!symbol || !/^[A-Z]{1,10}$/.test(symbol)) {
+  const symbol = (req.query.symbol as string)?.toUpperCase().trim().replace(/[^A-Z0-9.-]/g, '');
+  if (!symbol || !/^[A-Z][A-Z0-9.-]{0,10}$/.test(symbol)) {
     return res.status(400).json({ error: 'Invalid symbol' });
   }
 
