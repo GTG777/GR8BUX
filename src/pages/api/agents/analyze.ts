@@ -1,19 +1,20 @@
 /**
  * API Endpoint: /api/agents/analyze
- * Analyzes technical setups using AI agents
+ * Analyzes trading setups using the full multi-agent AI system
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getAIOrchestrator } from '@/lib/agents/orchestrator';
-import type { OrchestrationConfig } from '@/lib/agents/orchestrator';
-import { getTechnicalAnalyst } from '@/lib/agents/technicalAnalyst';
+import { getAIOrchestrator, resetOrchestratorInstance, FullSetupData } from '@/lib/agents/orchestrator';
 import { OrchestratorResponse } from '@/types/agents';
 import { ApiResponse } from '@/types';
 
+// All fields the endpoint accepts
 interface SetupAnalysisRequest {
   symbol: string;
   setupType: string;
   currentPrice: number;
+  detectedAt?: string;
+  // Technical
   rsi?: number;
   bbUpper?: number;
   bbMiddle?: number;
@@ -26,143 +27,116 @@ interface SetupAnalysisRequest {
   priceLow?: number;
   support?: number;
   resistance?: number;
-  detectedAt: string;
-  // For LEAPS-specific analysis
+  priceHistory?: Array<{ date: string; close: number; volume: number; rsi: number }>;
+  // Options / Greeks
   ivRank?: number;
   hv20?: number;
   delta?: number;
   premium?: number;
-  // Optional price history for context
-  priceHistory?: Array<{ date: string; close: number; volume: number; rsi: number }>;
+  daysToExpiry?: number;
+  accountSize?: number;
+  // Sentiment
+  recentHeadlines?: Array<{ title: string; source: string; publishedAt?: string }>;
+  insiderActivity?: { recentBuys: number; recentSells: number; netSentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL'; notableTransactions?: string[] };
+  communityData?: { mentionCount?: number; bullBearRatio?: number; platforms?: string[]; topThemes?: string[] };
+  sector?: string;
+  upcomingEvents?: Array<{ event: string; date: string }>;
+  // Agent selection override (comma-separated or array)
+  agents?: string | string[];
 }
 
-/**
- * POST /api/agents/analyze
- * Analyzes a trading setup using AI agents
- *
- * Body: SetupAnalysisRequest
- * Response: OrchestratorResponse
- */
+const VALID_AGENTS = ['technical', 'greeks', 'risk', 'sentiment', 'strategy'] as const;
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<OrchestratorResponse | string>>
 ) {
   if (req.method !== 'POST') {
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed. Use POST.',
-    });
+    return res.status(405).json({ success: false, error: 'Method not allowed. Use POST.' });
   }
 
-  // Check for API key auth (optional but recommended)
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
   if (apiKey && apiKey !== process.env.GR8BUX_API_KEY) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized',
-    });
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
 
   try {
-    const setupData: SetupAnalysisRequest = req.body;
+    const body: SetupAnalysisRequest = req.body;
 
-    // Validate required fields
-    if (!setupData.symbol || !setupData.setupType || setupData.currentPrice === undefined) {
+    if (!body.symbol || !body.setupType || body.currentPrice === undefined) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: symbol, setupType, currentPrice',
       });
     }
 
-    if (!setupData.detectedAt) {
-      setupData.detectedAt = new Date().toISOString();
-    }
-
     // Determine which agents to run
-    const agents: OrchestrationConfig['agents'] = ['technical'];
-
-    // For LEAPS context, use LEAPS-specific analysis
-    let analysis: OrchestratorResponse;
-
-    if (setupData.ivRank !== undefined && setupData.hv20 !== undefined) {
-      // Use LEAPS-specific technical analysis
-      const technicalAnalyst = getTechnicalAnalyst();
-      const leapsSetupData = {
-        ...setupData,
-        ivRank: setupData.ivRank,
-        hv20: setupData.hv20,
-        delta: setupData.delta ?? 0.65,
-        premium: setupData.premium ?? 0,
-      };
-      const leapsAnalysis = await technicalAnalyst.scoreLeapsSetup(leapsSetupData);
-      analysis = {
-        setupId: `${setupData.symbol}_${setupData.setupType}_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        analyses: { technical: leapsAnalysis },
-        consensusRecommendation: {
-          action: leapsAnalysis.recommendation as any,
-          confidence: leapsAnalysis.confidence,
-          reasoning: leapsAnalysis.reasoning,
-          cautions: leapsAnalysis.redFlags || [],
-          nextSteps: generateNextSteps(leapsAnalysis.recommendation),
-        },
-        explanations: {
-          technicalReasoning: `LEAPS Quality: ${leapsAnalysis.qualityScore}/100 (${(leapsAnalysis.confidence * 100).toFixed(0)}% confidence). ${leapsAnalysis.reasoning}`,
-        },
-      };
+    let requestedAgents: string[];
+    if (body.agents) {
+      requestedAgents = Array.isArray(body.agents)
+        ? body.agents
+        : body.agents.split(',').map((a) => a.trim());
     } else {
-      // Standard technical analysis
-      const orchestrator = getAIOrchestrator({ agents });
-      analysis = await orchestrator.analyzeSetup(setupData, agents);
+      // Auto-select agents based on available data
+      requestedAgents = ['technical'];
+      if (body.ivRank != null && body.hv20 != null) requestedAgents.push('greeks', 'risk');
+      requestedAgents.push('sentiment');
+      requestedAgents.push('strategy');
     }
 
-    return res.status(200).json({
-      success: true,
-      data: analysis,
-    });
+    // Filter to only valid agent names
+    const agents = requestedAgents.filter((a) =>
+      VALID_AGENTS.includes(a as typeof VALID_AGENTS[number])
+    ) as typeof VALID_AGENTS[number][];
+
+    // Build full setup data
+    const setupData: FullSetupData = {
+      symbol: body.symbol.toUpperCase(),
+      setupType: body.setupType,
+      currentPrice: body.currentPrice,
+      detectedAt: body.detectedAt || new Date().toISOString(),
+      rsi: body.rsi,
+      bbUpper: body.bbUpper,
+      bbMiddle: body.bbMiddle,
+      bbLower: body.bbLower,
+      bbPercentage: body.bbPercentage,
+      consolidationStrength: body.consolidationStrength,
+      volatility: body.volatility,
+      volume: body.volume,
+      priceHigh: body.priceHigh,
+      priceLow: body.priceLow,
+      support: body.support,
+      resistance: body.resistance,
+      priceHistory: body.priceHistory,
+      ivRank: body.ivRank,
+      hv20: body.hv20,
+      delta: body.delta,
+      premium: body.premium,
+      daysToExpiry: body.daysToExpiry,
+      accountSize: body.accountSize,
+      recentHeadlines: body.recentHeadlines,
+      insiderActivity: body.insiderActivity,
+      communityData: body.communityData,
+      sector: body.sector,
+      upcomingEvents: body.upcomingEvents,
+    };
+
+    // Reset singleton so each request gets fresh agent config
+    resetOrchestratorInstance();
+    const orchestrator = getAIOrchestrator({ agents });
+    const analysis = await orchestrator.analyzeSetup(setupData, agents);
+
+    return res.status(200).json({ success: true, data: analysis });
   } catch (error: any) {
     console.error('[Analyze Setup Error]', error);
 
-    // Handle specific error types
-    if (error.message?.includes('API rate limit')) {
-      return res.status(429).json({
-        success: false,
-        error: 'Rate limit exceeded. Please try again in a moment.',
-      });
+    if (error.message?.includes('rate limit') || error.status === 429) {
+      return res.status(429).json({ success: false, error: 'Rate limit exceeded. Please try again in a moment.' });
+    }
+    if (error.message?.includes('API key') || error.status === 401) {
+      return res.status(401).json({ success: false, error: 'AI API key not configured or invalid.' });
     }
 
-    if (error.message?.includes('API key')) {
-      return res.status(401).json({
-        success: false,
-        error: 'AI API key not configured',
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Internal server error during analysis',
-    });
+    return res.status(500).json({ success: false, error: error.message || 'Internal server error during analysis' });
   }
-}
-
-/**
- * Helper: Generate next steps based on recommendation
- */
-function generateNextSteps(recommendation: string): string[] {
-  const steps: string[] = [];
-
-  if (recommendation === 'STRONG_BUY' || recommendation === 'BUY') {
-    steps.push('Prepare trade entry with recommended position size');
-    steps.push('Set stop loss at technical support level');
-    steps.push('Define profit targets at resistance levels');
-  } else if (recommendation === 'WAIT') {
-    steps.push('Monitor setup for volume confirmation');
-    steps.push('Wait for trigger signal before entry');
-    steps.push('Set price alerts at key technical levels');
-  } else if (recommendation === 'AVOID') {
-    steps.push('Skip this setup or reassess later');
-    steps.push('Look for setups with stronger confluence');
-  }
-
-  return steps;
 }
