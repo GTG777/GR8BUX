@@ -19,10 +19,6 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-[functions]
-  # Increase timeout to max (26s free tier, 900s on paid) to allow multi-agent AI calls
-  timeout = 26
-
 [functions."refresh-market-data"]
   # Every 15 min Mon-Fri 9AM-5PM ET (14:00-22:00 UTC)
   schedule = "*/15 14-22 * * 1-5"
