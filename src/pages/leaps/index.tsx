@@ -130,12 +130,20 @@ interface ScreenerRow {
   error: boolean;
 }
 
+type ScreenerSortKey = 'symbol' | 'sector' | 'price' | 'hv20' | 'ivr' | 'bestExpiry' | 'bestDelta' | 'bestPremium';
+
 function ScreenerTable({
   rows,
   onPick,
+  sortKey,
+  sortDir,
+  onSort,
 }: {
   rows: ScreenerRow[];
   onPick: (sym: string) => void;
+  sortKey: ScreenerSortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (key: ScreenerSortKey) => void;
 }) {
   const ivrColor = (ivr: number | null) => {
     if (ivr === null) return 'text-gray-400';
@@ -143,19 +151,61 @@ function ScreenerTable({
     if (ivr <= 60) return 'text-amber-600';
     return 'text-red-600';
   };
+  const arrow = (key: ScreenerSortKey) => sortKey === key ? (sortDir === 'asc' ? '↑' : '↓') : '';
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs min-w-[720px]">
         <thead>
           <tr className="text-gray-400 border-b border-gray-100">
-            <th className="text-left py-2.5 px-3">Symbol</th>
-            <th className="text-left py-2.5 px-3">Sector</th>
-            <th className="text-right py-2.5 px-3">Price</th>
-            <th className="text-right py-2.5 px-3">HV20</th>
-            <th className="text-right py-2.5 px-3">IV Rank</th>
-            <th className="text-right py-2.5 px-3">Best LEAPS</th>
-            <th className="text-right py-2.5 px-3">Delta</th>
-            <th className="text-right py-2.5 px-3">Premium</th>
+            <th
+              className="text-left py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('symbol')}
+            >
+              Symbol {arrow('symbol')}
+            </th>
+            <th
+              className="text-left py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('sector')}
+            >
+              Sector {arrow('sector')}
+            </th>
+            <th
+              className="text-right py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('price')}
+            >
+              Price {arrow('price')}
+            </th>
+            <th
+              className="text-right py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('hv20')}
+            >
+              HV20 {arrow('hv20')}
+            </th>
+            <th
+              className="text-right py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('ivr')}
+            >
+              IV Rank {arrow('ivr')}
+            </th>
+            <th
+              className="text-right py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('bestExpiry')}
+            >
+              Best LEAPS {arrow('bestExpiry')}
+            </th>
+            <th
+              className="text-right py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('bestDelta')}
+            >
+              Delta {arrow('bestDelta')}
+            </th>
+            <th
+              className="text-right py-2.5 px-3 cursor-pointer hover:text-gray-600"
+              onClick={() => onSort('bestPremium')}
+            >
+              Premium {arrow('bestPremium')}
+            </th>
             <th className="text-center py-2.5 px-3">Action</th>
           </tr>
         </thead>
@@ -338,6 +388,8 @@ export default function LeapsPage() {
   const [screenerData, setScreenerData] = useState<ScreenerRow[]>(
     LEAPS_UNIVERSE.map((u) => ({ ...u, price: null, hv20: null, ivr: null, bestDelta: null, bestExpiry: null, bestPremium: null, loading: false, error: false }))
   );
+  const [screenerSortKey, setScreenerSortKey] = useState<ScreenerSortKey>('ivr');
+  const [screenerSortDir, setScreenerSortDir] = useState<'asc' | 'desc'>('asc');
   const screenerLoaded = useRef(false);
 
   const loadScreenerRow = useCallback(async (symbol: string) => {
@@ -436,10 +488,42 @@ export default function LeapsPage() {
     fetchChain(sym);
   };
 
-  // Sort handler
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir(key === 'delta' ? 'desc' : 'asc'); }
+  };
+
+  const handleScreenerSort = (key: ScreenerSortKey) => {
+    if (screenerSortKey === key) setScreenerSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+    else {
+      setScreenerSortKey(key);
+      setScreenerSortDir(key === 'symbol' || key === 'sector' || key === 'bestExpiry' ? 'asc' : 'desc');
+    }
+  };
+
+  const sortScreenerRows = (rows: ScreenerRow[], key: ScreenerSortKey, dir: 'asc' | 'desc') => {
+    const direction = dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const getValue = (row: ScreenerRow) => {
+        switch (key) {
+          case 'symbol': return row.symbol;
+          case 'sector': return row.sector;
+          case 'price': return row.price;
+          case 'hv20': return row.hv20;
+          case 'ivr': return row.ivr;
+          case 'bestExpiry': return row.bestExpiry;
+          case 'bestDelta': return row.bestDelta;
+          case 'bestPremium': return row.bestPremium;
+        }
+      };
+      const aVal = getValue(a);
+      const bVal = getValue(b);
+      if (aVal === bVal) return a.symbol.localeCompare(b.symbol) * direction;
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      if (typeof aVal === 'string' && typeof bVal === 'string') return aVal.localeCompare(bVal) * direction;
+      return ((aVal as number) - (bVal as number)) * direction;
+    });
   };
 
   const chainContracts = (chainData?.contracts ?? [])
@@ -673,11 +757,18 @@ export default function LeapsPage() {
             {/* Table */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
               <ScreenerTable
-                rows={screenerData.filter((r) =>
-                  (sectorFilter === 'All' || r.sector === sectorFilter) &&
-                  (r.ivr === null || r.ivr <= maxIvr)
+                rows={sortScreenerRows(
+                  screenerData.filter((r) =>
+                    (sectorFilter === 'All' || r.sector === sectorFilter) &&
+                    (r.ivr === null || r.ivr <= maxIvr)
+                  ),
+                  screenerSortKey,
+                  screenerSortDir,
                 )}
                 onPick={handlePickFromScreener}
+                sortKey={screenerSortKey}
+                sortDir={screenerSortDir}
+                onSort={handleScreenerSort}
               />
             </div>
           </div>

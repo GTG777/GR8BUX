@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceArea,
+  ReferenceLine,
+} from 'recharts';
 
 interface TechnicalSetup {
   setupType: string;
@@ -22,6 +33,24 @@ interface TechnicalSetupsProps {
     close: number;
     volume: number;
   }>;
+}
+
+function getSupportResistanceLevels(priceData: TechnicalSetupsProps['priceData']) {
+  if (priceData.length < 50) return null;
+
+  const recent50 = priceData.slice(-50);
+  const highs = recent50.map((p) => p.high);
+  const lows = recent50.map((p) => p.low);
+
+  const resistance = Math.max(...highs.slice(-20));
+  const support = Math.min(...lows.slice(-20));
+
+  const chartData = recent50.map((p) => ({
+    date: p.date.slice(5),
+    close: p.close,
+  }));
+
+  return { support, resistance, chartData };
 }
 
 export const TechnicalSetups: React.FC<TechnicalSetupsProps> = ({ symbol, priceData }) => {
@@ -237,6 +266,46 @@ export const TechnicalSetups: React.FC<TechnicalSetupsProps> = ({ symbol, priceD
                       </div>
                     )}
                   </div>
+
+                  {/* Support/Resistance chart */}
+                  {setup.setupType === 'support_resistance' && (() => {
+                    const levels = getSupportResistanceLevels(priceData);
+                    if (!levels) return null;
+                    return (
+                      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+                        <h4 className="font-semibold text-gray-900 mb-3">Support / Resistance Bands</h4>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={levels.chartData} margin={{ top: 8, right: 16, bottom: 16, left: 0 }}>
+                              <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" />
+                              <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={12} />
+                              <YAxis tick={{ fontSize: 10 }} domain={[(dataMin: number) => dataMin - 2, (dataMax: number) => dataMax + 2]} />
+                              <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                              <ReferenceArea
+                                y1={levels.support}
+                                y2={levels.resistance}
+                                fill="#10b981"
+                                fillOpacity={0.08}
+                              />
+                              <ReferenceLine
+                                y={levels.support}
+                                stroke="#10b981"
+                                strokeDasharray="4 2"
+                                label={{ value: 'Support', position: 'left', fill: '#10b981', fontSize: 10 }}
+                              />
+                              <ReferenceLine
+                                y={levels.resistance}
+                                stroke="#ef4444"
+                                strokeDasharray="4 2"
+                                label={{ value: 'Resistance', position: 'left', fill: '#ef4444', fontSize: 10 }}
+                              />
+                              <Line type="monotone" dataKey="close" stroke="#2563eb" dot={false} strokeWidth={2} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Note */}
                   <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
