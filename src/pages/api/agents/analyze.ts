@@ -5,6 +5,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAIOrchestrator } from '@/lib/agents/orchestrator';
+import type { OrchestrationConfig } from '@/lib/agents/orchestrator';
+import { getTechnicalAnalyst } from '@/lib/agents/technicalAnalyst';
 import { OrchestratorResponse } from '@/types/agents';
 import { ApiResponse } from '@/types';
 
@@ -77,15 +79,22 @@ export default async function handler(
     }
 
     // Determine which agents to run
-    const agents = ['technical'];
+    const agents: OrchestrationConfig['agents'] = ['technical'];
 
     // For LEAPS context, use LEAPS-specific analysis
     let analysis: OrchestratorResponse;
 
     if (setupData.ivRank !== undefined && setupData.hv20 !== undefined) {
       // Use LEAPS-specific technical analysis
-      const technicalAnalyst = require('@/lib/agents/technicalAnalyst').getTechnicalAnalyst();
-      const leapsAnalysis = await technicalAnalyst.scoreLeapsSetup(setupData);
+      const technicalAnalyst = getTechnicalAnalyst();
+      const leapsSetupData = {
+        ...setupData,
+        ivRank: setupData.ivRank,
+        hv20: setupData.hv20,
+        delta: setupData.delta ?? 0.65,
+        premium: setupData.premium ?? 0,
+      };
+      const leapsAnalysis = await technicalAnalyst.scoreLeapsSetup(leapsSetupData);
       analysis = {
         setupId: `${setupData.symbol}_${setupData.setupType}_${Date.now()}`,
         timestamp: new Date().toISOString(),

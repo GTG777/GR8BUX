@@ -805,15 +805,15 @@ export default function LeapsPage() {
               <div>
                 {selectedScreenerRow ? (
                   <AIAdvisorPanel
-                    analysis={aiAnalysis}
+                    analysis={aiAnalysis ?? undefined}
                     isLoading={aiLoading}
-                    error={aiError}
+                    error={aiError ?? undefined}
                     onTradeClick={() => handlePickFromScreener(selectedScreenerRow.symbol)}
                     compact={false}
                   />
                 ) : (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center">
-                    <p className="text-sm text-gray-500 font-medium">Click "Analyze →" on any row to see AI analysis</p>
+                    <p className="text-sm text-gray-500 font-medium">Click &quot;Analyze -&gt;&quot; on any row to see AI analysis</p>
                   </div>
                 )}
               </div>
