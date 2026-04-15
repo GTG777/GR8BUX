@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { LeapsContract, LeapsChainResponse } from '@/pages/api/options/leaps-chain';
+import { AIAdvisorPanel } from '@/components';
+import { useAIAnalysis } from '@/hooks/useAIAnalysis';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, ReferenceLine,
@@ -382,6 +384,10 @@ function savePortfolio(positions: PortfolioPosition[]) {
 export default function LeapsPage() {
   const [tab, setTab] = useState<Tab>('screener');
 
+  // ── AI Analysis state ───────────────────────────────────────
+  const { analysis: aiAnalysis, isLoading: aiLoading, error: aiError, analyzeSetup: runAnalysis } = useAIAnalysis();
+  const [selectedScreenerRow, setSelectedScreenerRow] = useState<ScreenerRow | null>(null);
+
   // ── Screener state ──────────────────────────────────────────────
   const [sectorFilter, setSectorFilter] = useState('All');
   const [maxIvr, setMaxIvr] = useState(50);
@@ -482,6 +488,27 @@ export default function LeapsPage() {
 
   // When user switches to chain tab from screener via "Analyze →"
   const handlePickFromScreener = (sym: string) => {
+    const row = screenerData.find((r) => r.symbol === sym);
+    if (!row) return;
+
+    // Set selected row and trigger AI analysis
+    setSelectedScreenerRow(row);
+    if (row.price && row.hv20 !== null && row.ivr !== null) {
+      runAnalysis({
+        symbol: row.symbol,
+        setupType: 'leaps_opportunity',
+        currentPrice: row.price,
+        support: row.price * 0.95,
+        resistance: row.price * 1.05,
+        ivRank: row.ivr,
+        hv20: row.hv20,
+        delta: row.bestDelta ?? 0.65,
+        premium: row.bestPremium ?? 0,
+        detectedAt: new Date().toISOString(),
+      });
+    }
+
+    // Also switch to chain tab for detailed analysis
     setChainSymbol(sym);
     setChainInput(sym);
     setTab('chain');
@@ -754,22 +781,42 @@ export default function LeapsPage() {
               </div>
             </div>
 
-            {/* Table */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-              <ScreenerTable
-                rows={sortScreenerRows(
-                  screenerData.filter((r) =>
-                    (sectorFilter === 'All' || r.sector === sectorFilter) &&
-                    (r.ivr === null || r.ivr <= maxIvr)
-                  ),
-                  screenerSortKey,
-                  screenerSortDir,
+            {/* Screener + AI Advisor Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Screener Table (left side) */}
+              <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <ScreenerTable
+                  rows={sortScreenerRows(
+                    screenerData.filter((r) =>
+                      (sectorFilter === 'All' || r.sector === sectorFilter) &&
+                      (r.ivr === null || r.ivr <= maxIvr)
+                    ),
+                    screenerSortKey,
+                    screenerSortDir,
+                  )}
+                  onPick={handlePickFromScreener}
+                  sortKey={screenerSortKey}
+                  sortDir={screenerSortDir}
+                  onSort={handleScreenerSort}
+                />
+              </div>
+
+              {/* AI Advisor Panel (right side) */}
+              <div>
+                {selectedScreenerRow ? (
+                  <AIAdvisorPanel
+                    analysis={aiAnalysis}
+                    isLoading={aiLoading}
+                    error={aiError}
+                    onTradeClick={() => handlePickFromScreener(selectedScreenerRow.symbol)}
+                    compact={false}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center">
+                    <p className="text-sm text-gray-500 font-medium">Click "Analyze →" on any row to see AI analysis</p>
+                  </div>
                 )}
-                onPick={handlePickFromScreener}
-                sortKey={screenerSortKey}
-                sortDir={screenerSortDir}
-                onSort={handleScreenerSort}
-              />
+              </div>
             </div>
           </div>
         )}
