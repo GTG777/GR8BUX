@@ -11,6 +11,28 @@ const crumbStore = { crumb: '', cookie: '', ts: 0 };
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+function extractCookieHeader(headers: Headers): string {
+  const h = headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies = typeof h.getSetCookie === 'function' ? h.getSetCookie() : [];
+  if (setCookies.length > 0) {
+    return setCookies
+      .map((line) => line.split(';')[0]?.trim())
+      .filter(Boolean)
+      .join('; ');
+  }
+
+  const raw = headers.get('set-cookie') ?? '';
+  const attrNames = new Set(['path', 'expires', 'max-age', 'domain', 'samesite', 'secure', 'httponly', 'priority']);
+  const pairs = raw.match(/(^|,\s*)([^=;,\s]+)=([^;,\s]+)/g) ?? [];
+  return pairs
+    .map((p) => p.replace(/^,\s*/, ''))
+    .filter((p) => {
+      const key = p.split('=')[0]?.toLowerCase();
+      return !!key && !attrNames.has(key);
+    })
+    .join('; ');
+}
+
 async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: string }> {
   if (!force && crumbStore.crumb && Date.now() - crumbStore.ts < CRUMB_TTL) {
     return { crumb: crumbStore.crumb, cookie: crumbStore.cookie };
@@ -20,13 +42,7 @@ async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: st
     headers: { 'User-Agent': UA },
     redirect: 'follow',
   });
-  const rawCookie = fcRes.headers.get('set-cookie') ?? '';
-  // Collect key=value pairs from each Set-Cookie segment; strip attributes
-  const cookie = rawCookie
-    .split(',')
-    .map((seg) => seg.trim().split(';')[0])
-    .filter(Boolean)
-    .join('; ');
+  const cookie = extractCookieHeader(fcRes.headers);
 
   // Step 2 – exchange the cookie for a crumb
   const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {

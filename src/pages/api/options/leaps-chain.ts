@@ -14,6 +14,56 @@ const CRUMB_TTL = 6 * 60 * 60 * 1000;
 const crumbStore = { crumb: '', cookie: '', ts: 0 };
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const YAHOO_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
+
+function extractCookieHeader(headers: Headers): string {
+  const h = headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies = typeof h.getSetCookie === 'function' ? h.getSetCookie() : [];
+  if (setCookies.length > 0) {
+    return setCookies
+      .map((line) => line.split(';')[0]?.trim())
+      .filter(Boolean)
+      .join('; ');
+  }
+
+  const raw = headers.get('set-cookie') ?? '';
+  const attrNames = new Set(['path', 'expires', 'max-age', 'domain', 'samesite', 'secure', 'httponly', 'priority']);
+  const pairs = raw.match(/(^|,\s*)([^=;,\s]+)=([^;,\s]+)/g) ?? [];
+  return pairs
+    .map((p) => p.replace(/^,\s*/, ''))
+    .filter((p) => {
+      const key = p.split('=')[0]?.toLowerCase();
+      return !!key && !attrNames.has(key);
+    })
+    .join('; ');
+}
+
+function withCrumb(url: string, crumb: string): string {
+  if (!crumb) return url;
+  const glue = url.includes('?') ? '&' : '?';
+  return `${url}${glue}crumb=${encodeURIComponent(crumb)}`;
+}
+
+async function fetchYahooJson(path: string, cookie: string, crumb: string): Promise<{ ok: boolean; status: number; json?: any; lastError?: string }> {
+  const headers = { 'User-Agent': UA, Accept: 'application/json', Cookie: cookie };
+  let lastStatus = 500;
+
+  for (const host of YAHOO_HOSTS) {
+    const url = withCrumb(`https://${host}${path}`, crumb);
+    try {
+      const r = await fetch(url, { headers });
+      lastStatus = r.status;
+      if (!r.ok) continue;
+      const json = await r.json();
+      return { ok: true, status: r.status, json };
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'fetch failed';
+      return { ok: false, status: 502, lastError: msg };
+    }
+  }
+
+  return { ok: false, status: lastStatus };
+}
 
 async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: string }> {
   if (!force && crumbStore.crumb && Date.now() - crumbStore.ts < CRUMB_TTL) {
@@ -23,16 +73,14 @@ async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: st
     headers: { 'User-Agent': UA },
     redirect: 'follow',
   });
-  const rawCookie = fcRes.headers.get('set-cookie') ?? '';
-  const cookie = rawCookie
-    .split(',')
-    .map((seg) => seg.trim().split(';')[0])
-    .filter(Boolean)
-    .join('; ');
+  const cookie = extractCookieHeader(fcRes.headers);
   const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
     headers: { 'User-Agent': UA, Cookie: cookie },
   });
   const crumb = (await crumbRes.text()).trim();
+  if (!crumb || crumb.includes('<')) {
+    return { crumb: '', cookie };
+  }
   Object.assign(crumbStore, { crumb, cookie, ts: Date.now() });
   return { crumb, cookie };
 }
@@ -69,6 +117,7 @@ export interface LeapsChainResponse {
   leapsExpirations: string[];
   contracts: LeapsContract[];
   fetchedAt: number;
+  upstreamError?: string;
 }
 
 const epochToDate = (ep: number) => new Date(ep * 1000).toISOString().slice(0, 10);
@@ -92,18 +141,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     let { crumb, cookie } = await getYahooCrumb();
-    const yahooHeaders = () => ({ 'User-Agent': UA, Accept: 'application/json', Cookie: cookie });
-    const baseUrl = `https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}`;
+    const symbolPath = `/v7/finance/options/${encodeURIComponent(symbol)}`;
 
     // ── 1. Get all available expirations ──────────────────────────────
-    let firstRes = await fetch(`${baseUrl}?crumb=${encodeURIComponent(crumb)}`, { headers: yahooHeaders() });
-    if (firstRes.status === 401) {
+    let first = await fetchYahooJson(symbolPath, cookie, crumb);
+    if (first.status === 401) {
       ({ crumb, cookie } = await getYahooCrumb(true));
-      firstRes = await fetch(`${baseUrl}?crumb=${encodeURIComponent(crumb)}`, { headers: yahooHeaders() });
+      first = await fetchYahooJson(symbolPath, cookie, crumb);
     }
-    if (!firstRes.ok) return res.status(firstRes.status).json({ error: `Yahoo Finance ${firstRes.status}` });
+    if (!first.ok) {
+      const details = first.lastError ? `: ${first.lastError}` : '';
+      const payload: LeapsChainResponse = {
+        symbol,
+        underlyingPrice: 0,
+        hv20: null,
+        leapsExpirations: [],
+        contracts: [],
+        fetchedAt: Date.now(),
+        upstreamError: `Yahoo Finance upstream failed (${first.status})${details}`,
+      };
+      cache.set(cacheKey, { data: payload, timestamp: Date.now() });
+      return res.status(200).json(payload);
+    }
 
-    const firstJson = await firstRes.json();
+    const firstJson = first.json;
     const optResult = firstJson?.optionChain?.result?.[0];
     if (!optResult) return res.status(404).json({ error: `No options data for ${symbol}` });
 
@@ -122,12 +183,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // ── 2. Fetch HV20 from daily candles (parallel with chain fetch) ──
     const hvPromise = (async () => {
       try {
-        const r = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=3mo&interval=1d&crumb=${encodeURIComponent(crumb)}`,
-          { headers: yahooHeaders() },
-        );
-        if (!r.ok) return null;
-        const j = await r.json();
+        const quote = await fetchYahooJson(`/v8/finance/chart/${encodeURIComponent(symbol)}?range=3mo&interval=1d`, cookie, crumb);
+        if (!quote.ok || !quote.json) return null;
+        const j = quote.json;
         const closes: number[] = j?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
         if (closes.length < 22) return null;
         const slice = closes.filter(Boolean).slice(-21);
@@ -143,10 +201,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const rate = 0.045;
 
     const fetchExpiry = async (ep: number) => {
-      const url = `${baseUrl}?date=${ep}&crumb=${encodeURIComponent(crumb)}`;
-      const r = await fetch(url, { headers: yahooHeaders() });
-      if (!r.ok) return;
-      const j = await r.json();
+      const quote = await fetchYahooJson(`${symbolPath}?date=${ep}`, cookie, crumb);
+      if (!quote.ok || !quote.json) return;
+      const j = quote.json;
       const result = j?.optionChain?.result?.[0];
       if (!result) return;
       const exStr = epochToDate(ep);
@@ -160,7 +217,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const lastPrice = (c.lastPrice as number) ?? 0;
           const mid = bid > 0 && ask > 0 ? parseFloat(((bid + ask) / 2).toFixed(2)) : lastPrice;
           const iv = (c.impliedVolatility as number) ?? 0;
-          if (iv <= 0 || mid <= 0) return;
+          if (iv <= 0 || mid <= 0) continue;
 
           // Compute BS greeks
           const g = type === 'call'
