@@ -3,7 +3,7 @@
  * Coordinates multiple AI agents to provide comprehensive consensus recommendations
  */
 
-import { getTechnicalAnalyst, TechnicalSetupData } from './agents/technicalAnalyst';
+import { getTechnicalAnalyst, TechnicalSetupData } from './technicalAnalyst';
 import { OrchestratorResponse, TechnicalAnalysis } from '@/types/agents';
 
 export interface OrchestrationConfig {
