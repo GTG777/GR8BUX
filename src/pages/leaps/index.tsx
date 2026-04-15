@@ -513,7 +513,7 @@ export default function LeapsPage() {
     if (row.price && row.hv20 !== null && row.ivr !== null) {
       runAnalysis({
         symbol: row.symbol,
-        setupType: 'leaps_opportunity',
+        setupType: 'LEAPS_CANDIDATE',
         currentPrice: row.price,
         support: row.price * 0.95,
         resistance: row.price * 1.05,
