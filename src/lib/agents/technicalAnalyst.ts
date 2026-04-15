@@ -35,25 +35,7 @@ export class TechnicalAnalyst extends Agent {
    * Analyze technical setup and return quality score + recommendation
    */
   async analyzeSetup(setup: TechnicalSetupData): Promise<TechnicalAnalysis> {
-    const systemPrompt = `You are a professional technical analysis expert with 15+ years of trading experience. 
-Your role is to objectively analyze trading setups and provide clear, data-driven recommendations.
-
-You evaluate setups on:
-1. Pattern validity: Is the setup actually forming? How many data points confirm it?
-2. Signal strength: RSI levels, volume confirmation, support/resistance validity
-3. Risk/reward: Calculate realistic targets and stops based on technical levels
-4. Confluence: Do multiple indicators align? (e.g., RSI + price action + volume)
-5. Market context: Consider current volatility, support/resistance, trend
-
-Be honest about limitations and uncertainty. Flag ambiguous signals clearly.
-Use 0-100 quality score where:
-- 85-100: Excellent setup, high confidence trade
-- 70-84: Good setup, moderate-high confidence
-- 55-69: Acceptable setup, moderate confidence
-- 40-54: Weak setup, low confidence
-- Below 40: Avoid or wait
-
-Always respond with valid JSON.`;
+    const systemPrompt = `Expert technical analyst. Score setups 0-100 (85+=excellent, 70+=good, 55+=acceptable, <55=avoid). Respond with valid JSON only.`;
 
     const setupContext = this.formatTechnicalContext({
       symbol: setup.symbol,
@@ -138,25 +120,7 @@ Provide a comprehensive technical analysis in this JSON format:
    * Score setup quality specifically for LEAPS screener context
    */
   async scoreLeapsSetup(setup: TechnicalSetupData & { ivRank: number; hv20: number; delta: number; premium: number }): Promise<TechnicalAnalysis> {
-    const systemPrompt = `You are a LEAPS (long-dated options) technical analysis specialist. 
-Your expertise is identifying high-quality long-term setups that are ideal for:
-- LEAP call/put purchases for directional bets
-- Multi-month income strategies
-- Deep ITM/OTM speculative plays
-
-Evaluate based on:
-1. Long-term trend strength (not just short-term bounces)
-2. Support/resistance zones that matter for months, not days
-3. IV Rank extremes that offer good premium pricing
-4. Historical reversal levels from years of data if available
-
-LEAPS quality factors:
-- 85-100: Excellent long-term setup, clear thesis, strong R:R
-- 70-84: Good setup, solid thesis, reasonable R:R  
-- 55-69: Acceptable, thesis is okay, R:R is marginal
-- Below 55: Skip, wait for better entry
-
-Always respond with valid JSON.`;
+    const systemPrompt = `LEAPS specialist. Evaluate long-term setups (91+ DTE). Score 0-100: 85+=excellent, 70+=good, <55=skip. Respond with valid JSON only.`;
 
     const setupContext = this.formatTechnicalContext({
       symbol: setup.symbol,

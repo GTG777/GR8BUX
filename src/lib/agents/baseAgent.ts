@@ -6,7 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 export interface AgentConfig {
-  model?: 'claude-opus-4-1' | 'claude-3-5-sonnet-20241022' | 'claude-3-5-haiku-20241022';
+  model?: 'claude-opus-4-1' | 'claude-sonnet-4-5' | 'claude-3-5-sonnet-20241022' | 'claude-3-5-haiku-20241022';
   maxTokens?: number;
   temperature?: number;
 }
@@ -21,8 +21,8 @@ export class Agent {
     this.client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
-    this.model = config.model || 'claude-opus-4-1';
-    this.maxTokens = config.maxTokens || 2000;
+    this.model = config.model || 'claude-sonnet-4-5';
+    this.maxTokens = config.maxTokens || 1500;
     this.temperature = config.temperature || 0.7;
   }
 

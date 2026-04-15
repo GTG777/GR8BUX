@@ -24,28 +24,12 @@ export interface StrategyInput {
 
 export class TradeStrategist extends Agent {
   constructor(config: AgentConfig = {}) {
-    super(config);
+    // Use haiku for fast structured JSON output
+    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
   }
 
   async buildStrategy(input: StrategyInput): Promise<TradeStrategy> {
-    const systemPrompt = `You are an elite trade strategist who synthesizes technical, options, risk, and sentiment signals into a single coherent trade plan.
-
-Your job is to take all available analysis and produce:
-1. A specific, executable trade idea with exact entry trigger
-2. Two profit targets (conservative + aggressive) 
-3. A clearly defined stop loss
-4. A confluence score (how many signals align)
-5. Risk warnings for this specific trade
-
-Rules:
-- Only recommend a trade if confluence >= 60 (multiple signals must agree)
-- Be specific: exact strategy type, approximate strikes, timing
-- Entry trigger must be actionable (e.g. "break above $X on volume > Y")
-- Stop loss must be at a meaningful technical level (not arbitrary %)
-- Profit targets should use resistance levels from technical analysis
-- Match strategy complexity to signal strength (strong signal = simple directional, weak = defined risk spread)
-
-Always respond with valid JSON.`;
+    const systemPrompt = `Trade strategist. Synthesize all signals into one trade plan. Confluence>=60 to recommend. Entry must be actionable, stops at technical levels. Respond with valid JSON only.`;
 
     // Build rich context from all available agent outputs
     const contextParts: Record<string, unknown> = {

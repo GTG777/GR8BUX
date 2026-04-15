@@ -23,29 +23,11 @@ export interface GreeksSetupData {
 
 export class GreeksAdvisor extends Agent {
   constructor(config: AgentConfig = {}) {
-    super(config);
+    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
   }
 
   async analyzeGreeks(setup: GreeksSetupData): Promise<GreeksAnalysis> {
-    const systemPrompt = `You are a professional options Greeks and volatility specialist with 15+ years of experience structuring options trades.
-
-Your role is to recommend the optimal options strategy given the current technical setup, IV environment, and Greeks data.
-
-Strategy selection rules:
-- IV Rank < 25: BUY premium strategies (debit spreads, LEAPS, long calls/puts)
-- IV Rank 25-50: Neutral — either works, lean toward debit for directional
-- IV Rank > 50: SELL premium strategies (credit spreads, iron condors, covered calls)
-- For LEAPS (91+ DTE): Focus on deep ITM calls (0.70+ delta) for stock replacement
-- For swing trades (21-45 DTE): Vertical spreads for defined risk
-- For income: Credit spreads or iron condors when IV > 50
-
-When evaluating Greeks:
-- Delta: directional exposure per $1 move
-- Gamma: rate of delta change (high gamma = fast-moving risk near expiry)
-- Theta: daily time decay (positive for sellers, negative for buyers)
-- Vega: sensitivity to IV changes (long vega profits from IV expansion)
-
-Always respond with valid JSON.`;
+    const systemPrompt = `Options Greeks specialist. Rules: IV<25=buy premium, IV>50=sell premium, LEAPS=deep ITM calls (0.70+ delta). Respond with valid JSON only.`;
 
     const context = this.formatTechnicalContext({
       symbol: setup.symbol,

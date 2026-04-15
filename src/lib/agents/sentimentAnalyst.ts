@@ -33,28 +33,11 @@ export interface SentimentData {
 
 export class SentimentAnalyst extends Agent {
   constructor(config: AgentConfig = {}) {
-    super(config);
+    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
   }
 
   async analyzeSentiment(data: SentimentData): Promise<SentimentAnalysis> {
-    const systemPrompt = `You are a market sentiment analyst specializing in reading the crowd and identifying when market sentiment diverges from fundamentals/technicals.
-
-Your expertise:
-- Identifying genuine bullish/bearish shifts vs. noise
-- Detecting insider buying patterns that precede price moves
-- Reading social sentiment extremes (contrarian signals)
-- Tracking news narrative momentum
-
-Key rules:
-- Insider BUYING is bullish (especially CEOs, large positions, open market purchases)  
-- Insider SELLING is only mildly bearish (could be routine diversification)
-- Social media extremes often signal reversals (sentiment contrary indicator)
-- News sentiment lags price — look for divergence as signal
-- Catalyst events (earnings, FDA, Fed) dominate short-term sentiment
-
-Sentiment score: -1.0 (very bearish) to +1.0 (very bullish)
-
-Always respond with valid JSON.`;
+    const systemPrompt = `Market sentiment analyst. Score -1.0 (very bearish) to +1.0 (very bullish). Insider buys=bullish, catalysts dominate short-term. Respond with valid JSON only.`;
 
     const context = this.formatTechnicalContext({
       symbol: data.symbol,

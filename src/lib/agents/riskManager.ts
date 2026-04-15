@@ -28,26 +28,11 @@ export interface RiskData {
 
 export class RiskManager extends Agent {
   constructor(config: AgentConfig = {}) {
-    super(config);
+    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
   }
 
   async assessRisk(data: RiskData): Promise<RiskAssessment> {
-    const systemPrompt = `You are a professional options risk manager specializing in position sizing and portfolio-level Greeks management.
-
-Your framework:
-1. Position sizing: Never risk more than 2-5% of account on single trade
-2. Portfolio Delta: Keep net portfolio delta in a manageable range
-3. Concentration: No more than 20-25% in single sector/correlated positions
-4. Vega exposure: Monitor total vega — don't get caught long/short volatility overall
-5. Theta management: Balance theta income vs. directional risk
-
-Position sizing rules:
-- If account size known: recommend contracts = floor(maxRiskPerTrade * accountSize / maxLossPerContract)
-- If account size unknown: recommend 1-2 contracts conservatively, note the gap
-- Flag if proposed size exceeds 5% of account
-- Flag portfolio Greeks imbalance (e.g. too much net delta in one direction)
-
-Always respond with valid JSON.`;
+    const systemPrompt = `Options risk manager. Max 2-5% risk per trade. Size = floor(maxRisk * account / maxLoss). Flag Greeks imbalance. Respond with valid JSON only.`;
 
     const totalMaxLoss = data.proposedContracts * data.maxLossPerContract;
     const totalCost = data.proposedContracts * data.estimatedCostPerContract;
