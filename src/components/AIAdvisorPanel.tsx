@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TechnicalAnalysis, OrchestratorResponse } from '@/types/agents';
+import { OrchestratorResponse } from '@/types/agents';
 
 interface AIAdvisorPanelProps {
   analysis?: OrchestratorResponse;

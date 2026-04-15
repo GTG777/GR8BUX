@@ -500,11 +500,11 @@ export default function LeapsPage() {
   }, []);
 
   // When user switches to chain tab from screener via "Analyze →"
+  // "Analyze →" button: trigger AI analysis and stay on screener tab
   const handlePickFromScreener = (sym: string) => {
     const row = screenerData.find((r) => r.symbol === sym);
     if (!row) return;
 
-    // Set selected row and trigger AI analysis
     setSelectedScreenerRow(row);
     if (row.price && row.hv20 !== null && row.ivr !== null) {
       runAnalysis({
@@ -520,8 +520,10 @@ export default function LeapsPage() {
         detectedAt: new Date().toISOString(),
       });
     }
+  };
 
-    // Also switch to chain tab for detailed analysis
+  // "Proceed to Trade Entry" button: navigate to chain tab for that symbol
+  const handleGoToChain = (sym: string) => {
     setChainSymbol(sym);
     setChainInput(sym);
     setTab('chain');
@@ -821,7 +823,7 @@ export default function LeapsPage() {
                     analysis={aiAnalysis ?? undefined}
                     isLoading={aiLoading}
                     error={aiError ?? undefined}
-                    onTradeClick={() => handlePickFromScreener(selectedScreenerRow.symbol)}
+                    onTradeClick={() => handleGoToChain(selectedScreenerRow.symbol)}
                     compact={false}
                   />
                 ) : (

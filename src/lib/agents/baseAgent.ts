@@ -21,7 +21,7 @@ export class Agent {
     this.client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
-    this.model = config.model || 'claude-3-5-sonnet-20241022';
+    this.model = config.model || 'claude-opus-4-1';
     this.maxTokens = config.maxTokens || 2000;
     this.temperature = config.temperature || 0.7;
   }

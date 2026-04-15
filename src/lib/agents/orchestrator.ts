@@ -78,14 +78,6 @@ export class AIOrchestrator {
     }
 
     // Convert recommendation to consensus action
-    const recommendationMap: Record<string, string> = {
-      STRONG_BUY: 'BUY',
-      BUY: 'BUY',
-      WAIT: 'WAIT',
-      NEUTRAL: 'NEUTRAL',
-      AVOID: 'AVOID',
-    };
-
     const consensusAction = this.calculateConsensusAction(recommendations);
     const avgConfidence = agentCount > 0 ? totalConfidence / agentCount : 0.5;
 
