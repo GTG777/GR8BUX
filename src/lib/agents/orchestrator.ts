@@ -72,8 +72,8 @@ export class AIOrchestrator {
       totalConfidence += analyses.technical.confidence;
       agentCount++;
 
-      if (analyses.technical.redFlags?.length > 0) {
-        analyses.technical.redFlags.forEach((flag: string) => cautions.add(flag));
+      if (analyses.technical.keySignals?.negative?.length > 0) {
+        analyses.technical.keySignals.negative.forEach((flag: string) => cautions.add(flag));
       }
     }
 

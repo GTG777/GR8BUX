@@ -128,6 +128,7 @@ export interface LeapsChainResponse {
   symbol: string;
   underlyingPrice: number;
   hv20: number | null;
+  rsi: number | null;
   leapsExpirations: string[];
   contracts: LeapsContract[];
   fetchedAt: number;
@@ -173,6 +174,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         symbol,
         underlyingPrice: 0,
         hv20: null,
+        rsi: null,
         leapsExpirations: [],
         contracts: [],
         fetchedAt: Date.now(),
@@ -193,25 +195,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const leapsEpochs = allEpochs.filter((ep) => ep * 1000 >= twelveMonthsFromNow);
     if (leapsEpochs.length === 0) {
       return res.status(200).json({
-        symbol, underlyingPrice, hv20: null,
+        symbol, underlyingPrice, hv20: null, rsi: null,
         leapsExpirations: [], contracts: [], fetchedAt: Date.now(),
       });
     }
 
-    // ── 2. Fetch HV20 from daily candles (parallel with chain fetch) ──
-    const hvPromise = (async () => {
+    // ── 2. Fetch HV20 + RSI-14 from daily candles (parallel with chain fetch) ──
+    const hvRsiPromise = (async (): Promise<{ hv20: number | null; rsi: number | null }> => {
       try {
         const quote = await fetchYahooJson(`/v8/finance/chart/${encodeURIComponent(symbol)}?range=3mo&interval=1d`, cookie, crumb);
-        if (!quote.ok || !quote.json) return null;
+        if (!quote.ok || !quote.json) return { hv20: null, rsi: null };
         const j = quote.json;
         const closes: number[] = j?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
-        if (closes.length < 22) return null;
-        const slice = closes.filter(Boolean).slice(-21);
-        const returns = slice.slice(1).map((c, i) => Math.log(c / slice[i]));
-        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-        const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
-        return parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
-      } catch { return null; }
+        const valid = closes.filter(Boolean);
+
+        // HV20: annualized std dev of log-returns over last 21 closes
+        let hv20: number | null = null;
+        if (valid.length >= 22) {
+          const slice = valid.slice(-21);
+          const returns = slice.slice(1).map((c, i) => Math.log(c / slice[i]));
+          const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+          const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
+          hv20 = parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
+        }
+
+        // RSI-14: simple average method
+        let rsi: number | null = null;
+        if (valid.length >= 15) {
+          const last15 = valid.slice(-15);
+          const changes = last15.slice(1).map((c, i) => c - last15[i]);
+          const avgGain = changes.filter(c => c > 0).reduce((a, b) => a + b, 0) / 14;
+          const avgLoss = changes.filter(c => c < 0).map(c => Math.abs(c)).reduce((a, b) => a + b, 0) / 14;
+          rsi = avgLoss === 0 ? 100 : parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+        }
+
+        return { hv20, rsi };
+      } catch { return { hv20: null, rsi: null }; }
     })();
 
     // ── 3. Fetch contracts for each LEAPS expiry ──────────────────────
@@ -278,7 +297,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     await Promise.all(leapsEpochs.map(fetchExpiry));
-    const hv20 = await hvPromise;
+    const { hv20, rsi } = await hvRsiPromise;
 
     const contracts = Array.from(contractsMap.values()).sort(
       (a, b) => a.expiration - b.expiration || a.type.localeCompare(b.type) || a.strike - b.strike,
@@ -288,6 +307,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       symbol,
       underlyingPrice,
       hv20,
+      rsi,
       leapsExpirations: leapsEpochs.map(epochToDate),
       contracts,
       fetchedAt: Date.now(),

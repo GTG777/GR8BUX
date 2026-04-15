@@ -122,19 +122,19 @@ export const AIAdvisorPanel: React.FC<AIAdvisorPanelProps> = ({
           {/* Technical Details */}
           {technical && (
             <div className="grid grid-cols-2 gap-3 text-sm">
-              {technical.riskRewardRatio && (
+              {technical.riskRewardRatio != null && (
                 <div className="rounded bg-blue-50 p-2">
                   <p className="text-xs text-gray-500 font-semibold">Risk/Reward</p>
                   <p className="font-semibold text-blue-900">1:{technical.riskRewardRatio.toFixed(1)}</p>
                 </div>
               )}
-              {technical.targetPrice && (
+              {technical.targetPrice != null && (
                 <div className="rounded bg-green-50 p-2">
                   <p className="text-xs text-gray-500 font-semibold">Target Price</p>
                   <p className="font-semibold text-green-900">${technical.targetPrice.toFixed(2)}</p>
                 </div>
               )}
-              {technical.stopPrice && (
+              {technical.stopPrice != null && (
                 <div className="rounded bg-red-50 p-2">
                   <p className="text-xs text-gray-500 font-semibold">Stop Loss</p>
                   <p className="font-semibold text-red-900">${technical.stopPrice.toFixed(2)}</p>

@@ -124,6 +124,7 @@ interface ScreenerRow {
   sector: string;
   price: number | null;
   hv20: number | null;
+  rsi: number | null;
   ivr: number | null;
   bestDelta: number | null;
   bestExpiry: string | null;
@@ -140,12 +141,14 @@ function ScreenerTable({
   sortKey,
   sortDir,
   onSort,
+  selectedSymbol,
 }: {
   rows: ScreenerRow[];
   onPick: (sym: string) => void;
   sortKey: ScreenerSortKey;
   sortDir: 'asc' | 'desc';
   onSort: (key: ScreenerSortKey) => void;
+  selectedSymbol?: string;
 }) {
   const ivrColor = (ivr: number | null) => {
     if (ivr === null) return 'text-gray-400';
@@ -213,7 +216,7 @@ function ScreenerTable({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.symbol} className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors">
+            <tr key={row.symbol} className={`border-b transition-colors ${row.symbol === selectedSymbol ? 'bg-indigo-100 ring-1 ring-inset ring-indigo-300' : 'border-gray-50 hover:bg-indigo-50/30'}`}>
               <td className="py-2 px-3 font-bold text-gray-800">
                 {row.symbol}
                 <span className="block text-[10px] font-normal text-gray-400">{row.name}</span>
@@ -392,7 +395,7 @@ export default function LeapsPage() {
   const [sectorFilter, setSectorFilter] = useState('All');
   const [maxIvr, setMaxIvr] = useState(50);
   const [screenerData, setScreenerData] = useState<ScreenerRow[]>(
-    LEAPS_UNIVERSE.map((u) => ({ ...u, price: null, hv20: null, ivr: null, bestDelta: null, bestExpiry: null, bestPremium: null, loading: false, error: false }))
+    LEAPS_UNIVERSE.map((u) => ({ ...u, price: null, hv20: null, rsi: null, ivr: null, bestDelta: null, bestExpiry: null, bestPremium: null, loading: false, error: false }))
   );
   const [screenerSortKey, setScreenerSortKey] = useState<ScreenerSortKey>('ivr');
   const [screenerSortDir, setScreenerSortDir] = useState<'asc' | 'desc'>('asc');
@@ -446,6 +449,7 @@ export default function LeapsPage() {
           bestDelta: best?.delta ?? null,
           bestExpiry: best?.expirationStr ?? null,
           bestPremium: best?.mid ?? null,
+          rsi: data.rsi ?? null,
         } : r)
       );
     } catch {
@@ -517,6 +521,7 @@ export default function LeapsPage() {
         hv20: row.hv20,
         delta: row.bestDelta ?? 0.65,
         premium: row.bestPremium ?? 0,
+        rsi: row.rsi ?? undefined,
         detectedAt: new Date().toISOString(),
       });
     }
@@ -813,6 +818,7 @@ export default function LeapsPage() {
                   sortKey={screenerSortKey}
                   sortDir={screenerSortDir}
                   onSort={handleScreenerSort}
+                  selectedSymbol={selectedScreenerRow?.symbol}
                 />
               </div>
 
