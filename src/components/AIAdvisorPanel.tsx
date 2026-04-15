@@ -457,7 +457,7 @@ export const AIAdvisorPanel: React.FC<AIAdvisorPanelProps> = ({
   const [expanded, setExpanded] = useState(!compact);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
-  if (error) {
+  if (error && !analysis) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm">
         <p className="font-semibold text-red-900">AI Analysis Error</p>

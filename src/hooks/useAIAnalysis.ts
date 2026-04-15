@@ -131,15 +131,15 @@ export function useAIAnalysis(options: UseAIAnalysisOptions = {}) {
         setError(null);
         return analysisData;
       } catch (err: any) {
-        // If we had a stale Supabase result, keep showing it — just set a soft error
+        // If we had a stale Supabase result, keep showing it — just set a soft warning
         const errorMsg = err.message || 'Failed to analyze setup';
         if (!supabaseCached) {
           setError(errorMsg);
           setAnalysis(null);
-        } else {
-          setError(`Live refresh failed (${errorMsg}) — showing cached result`);
+          throw err;
         }
-        throw err;
+        // Stale cache + live failure = silent degradation, don't throw
+        setError(null);
       } finally {
         setIsLoading(false);
       }
