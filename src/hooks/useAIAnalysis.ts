@@ -54,8 +54,14 @@ export function useAIAnalysis(options: UseAIAnalysisOptions = {}) {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `HTTP ${response.status}`);
+          let errorMsg = `HTTP ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.error || errorMsg;
+          } catch {
+            // response was HTML (e.g. 500 page) — use status code message
+          }
+          throw new Error(errorMsg);
         }
 
         const result = await response.json();
