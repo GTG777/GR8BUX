@@ -7,3 +7,6 @@ export { default as NewsPage } from './NewsPage/NewsPage';
 export { default as TalkOfTown } from './TalkOfTown/TalkOfTown';
 export { default as TechnicalSetups } from './TechnicalSetups/TechnicalSetups';
 export { default as Navigation } from './Navigation/Navigation';
+
+// AI Agent Components
+export { default as AIAdvisorPanel } from './AIAdvisorPanel';
