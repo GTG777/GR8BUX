@@ -51,6 +51,7 @@ interface CacheEntry {
 }
 
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+let _cache: CacheEntry | null = null;
 
 function parseCSV(csv: string): Array<Record<string, string>> {
   const lines = csv.trim().split('\n');
