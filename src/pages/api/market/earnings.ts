@@ -118,7 +118,9 @@ async function earningsHandler(req: NextApiRequest, res: NextApiResponse) {
   let rawRows: Array<Record<string, string>> = [];
   try {
     const url = `https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${avKey}`;
-    const avRes = await fetch(url, { headers: { Accept: 'text/csv' } });
+    const avRes = await fetch(url, {
+      signal: AbortSignal.timeout(7000),
+    });
     if (!avRes.ok) throw new Error(`Alpha Vantage ${avRes.status}`);
     const csv = await avRes.text();
     rawRows = parseCSV(csv);
@@ -143,9 +145,11 @@ async function earningsHandler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const supabase = getSupabaseServiceRoleClient();
     if (supabase) {
+      const timeout = <T>(p: Promise<T>): Promise<T> =>
+        Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('Supabase timeout')), 4000))]);
       const [mdRes, aiRes] = await Promise.all([
-        supabase.from('market_data').select('symbol, name, sector, ivr, rsi, price'),
-        supabase.from('ai_analyses').select('symbol, consensus').eq('setup_type', 'LEAPS_CANDIDATE'),
+        timeout(supabase.from('market_data').select('symbol, name, sector, ivr, rsi, price')),
+        timeout(supabase.from('ai_analyses').select('symbol, consensus').eq('setup_type', 'LEAPS_CANDIDATE')),
       ]);
       for (const r of mdRes.data ?? []) {
         enrichMap[r.symbol] = {
