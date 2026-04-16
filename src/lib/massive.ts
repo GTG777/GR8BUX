@@ -283,7 +283,16 @@ export async function getOptionsChainPaged(
       }
     }
 
-    url = data.next_url ?? null;
+    if (data.next_url) {
+      // Massive's next_url doesn't always include the API key — ensure it's present
+      const nextUrl = new URL(data.next_url);
+      if (!nextUrl.searchParams.has('apiKey')) {
+        nextUrl.searchParams.set('apiKey', getApiKey());
+      }
+      url = nextUrl.toString();
+    } else {
+      url = null;
+    }
     pages++;
   }
 
