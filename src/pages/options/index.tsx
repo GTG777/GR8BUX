@@ -1060,7 +1060,7 @@ export default function OptionsPage() {
     }
   };
 
-  const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full';
+  const inputCls = 'border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 w-full bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500';
 
   return (
     <Layout title="Options">
@@ -1076,7 +1076,7 @@ export default function OptionsPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value.toUpperCase())}
                 placeholder="TICKER…"
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm w-28 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
               />
               <button type="submit" className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">Go</button>
             </form>

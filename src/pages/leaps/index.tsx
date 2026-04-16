@@ -705,7 +705,7 @@ export default function LeapsPage() {
     '✅ Holding comfortably';
 
   /* ── shared input class ─────────────────────────────────────── */
-  const iCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full bg-white';
+  const iCls = 'border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 w-full bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500';
 
   /* ─────────────────────────────────────────────────────────────
      RENDER
@@ -783,7 +783,7 @@ export default function LeapsPage() {
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-wrap gap-4 items-end">
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Sector</label>
-                <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+                <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)} className="border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none">
                   {SECTORS.map((s) => <option key={s}>{s}</option>)}
                 </select>
               </div>
@@ -804,7 +804,7 @@ export default function LeapsPage() {
                     setAccountSize(v);
                     try { if (v !== '') localStorage.setItem('gr8bux_account_size', String(v)); else localStorage.removeItem('gr8bux_account_size'); } catch {}
                   }}
-                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none w-32"
+                  className="border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none w-32"
                 />
               </div>
               <p className="text-xs text-gray-400 self-center">Green IV Rank = IV is cheap → good for LEAPS buyers</p>
@@ -874,7 +874,7 @@ export default function LeapsPage() {
                 <form onSubmit={(e) => { e.preventDefault(); setChainSymbol(chainInput.toUpperCase()); fetchChain(chainInput.toUpperCase()); }}
                   className="flex gap-2">
                   <input value={chainInput} onChange={(e) => setChainInput(e.target.value.toUpperCase())}
-                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    className="border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm w-28 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
                     placeholder="AAPL" />
                   <button type="submit" className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">
                     Load
@@ -898,7 +898,7 @@ export default function LeapsPage() {
                 <div>
                   <label className="text-xs font-medium text-gray-500 block mb-1">Expiry</label>
                   <select value={expiryFilter} onChange={(e) => setExpiryFilter(e.target.value)}
-                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+                    className="border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none">
                     <option value="">All LEAPS</option>
                     {chainData.leapsExpirations.map((ex) => <option key={ex}>{ex}</option>)}
                   </select>
@@ -1279,14 +1279,14 @@ export default function LeapsPage() {
                         placeholder={ph}
                         value={(newPos as Record<string, unknown>)[key] as string ?? ''}
                         onChange={(e) => setNewPos((p) => ({ ...p, [key]: type === 'number' ? parseFloat(e.target.value) || e.target.value : e.target.value }))}
-                        className="border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full bg-white"
+                        className="border border-indigo-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 w-full bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500"
                       />
                     </div>
                   ))}
                   <div>
                     <label className="text-xs font-medium text-indigo-700 block mb-1">Type</label>
                     <select value={newPos.type ?? 'call'} onChange={(e) => setNewPos((p) => ({ ...p, type: e.target.value as 'call' | 'put' }))}
-                      className="border border-indigo-200 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none">
+                      className="border border-indigo-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm w-full bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none">
                       <option value="call">Call</option>
                       <option value="put">Put</option>
                     </select>
@@ -1296,7 +1296,7 @@ export default function LeapsPage() {
                     <input placeholder="Thesis, target price, etc."
                       value={newPos.notes ?? ''}
                       onChange={(e) => setNewPos((p) => ({ ...p, notes: e.target.value }))}
-                      className="border border-indigo-200 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none" />
+                      className="border border-indigo-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm w-full bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none" />
                   </div>
                 </div>
                 <div className="flex gap-2">

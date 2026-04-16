@@ -146,7 +146,7 @@ export default function TradeDetailPage() {
   const typeColor = (t: 'call' | 'put') =>
     t === 'call' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
 
-  const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm';
+  const inputCls = 'w-full px-3 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm';
 
   if (loading) {
     return (

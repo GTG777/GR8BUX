@@ -1362,7 +1362,7 @@ export default function ScannerPage() {
     [topIC, optionsAnalytics, marketData, scanCandles, vwapData],
   );
 
-  const inputCls = 'border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300';
+  const inputCls = 'border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500';
 
   return (
     <Layout title="Options Screener">

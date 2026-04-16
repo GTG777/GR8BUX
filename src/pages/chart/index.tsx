@@ -640,7 +640,7 @@ export default function ChartPage() {
             {/* Symbol input */}
             <div className="flex gap-2">
               <input
-                className="px-3 py-1.5 border border-gray-300 rounded text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 w-28"
+                className="px-3 py-1.5 border border-gray-300 dark:border-zinc-700 rounded text-sm font-mono uppercase bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 w-28"
                 placeholder="Ticker…"
                 value={input}
                 onChange={(e) => setInput(e.target.value.toUpperCase())}

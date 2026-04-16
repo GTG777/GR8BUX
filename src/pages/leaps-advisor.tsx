@@ -61,7 +61,7 @@ function CandidatesTable({
       <div className="overflow-x-auto">
         <table className="w-full text-xs whitespace-nowrap">
           <thead>
-            <tr className="bg-gray-100 dark:bg-zinc-800/90 text-gray-500 dark:text-zinc-400 border-b border-gray-200 dark:ray-500 dark:text-zinc-400 border-b border-gray-200 dark:border-zinc-700/60">
+            <tr className="bg-gray-100 dark:bg-zinc-800/90 text-gray-500 dark:text-zinc-400 border-b border-gray-200 dark:border-zinc-700/60">
               <th className="px-3 py-2.5 text-left font-semibold">#</th>
               <th className="px-3 py-2.5 text-left font-semibold">Ticker</th>
               <th className="px-3 py-2.5 text-right font-semibold">Price</th>

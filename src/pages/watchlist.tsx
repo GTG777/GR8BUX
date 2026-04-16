@@ -233,7 +233,7 @@ const AdvancedWatchlist: React.FC = () => {
               onChange={e => setSymbolInput(e.target.value)}
               onKeyPress={e => e.key === 'Enter' && addSymbol()}
               placeholder="Enter symbol (e.g., AAPL)"
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               maxLength={5}
             />
             <button
