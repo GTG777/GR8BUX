@@ -5,7 +5,7 @@
  * uses Massive's native greeks, and computes HV20 + RSI-14 from aggregate bars.
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOptionsChainPaged, getAggBars, daysAgoDateStr, todayDateStr, type MassiveOptionContract } from '@/lib/massive';
+import { getOptionsChainPaged, getAggBars, getStockSnapshot, daysAgoDateStr, todayDateStr, type MassiveOptionContract } from '@/lib/massive';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 
 const cache = new Map<string, { data: unknown; timestamp: number }>();
@@ -183,11 +183,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     })();
 
-    // Run both in parallel
-    const [{ contracts: rawContracts, underlyingPrice }, { hv20, rsi }] = await Promise.all([
+    // Run both in parallel; also fetch spot price as fallback if chain doesn't include it
+    const [{ contracts: rawContracts, underlyingPrice: chainPrice }, { hv20, rsi }] = await Promise.all([
       chainPromise,
       hvRsiPromise,
     ]);
+
+    // Fallback: if chain didn't include underlying price, fetch it from stock snapshot
+    let underlyingPrice = chainPrice;
+    if (!underlyingPrice) {
+      try {
+        const snap = await getStockSnapshot(symbol);
+        underlyingPrice = snap.day?.c ?? snap.prevDay?.c ?? 0;
+      } catch {
+        underlyingPrice = 0;
+      }
+    }
 
     if (!rawContracts.length) {
       const payload: LeapsChainResponse = {

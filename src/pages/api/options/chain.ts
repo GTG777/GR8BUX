@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOptionsChainPaged, todayDateStr, type MassiveOptionContract } from '@/lib/massive';
+import { getOptionsChainPaged, getStockSnapshot, todayDateStr, type MassiveOptionContract } from '@/lib/massive';
 
 // Cache per symbol+expiration, 5 min TTL
 const cache = new Map<string, { data: unknown; timestamp: number }>();
@@ -95,12 +95,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       : { 'expiration_date.gte': today, sort: 'expiration_date' as const };
 
     // For a specific date: paginate fully; otherwise cap at 6 expirations
-    const { contracts: rawContracts, underlyingPrice } = await getOptionsChainPaged(
+    const { contracts: rawContracts, underlyingPrice: chainPrice } = await getOptionsChainPaged(
       symbol,
       fetchParams,
       /* maxPages */ dateParam ? 20 : 10,
       /* stopAtExpirations */ dateParam ? undefined : 6,
     );
+
+    // Fallback: fetch spot price from stock snapshot if chain didn't include it
+    let underlyingPrice = chainPrice;
+    if (!underlyingPrice) {
+      try {
+        const snap = await getStockSnapshot(symbol);
+        underlyingPrice = snap.day?.c ?? snap.prevDay?.c ?? 0;
+      } catch {
+        underlyingPrice = 0;
+      }
+    }
 
     if (!rawContracts.length) {
       return res.status(404).json({ error: `No options data found for ${symbol}` });
