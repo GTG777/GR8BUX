@@ -63,8 +63,8 @@ const getAlertBg = (severity: 'HIGH' | 'MEDIUM' | 'LOW') => {
   }
 };
 
-const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`;
-const fmtDollar = (n: number) => `${n >= 0 ? '+' : '-'}$${Math.abs(n).toFixed(0)}`;
+const fmtPct = (n: any) => n != null ? `${Number(n) >= 0 ? '+' : ''}${(Number(n) * 100).toFixed(0)}%` : '—';
+const fmtDollar = (n: any) => n != null ? `${Number(n) >= 0 ? '+' : '-'}$${Math.abs(Number(n)).toFixed(0)}` : '—';
 
 // ─── Sub-sections ────────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ function TechnicalSection({ t }: { t: TechnicalAnalysis }) {
         </div>
         <div className="rounded bg-gray-50 p-2">
           <p className="text-xs text-gray-500 font-semibold">Confidence</p>
-          <p className="font-semibold text-gray-900">{(t.confidence * 100).toFixed(0)}%</p>
+          <p className="font-semibold text-gray-900">{t.confidence != null ? (t.confidence * 100).toFixed(0) : '—'}%</p>
         </div>
         {t.riskRewardRatio != null && (
           <div className="rounded bg-blue-50 p-2">
@@ -106,7 +106,7 @@ function TechnicalSection({ t }: { t: TechnicalAnalysis }) {
 
       {/* Signals */}
       <div className="space-y-2">
-        {t.keySignals.positive.length > 0 && (
+        {t.keySignals?.positive?.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-green-700 mb-1">✓ Positive Signals</p>
             <ul className="text-xs text-green-700 space-y-1 ml-2">
@@ -114,7 +114,7 @@ function TechnicalSection({ t }: { t: TechnicalAnalysis }) {
             </ul>
           </div>
         )}
-        {t.keySignals.negative.length > 0 && (
+        {t.keySignals?.negative?.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-red-700 mb-1">⚠ Cautions</p>
             <ul className="text-xs text-red-600 space-y-1 ml-2">
@@ -125,7 +125,7 @@ function TechnicalSection({ t }: { t: TechnicalAnalysis }) {
       </div>
 
       {/* Red Flags */}
-      {t.redFlags.length > 0 && (
+      {t.redFlags?.length > 0 && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3">
           <p className="text-xs font-semibold text-red-900 mb-2">🚩 Red Flags</p>
           <ul className="text-xs text-red-700 space-y-1">
@@ -165,10 +165,10 @@ function GreeksSection({ g }: { g: GreeksAnalysis }) {
         <p className="text-xs font-semibold text-gray-700 mb-2">Greeks at Entry</p>
         <div className="grid grid-cols-4 gap-2 text-center text-xs">
           {[
-            { label: 'Delta', value: ge.delta.toFixed(2), color: 'text-blue-700' },
-            { label: 'Gamma', value: ge.gamma.toFixed(3), color: 'text-purple-700' },
-            { label: 'Theta', value: ge.theta.toFixed(2), color: 'text-red-700' },
-            { label: 'Vega',  value: ge.vega.toFixed(2),  color: 'text-green-700' },
+            { label: 'Delta', value: ge?.delta != null ? ge.delta.toFixed(2) : '—', color: 'text-blue-700' },
+            { label: 'Gamma', value: ge?.gamma != null ? ge.gamma.toFixed(3) : '—', color: 'text-purple-700' },
+            { label: 'Theta', value: ge?.theta != null ? ge.theta.toFixed(2) : '—', color: 'text-red-700' },
+            { label: 'Vega',  value: ge?.vega  != null ? ge.vega.toFixed(2)  : '—', color: 'text-green-700' },
           ].map(({ label, value, color }) => (
             <div key={label} className="rounded bg-gray-50 p-2">
               <p className="text-gray-400 font-semibold">{label}</p>
@@ -197,7 +197,7 @@ function GreeksSection({ g }: { g: GreeksAnalysis }) {
       </div>
 
       {/* Risks + optimization */}
-      {g.risks.length > 0 && (
+      {g.risks?.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-red-700 mb-1">⚠ Key Risks</p>
           <ul className="text-xs text-red-600 space-y-1 ml-2">
@@ -226,7 +226,7 @@ function SentimentSection({ s }: { s: SentimentAnalysis }) {
           {s.overallSentiment.replace('_', ' ')}
         </span>
         <div className="flex-1">
-          <div className="text-xs text-gray-500 mb-1">Score: {score.toFixed(2)}</div>
+          <div className="text-xs text-gray-500 mb-1">Score: {score != null ? score.toFixed(2) : '—'}</div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className={`h-2 rounded-full ${score >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
@@ -268,7 +268,7 @@ function SentimentSection({ s }: { s: SentimentAnalysis }) {
       <p className="text-sm text-gray-600">{s.marketConsensus}</p>
 
       {/* Key Drivers */}
-      {s.keyDrivers.length > 0 && (
+      {s.keyDrivers?.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-green-700 mb-1">📈 Key Drivers</p>
           <ul className="text-xs text-gray-600 space-y-1 ml-2">
@@ -278,7 +278,7 @@ function SentimentSection({ s }: { s: SentimentAnalysis }) {
       )}
 
       {/* Conflicting Signals */}
-      {s.conflictingSignals.length > 0 && (
+      {s.conflictingSignals?.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-amber-700 mb-1">⚡ Conflicting Signals</p>
           <ul className="text-xs text-amber-600 space-y-1 ml-2">
@@ -288,7 +288,7 @@ function SentimentSection({ s }: { s: SentimentAnalysis }) {
       )}
 
       {/* Upcoming Catalysts */}
-      {s.catalysts.length > 0 && (
+      {s.catalysts?.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-blue-700 mb-2">📅 Upcoming Catalysts</p>
           <div className="space-y-1">
@@ -312,25 +312,26 @@ function SentimentSection({ s }: { s: SentimentAnalysis }) {
 
 function RiskSection({ r }: { r: RiskAssessment }) {
   const pi = r.portfolioImpact;
+  const fmt = (v: any, dec = 2) => v != null ? Number(v).toFixed(dec) : '—';
   return (
     <div className="space-y-4">
       {/* Recommended size */}
       <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold text-blue-500">Recommended Position Size</p>
-          <p className="text-2xl font-bold text-blue-900">{r.recommendedPositionSize} contracts</p>
+          <p className="text-2xl font-bold text-blue-900">{r.recommendedPositionSize ?? '—'} contracts</p>
         </div>
         <div className="text-right text-xs text-gray-600">
-          <p>Max Loss: <strong className="text-red-700">${r.maxLossScenario.toFixed(0)}</strong></p>
-          <p>Max Profit: <strong className="text-green-700">${r.maxProfitScenario.toFixed(0)}</strong></p>
+          <p>Max Loss: <strong className="text-red-700">${fmt(r.maxLossScenario, 0)}</strong></p>
+          <p>Max Profit: <strong className="text-green-700">${fmt(r.maxProfitScenario, 0)}</strong></p>
         </div>
       </div>
 
       {/* Rationale */}
-      <p className="text-sm text-gray-600">{r.rationale}</p>
+      {r.rationale && <p className="text-sm text-gray-600">{r.rationale}</p>}
 
       {/* Exposure Alerts */}
-      {r.exposureAlerts.length > 0 && (
+      {r.exposureAlerts?.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-gray-700">Exposure Alerts</p>
           {r.exposureAlerts.map((alert, i) => (
@@ -342,33 +343,35 @@ function RiskSection({ r }: { r: RiskAssessment }) {
       )}
 
       {/* Portfolio Impact (Greeks delta) */}
-      <div>
-        <p className="text-xs font-semibold text-gray-700 mb-2">Portfolio Greeks Impact</p>
-        <div className="grid grid-cols-3 gap-2 text-xs text-center">
-          {[
-            { label: 'Delta', before: pi.deltaBefore, after: pi.deltaAfter },
-            { label: 'Vega',  before: pi.vegaBefore,  after: pi.vegaAfter  },
-            { label: 'Theta', before: pi.thetaBefore, after: pi.thetaAfter },
-          ].map(({ label, before, after }) => (
-            <div key={label} className="rounded bg-gray-50 p-2">
-              <p className="text-gray-400 font-semibold">{label}</p>
-              <p className="text-gray-500">{before.toFixed(2)}</p>
-              <p className="text-xs text-gray-400">↓</p>
-              <p className={`font-bold ${after > before ? 'text-green-700' : 'text-red-700'}`}>{after.toFixed(2)}</p>
-            </div>
-          ))}
+      {pi && (
+        <div>
+          <p className="text-xs font-semibold text-gray-700 mb-2">Portfolio Greeks Impact</p>
+          <div className="grid grid-cols-3 gap-2 text-xs text-center">
+            {[
+              { label: 'Delta', before: pi.deltaBefore, after: pi.deltaAfter },
+              { label: 'Vega',  before: pi.vegaBefore,  after: pi.vegaAfter  },
+              { label: 'Theta', before: pi.thetaBefore, after: pi.thetaAfter },
+            ].map(({ label, before, after }) => (
+              <div key={label} className="rounded bg-gray-50 p-2">
+                <p className="text-gray-400 font-semibold">{label}</p>
+                <p className="text-gray-500">{fmt(before)}</p>
+                <p className="text-xs text-gray-400">↓</p>
+                <p className={`font-bold ${(after ?? 0) > (before ?? 0) ? 'text-green-700' : 'text-red-700'}`}>{fmt(after)}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Hedge Suggestions */}
-      {r.hedgeSuggestions && r.hedgeSuggestions.length > 0 && (
+      {r.hedgeSuggestions?.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-purple-700 mb-2">🛡 Hedge Suggestions</p>
           {r.hedgeSuggestions.map((h, i) => (
             <div key={i} className="rounded bg-purple-50 border border-purple-200 p-2 mb-2">
               <p className="text-xs font-bold text-purple-900">{h.instrument}</p>
               <p className="text-xs text-purple-700">{h.rationale}</p>
-              <p className="text-xs text-gray-500">Est. Cost: ${h.expectedCost.toFixed(0)}</p>
+              <p className="text-xs text-gray-500">Est. Cost: ${fmt(h.expectedCost, 0)}</p>
             </div>
           ))}
         </div>
