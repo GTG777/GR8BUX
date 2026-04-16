@@ -420,15 +420,16 @@ function buildBullPuts(
 
       for (const w of targetWidths) {
         const longP = sorted.find((c) => Math.abs(c.strike - (shortP.strike - w)) < w * 0.4 && c.strike < shortP.strike);
-        if (!longP || longP.mid <= 0) continue; // require live quote
+        if (!longP) continue;
         const actualWidth = shortP.strike - longP.strike;
-        const credit = (shortP.mid - longP.mid) * 100;
-        if (credit < 25) continue;
+        const longMid = longP.mid > 0 ? longP.mid : 0; // allow 0 for far-OTM long leg
+        const credit = (shortP.mid - longMid) * 100;
+        if (credit < 10) continue;
         const maxLoss = actualWidth * 100 - credit;
         if (maxLoss <= 0) continue;
         const inp = (K: number, iv: number) => ({ spotPrice: spot, strikePrice: K, timeToExpiration: T, volatility: iv, riskFreeRate: r });
         const sg = calculatePutGreeks(inp(shortP.strike, sigma));
-        const lg = calculatePutGreeks(inp(longP.strike, longP.impliedVolatility || 0.20));
+        const lg = calculatePutGreeks(inp(longP.strike, longP.impliedVolatility || sigma));
         const theta = ((lg.theta ?? 0) - (sg.theta ?? 0)) * 100;
         const ev = (pop / 100) * credit - (1 - pop / 100) * maxLoss;
         results.push({
@@ -475,15 +476,16 @@ function buildBearCalls(
 
       for (const w of targetWidths) {
         const longC = sorted.find((c) => Math.abs(c.strike - (shortC.strike + w)) < w * 0.4 && c.strike > shortC.strike);
-        if (!longC || longC.mid <= 0) continue; // require live quote
+        if (!longC) continue;
         const actualWidth = longC.strike - shortC.strike;
-        const credit = (shortC.mid - longC.mid) * 100;
-        if (credit < 25) continue;
+        const longMid = longC.mid > 0 ? longC.mid : 0; // allow 0 for far-OTM long leg
+        const credit = (shortC.mid - longMid) * 100;
+        if (credit < 10) continue;
         const maxLoss = actualWidth * 100 - credit;
         if (maxLoss <= 0) continue;
         const inp = (K: number, iv: number) => ({ spotPrice: spot, strikePrice: K, timeToExpiration: T, volatility: iv, riskFreeRate: r });
         const sg = calculateCallGreeks(inp(shortC.strike, sigma));
-        const lg = calculateCallGreeks(inp(longC.strike, longC.impliedVolatility || 0.20));
+        const lg = calculateCallGreeks(inp(longC.strike, longC.impliedVolatility || sigma));
         const theta = ((lg.theta ?? 0) - (sg.theta ?? 0)) * 100;
         const ev = (pop / 100) * credit - (1 - pop / 100) * maxLoss;
         results.push({
