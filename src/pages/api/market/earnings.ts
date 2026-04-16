@@ -88,6 +88,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  try {
+    return await earningsHandler(req, res);
+  } catch (err: unknown) {
+    console.error('[earnings] Unhandled error:', err instanceof Error ? err.message : String(err));
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function earningsHandler(req: NextApiRequest, res: NextApiResponse) {
   const days = Math.min(Number(req.query.days) || 45, 90);
 
   // ── Serve from cache if fresh ────────────────────────────────────────────
@@ -131,25 +140,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // ── Load enrichment data from Supabase ───────────────────────────────────
   const enrichMap: Record<string, { sector: string; ivRank: number | null; rsi: number | null; price: number | null; aiConsensus: string | null; name: string }> = {};
-  const supabase = getSupabaseServiceRoleClient();
-  if (supabase) {
-    const [mdRes, aiRes] = await Promise.all([
-      supabase.from('market_data').select('symbol, name, sector, ivr, rsi, price'),
-      supabase.from('ai_analyses').select('symbol, consensus').eq('setup_type', 'LEAPS_CANDIDATE'),
-    ]);
-    for (const r of mdRes.data ?? []) {
-      enrichMap[r.symbol] = {
-        name: r.name ?? r.symbol,
-        sector: r.sector ?? 'Unknown',
-        ivRank: r.ivr ?? null,
-        rsi: r.rsi ?? null,
-        price: r.price ?? null,
-        aiConsensus: null,
-      };
+  try {
+    const supabase = getSupabaseServiceRoleClient();
+    if (supabase) {
+      const [mdRes, aiRes] = await Promise.all([
+        supabase.from('market_data').select('symbol, name, sector, ivr, rsi, price'),
+        supabase.from('ai_analyses').select('symbol, consensus').eq('setup_type', 'LEAPS_CANDIDATE'),
+      ]);
+      for (const r of mdRes.data ?? []) {
+        enrichMap[r.symbol] = {
+          name: r.name ?? r.symbol,
+          sector: r.sector ?? 'Unknown',
+          ivRank: r.ivr ?? null,
+          rsi: r.rsi ?? null,
+          price: r.price ?? null,
+          aiConsensus: null,
+        };
+      }
+      for (const r of aiRes.data ?? []) {
+        if (enrichMap[r.symbol]) enrichMap[r.symbol].aiConsensus = r.consensus;
+      }
     }
-    for (const r of aiRes.data ?? []) {
-      if (enrichMap[r.symbol]) enrichMap[r.symbol].aiConsensus = r.consensus;
-    }
+  } catch (sbErr: unknown) {
+    console.error('[earnings] Supabase enrichment failed:', sbErr instanceof Error ? sbErr.message : String(sbErr));
+    // Continue without enrichment — earnings dates still work
   }
 
   // ── Parse + filter ───────────────────────────────────────────────────────
