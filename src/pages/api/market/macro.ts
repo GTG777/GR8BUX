@@ -69,11 +69,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Fetch indices and ETFs in parallel
-    const [indexSnaps, etfSnaps] = await Promise.all([
-      getIndicesSnapshots(INDEX_TICKERS),
+    // Fetch indices and ETFs in parallel — indices may 403 if plan doesn't include them
+    const [indexSnapsResult, etfSnaps] = await Promise.all([
+      getIndicesSnapshots(INDEX_TICKERS).catch(() => new Map<string, import('@/lib/massive').MassiveIndexSnapshot>()),
       getMultipleStockSnapshots(ETF_TICKERS),
     ]);
+    const indexSnaps = indexSnapsResult;
 
     // Helper: build MacroQuote from index snapshot (Massive returns actual % for yields)
     const indexQ = (ticker: string, symbol: string, label: string): MacroQuote => {
