@@ -32,17 +32,18 @@ export interface OptionsChainResponse {
 }
 
 function mapContract(raw: MassiveOptionContract, underlyingPrice: number): OptionContract {
-  const { details, day, last_quote, greeks, implied_volatility, open_interest } = raw;
+  const { details, day, last_quote, last_trade, greeks, implied_volatility, open_interest } = raw;
   const bid = last_quote?.bid ?? 0;
   const ask = last_quote?.ask ?? 0;
-  // Never fall back to day.close — it's yesterday's price and will be stale/wrong
-  // If both bid and ask are live: use mid. If only bid: use bid. Otherwise: 0.
-  const mid = bid > 0 && ask > 0
+  // Use Massive's pre-computed midpoint if available, otherwise calculate from bid/ask
+  const mid = last_quote?.midpoint
+    ? parseFloat(last_quote.midpoint.toFixed(2))
+    : bid > 0 && ask > 0
     ? parseFloat(((bid + ask) / 2).toFixed(2))
     : bid > 0
     ? parseFloat(bid.toFixed(2))
     : 0;
-  const lastPrice = day?.close ?? last_trade_price(raw) ?? 0;
+  const lastPrice = last_trade?.price ?? 0;
   const expDate = details.expiration_date; // YYYY-MM-DD
   const expEpoch = Math.floor(new Date(expDate + 'T21:00:00Z').getTime() / 1000); // ~4pm ET
 
@@ -68,10 +69,6 @@ function mapContract(raw: MassiveOptionContract, underlyingPrice: number): Optio
     inTheMoney,
     percentChange: day?.change_percent ?? 0,
   };
-}
-
-function last_trade_price(raw: MassiveOptionContract): number {
-  return raw.last_trade?.price ?? 0;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
