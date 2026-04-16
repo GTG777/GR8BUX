@@ -115,7 +115,7 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
   // ── 2. Load market data from Supabase cache ──────────────────────────────
   const supabase = getSupabaseServiceRoleClient();
   let marketRows: any[] = [];
-  let aiMap: Record<string, any> = {};
+  const aiMap: Record<string, any> = {};
   let latestRefresh = '';
 
   if (supabase) {
