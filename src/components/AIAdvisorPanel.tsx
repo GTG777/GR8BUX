@@ -364,10 +364,10 @@ function RiskSection({ r }: { r: RiskAssessment }) {
       )}
 
       {/* Hedge Suggestions */}
-      {r.hedgeSuggestions?.length > 0 && (
+      {(r.hedgeSuggestions?.length ?? 0) > 0 && (
         <div>
           <p className="text-xs font-semibold text-purple-700 mb-2">🛡 Hedge Suggestions</p>
-          {r.hedgeSuggestions.map((h, i) => (
+          {r.hedgeSuggestions!.map((h, i) => (
             <div key={i} className="rounded bg-purple-50 border border-purple-200 p-2 mb-2">
               <p className="text-xs font-bold text-purple-900">{h.instrument}</p>
               <p className="text-xs text-purple-700">{h.rationale}</p>
