@@ -232,7 +232,7 @@ export default function EarningsCalendarPage() {
           <div className="text-center py-16 text-zinc-600">
             <div className="text-4xl mb-3">📅</div>
             <p className="text-lg font-medium text-zinc-500">No earnings in this window</p>
-            <p className="text-sm mt-1">Try switching to "All Upcoming"</p>
+            <p className="text-sm mt-1">Try switching to &ldquo;All Upcoming&rdquo;</p>
           </div>
         )}
 
