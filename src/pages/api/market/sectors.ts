@@ -1,9 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getMultipleStockSnapshots } from '@/lib/massive';
 
 const cache = new Map<string, { data: SectorData; timestamp: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
 /* ── Sector definitions ────────────────────────────────────────── */
 export const SECTORS = [
@@ -49,19 +48,7 @@ export interface SectorData {
   fetchedAt: number;
 }
 
-/* ── Fetch a single Yahoo Finance quote ───────────────────────── */
-async function fetchQuote(symbol: string): Promise<{ price: number; changePct: number }> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
-  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`${symbol}: ${res.status}`);
-  const json = await res.json();
-  const meta = json?.chart?.result?.[0]?.meta;
-  if (!meta) throw new Error(`${symbol}: no meta`);
-  const price = meta.regularMarketPrice ?? 0;
-  const prev  = meta.chartPreviousClose ?? meta.previousClose ?? price;
-  const changePct = prev !== 0 ? parseFloat(((price - prev) / prev * 100).toFixed(2)) : 0;
-  return { price, changePct };
-}
+
 
 /* ── Rotation regime classifier ────────────────────────────────── */
 function classifyRotation(sectors: SectorQuote[]): RotationRegime {
@@ -120,16 +107,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const allSymbols = [...SECTORS.map((s) => s.symbol), 'SPY'];
-    const results = await Promise.allSettled(allSymbols.map(fetchQuote));
+    const snapshots = await getMultipleStockSnapshots(allSymbols);
 
-    const spyResult = results[SECTORS.length];
-    const spyQ = spyResult.status === 'fulfilled'
-      ? spyResult.value
-      : { price: 0, changePct: 0 };
+    const getQ = (sym: string) => {
+      const snap = snapshots.get(sym);
+      if (!snap) return { price: 0, changePct: 0 };
+      const price = snap.day?.c ?? 0;
+      const prevClose = snap.prevDay?.c ?? price;
+      const changePct = snap.todaysChangePerc ?? (prevClose !== 0 ? parseFloat(((price - prevClose) / prevClose * 100).toFixed(2)) : 0);
+      return { price, changePct };
+    };
 
-    const sectors: SectorQuote[] = SECTORS.map((def, i) => {
-      const r = results[i];
-      const q = r.status === 'fulfilled' ? r.value : { price: 0, changePct: 0 };
+    const spyQ = getQ('SPY');
+
+    const sectors: SectorQuote[] = SECTORS.map((def) => {
+      const q = getQ(def.symbol);
       const relStrength = parseFloat((q.changePct - spyQ.changePct).toFixed(2));
       const status: SectorStatus =
         relStrength >= 0.3 ? 'leading' :

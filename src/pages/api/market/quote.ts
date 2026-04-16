@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getStockSnapshot } from '@/lib/massive';
 
 // In-memory cache — 5 min TTL for quotes
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -22,45 +23,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
-    });
-
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Yahoo Finance returned ${response.status}` });
-    }
-
-    const json = await response.json();
-    const result = json?.chart?.result?.[0];
-    if (!result?.meta?.regularMarketPrice) {
+    const snap = await getStockSnapshot(symbol);
+    if (!snap?.day?.c) {
       return res.status(404).json({ error: `No quote data found for ${symbol}` });
     }
 
-    const meta = result.meta;
-    const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? 0;
-    const price = meta.regularMarketPrice ?? 0;
-    const change = price - prevClose;
-    const changePercent = prevClose !== 0 ? ((change / prevClose) * 100).toFixed(2) + '%' : '0.00%';
-    const lastTs: number = result.timestamp?.at(-1) ?? 0;
+    const price = snap.day.c;
+    const prevClose = snap.prevDay?.c ?? 0;
+    const change = snap.todaysChange ?? (price - prevClose);
+    const changePct = snap.todaysChangePerc ?? (prevClose !== 0 ? (change / prevClose) * 100 : 0);
+    // updated is nanoseconds → convert to ms
+    const updatedMs = snap.updated ? Math.floor(snap.updated / 1_000_000) : Date.now();
 
     const data = {
-      symbol: meta.symbol ?? symbol,
+      symbol: snap.ticker ?? symbol,
       price,
-      open: meta.regularMarketOpen ?? 0,
-      high: meta.regularMarketDayHigh ?? 0,
-      low: meta.regularMarketDayLow ?? 0,
-      volume: meta.regularMarketVolume ?? 0,
-      latestTradingDay: lastTs ? new Date(lastTs * 1000).toISOString().slice(0, 10) : '',
+      open: snap.day.o ?? 0,
+      high: snap.day.h ?? 0,
+      low: snap.day.l ?? 0,
+      volume: snap.day.v ?? 0,
+      latestTradingDay: new Date(updatedMs).toISOString().slice(0, 10),
       previousClose: prevClose,
       change: parseFloat(change.toFixed(4)),
-      changePercent,
+      changePercent: changePct.toFixed(2) + '%',
     };
 
     cache.set(cacheKey, { data, timestamp: Date.now() });
     return res.status(200).json(data);
   } catch (err) {
-    console.error('Yahoo Finance quote error:', err);
+    console.error('Massive quote error:', err);
     return res.status(500).json({ error: 'Failed to fetch quote data' });
   }
 }

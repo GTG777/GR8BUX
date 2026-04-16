@@ -1,127 +1,39 @@
 /**
  * /api/options/leaps-chain?symbol=AAPL
  *
- * Fetches only LEAPS expirations (>= 12 months from today), computes BS delta & theta
- * for every contract, and returns them alongside underlying price and HV20.
+ * Fetches LEAPS expirations (>= 12 months from today) via Massive.com,
+ * uses Massive's native greeks, and computes HV20 + RSI-14 from aggregate bars.
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getOptionsChainPaged, getAggBars, daysAgoDateStr, todayDateStr, type MassiveOptionContract } from '@/lib/massive';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 
 const cache = new Map<string, { data: unknown; timestamp: number }>();
-const CACHE_TTL = 10 * 60 * 1000; // 10 min — LEAPS don't move that fast
-
-const CRUMB_TTL = 6 * 60 * 60 * 1000;
-const crumbStore = { crumb: '', cookie: '', ts: 0 };
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-const YAHOO_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
-
-function extractCookieHeader(headers: Headers): string {
-  const h = headers as Headers & { getSetCookie?: () => string[] };
-  const setCookies = typeof h.getSetCookie === 'function' ? h.getSetCookie() : [];
-  if (setCookies.length > 0) {
-    return setCookies
-      .map((line) => line.split(';')[0]?.trim())
-      .filter(Boolean)
-      .join('; ');
-  }
-
-  const raw = headers.get('set-cookie') ?? '';
-  const attrNames = new Set(['path', 'expires', 'max-age', 'domain', 'samesite', 'secure', 'httponly', 'priority']);
-  const pairs = raw.match(/(^|,\s*)([^=;,\s]+)=([^;,\s]+)/g) ?? [];
-  return pairs
-    .map((p) => p.replace(/^,\s*/, ''))
-    .filter((p) => {
-      const key = p.split('=')[0]?.toLowerCase();
-      return !!key && !attrNames.has(key);
-    })
-    .join('; ');
-}
-
-function withCrumb(url: string, crumb: string): string {
-  if (!crumb) return url;
-  const glue = url.includes('?') ? '&' : '?';
-  return `${url}${glue}crumb=${encodeURIComponent(crumb)}`;
-}
-
-async function fetchYahooJson(path: string, cookie: string, crumb: string): Promise<{ ok: boolean; status: number; json?: any; lastError?: string }> {
-  const headers = { 'User-Agent': UA, Accept: 'application/json', Cookie: cookie };
-  let lastStatus = 500;
-
-  for (const host of YAHOO_HOSTS) {
-    const url = withCrumb(`https://${host}${path}`, crumb);
-    try {
-      const r = await fetch(url, { headers });
-      lastStatus = r.status;
-      if (!r.ok) continue;
-      const json = await r.json();
-      return { ok: true, status: r.status, json };
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'fetch failed';
-      return { ok: false, status: 502, lastError: msg };
-    }
-  }
-
-  return { ok: false, status: lastStatus };
-}
-
-async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: string }> {
-  if (!force && crumbStore.crumb && Date.now() - crumbStore.ts < CRUMB_TTL) {
-    return { crumb: crumbStore.crumb, cookie: crumbStore.cookie };
-  }
-
-  // Try multiple consent endpoints in case one is blocked
-  const consentUrls = ['https://fc.yahoo.com', 'https://consent.yahoo.com', 'https://yahoo.com'];
-  let cookie = '';
-  for (const url of consentUrls) {
-    try {
-      const fcRes = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
-      const extracted = extractCookieHeader(fcRes.headers);
-      if (extracted) { cookie = extracted; break; }
-    } catch { /* try next */ }
-  }
-
-  // Try both crumb endpoints
-  const crumbEndpoints = [
-    'https://query1.finance.yahoo.com/v1/test/getcrumb',
-    'https://query2.finance.yahoo.com/v1/test/getcrumb',
-  ];
-  let crumb = '';
-  for (const endpoint of crumbEndpoints) {
-    try {
-      const crumbRes = await fetch(endpoint, { headers: { 'User-Agent': UA, Cookie: cookie } });
-      const text = (await crumbRes.text()).trim();
-      if (text && !text.includes('<') && !text.includes('{')) { crumb = text; break; }
-    } catch { /* try next */ }
-  }
-
-  if (crumb) Object.assign(crumbStore, { crumb, cookie, ts: Date.now() });
-  return { crumb, cookie };
-}
+const CACHE_TTL = 10 * 60 * 1000; // 10 min
 
 export interface LeapsContract {
   contractSymbol: string;
   strike: number;
-  expiration: number;         // unix seconds
-  expirationStr: string;      // YYYY-MM-DD
+  expiration: number;        // unix seconds
+  expirationStr: string;     // YYYY-MM-DD
   daysToExpiry: number;
   type: 'call' | 'put';
   lastPrice: number;
   bid: number;
   ask: number;
   mid: number;
-  impliedVolatility: number;  // 0–1 fraction
+  impliedVolatility: number; // percentage (e.g. 30.5 = 30.5%)
   delta: number;
-  theta: number;              // per day, in dollars per share
+  theta: number;             // $/contract/day (theta_per_share × 100)
   gamma: number;
-  vega: number;
+  vega: number;              // $/contract/1% vol change (vega_per_share × 100)
   openInterest: number;
   volume: number;
   inTheMoney: boolean;
   // Derived
-  breakeven: number;          // strike + mid (calls) or strike - mid (puts)
-  costVs100Shares: number;    // mid * 100 / (spot * 100) → how much capital vs owning shares
-  annualizedTheta: number;    // theta * 365 as % of premium — decay speed
+  breakeven: number;         // strike + mid (calls) or strike - mid (puts)
+  costVs100Shares: number;   // (mid × 100) / (spot × 100) × 100  — % of capital vs owning shares
+  annualizedTheta: number;   // |theta| × 365 / (mid × 100) × 100 — annualized decay %
 }
 
 export interface LeapsChainResponse {
@@ -135,7 +47,100 @@ export interface LeapsChainResponse {
   upstreamError?: string;
 }
 
-const epochToDate = (ep: number) => new Date(ep * 1000).toISOString().slice(0, 10);
+const RISK_FREE_RATE = 0.045;
+const todayMs = () => Date.now();
+
+/** Compute HV20 and RSI-14 from an array of closing prices. */
+function computeHvRsi(closes: number[]): { hv20: number | null; rsi: number | null } {
+  const valid = closes.filter(Boolean);
+  let hv20: number | null = null;
+  if (valid.length >= 22) {
+    const slice = valid.slice(-21);
+    const returns = slice.slice(1).map((c, i) => Math.log(c / slice[i]));
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
+    hv20 = parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
+  }
+  let rsi: number | null = null;
+  if (valid.length >= 15) {
+    const last15 = valid.slice(-15);
+    const changes = last15.slice(1).map((c, i) => c - last15[i]);
+    const avgGain = changes.filter(c => c > 0).reduce((a, b) => a + b, 0) / 14;
+    const avgLoss = changes.filter(c => c < 0).map(c => Math.abs(c)).reduce((a, b) => a + b, 0) / 14;
+    rsi = avgLoss === 0 ? 100 : parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+  }
+  return { hv20, rsi };
+}
+
+/** Map a Massive option contract to LeapsContract. Falls back to BS greeks if Massive didn't return them. */
+function mapLeapsContract(
+  raw: MassiveOptionContract,
+  underlyingPrice: number,
+  todayEpochSec: number,
+): LeapsContract | null {
+  const { details, day, last_quote, greeks, implied_volatility, open_interest } = raw;
+  const bid = last_quote?.bid ?? 0;
+  const ask = last_quote?.ask ?? 0;
+  const lastPrice = day?.close ?? raw.last_trade?.price ?? 0;
+  const mid = bid > 0 && ask > 0
+    ? parseFloat(((bid + ask) / 2).toFixed(2))
+    : lastPrice;
+
+  // Massive implied_volatility is a 0–1 fraction
+  const iv = implied_volatility ?? 0;
+  if (iv <= 0 || mid <= 0) return null;
+
+  const expDate = details.expiration_date; // YYYY-MM-DD
+  const expEpochSec = Math.floor(new Date(expDate + 'T21:00:00Z').getTime() / 1000);
+  const daysToExpiry = Math.max(1, Math.round((expEpochSec - todayEpochSec) / 86400));
+  const T = daysToExpiry / 365;
+  const strike = details.strike_price;
+  const type = details.contract_type;
+  const spot = raw.underlying_asset?.price ?? underlyingPrice;
+
+  // Use Massive greeks if available; fall back to Black-Scholes
+  let delta: number, theta: number, gamma: number, vega: number;
+  if (greeks) {
+    delta = greeks.delta;
+    theta = greeks.theta * 100;  // per contract per day
+    gamma = greeks.gamma;
+    vega  = greeks.vega  * 100;  // per contract per 1% vol move
+  } else {
+    const g = type === 'call'
+      ? calculateCallGreeks({ spotPrice: spot, strikePrice: strike, timeToExpiration: T, volatility: iv, riskFreeRate: RISK_FREE_RATE })
+      : calculatePutGreeks ({ spotPrice: spot, strikePrice: strike, timeToExpiration: T, volatility: iv, riskFreeRate: RISK_FREE_RATE });
+    delta = g.delta ?? 0;
+    theta = (g.theta ?? 0) * 100;
+    gamma = g.gamma ?? 0;
+    vega  = (g.vega  ?? 0) * 100;
+  }
+
+  const inTheMoney = type === 'call' ? spot > strike : spot < strike;
+
+  return {
+    contractSymbol: details.ticker,
+    strike,
+    expiration: expEpochSec,
+    expirationStr: expDate,
+    daysToExpiry,
+    type,
+    lastPrice: parseFloat(lastPrice.toFixed(2)),
+    bid: parseFloat(bid.toFixed(2)),
+    ask: parseFloat(ask.toFixed(2)),
+    mid,
+    impliedVolatility: parseFloat((iv * 100).toFixed(1)),
+    delta: parseFloat(delta.toFixed(3)),
+    theta: parseFloat(theta.toFixed(2)),
+    gamma: parseFloat(gamma.toFixed(5)),
+    vega:  parseFloat(vega.toFixed(2)),
+    openInterest: open_interest ?? 0,
+    volume: day?.volume ?? 0,
+    inTheMoney,
+    breakeven: parseFloat((type === 'call' ? strike + mid : strike - mid).toFixed(2)),
+    costVs100Shares: spot > 0 ? parseFloat(((mid * 100) / (spot * 100) * 100).toFixed(1)) : 0,
+    annualizedTheta: mid > 0 ? parseFloat((Math.abs(theta) * 365 / (mid * 100) * 100).toFixed(1)) : 0,
+  };
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -151,164 +156,71 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(cached.data);
   }
 
-  const twelveMonthsFromNow = Date.now() + 365 * 24 * 60 * 60 * 1000;
-  const todayEpoch = Math.floor(Date.now() / 1000);
+  const today = todayDateStr();
+  const todayEpochSec = Math.floor(todayMs() / 1000);
+  const twelveMonthsDate = new Date();
+  twelveMonthsDate.setFullYear(twelveMonthsDate.getFullYear() + 1);
+  const leapsFromDate = twelveMonthsDate.toISOString().slice(0, 10); // YYYY-MM-DD
 
   try {
-    let { crumb, cookie } = await getYahooCrumb();
-    const symbolPath = `/v7/finance/options/${encodeURIComponent(symbol)}`;
+    // ── 1. Fetch LEAPS contracts (expiry >= 12 months out) from Massive ──
+    const chainPromise = getOptionsChainPaged(symbol, {
+      'expiration_date.gte': leapsFromDate,
+      sort: 'expiration_date',
+      order: 'asc',
+      limit: 250,
+    });
 
-    // ── 1. Get all available expirations ──────────────────────────────
-    // Try without crumb first (works for many symbols without auth)
-    let first = await fetchYahooJson(symbolPath, cookie, '');
-    if (!first.ok) {
-      first = await fetchYahooJson(symbolPath, cookie, crumb);
-    }
-    if (!first.ok && first.status === 401) {
-      ({ crumb, cookie } = await getYahooCrumb(true));
-      first = await fetchYahooJson(symbolPath, cookie, crumb);
-    }
-    if (!first.ok) {
-      const details = first.lastError ? `: ${first.lastError}` : '';
+    // ── 2. Fetch daily candles for HV20 + RSI-14 (3 months, 90 days) ──
+    const hvRsiPromise = (async (): Promise<{ hv20: number | null; rsi: number | null }> => {
+      try {
+        const from = daysAgoDateStr(90);
+        const bars = await getAggBars(symbol, 1, 'day', from, today, { limit: 100 });
+        const closes = bars.map((b) => b.c).filter(Boolean);
+        return computeHvRsi(closes);
+      } catch {
+        return { hv20: null, rsi: null };
+      }
+    })();
+
+    // Run both in parallel
+    const [{ contracts: rawContracts, underlyingPrice }, { hv20, rsi }] = await Promise.all([
+      chainPromise,
+      hvRsiPromise,
+    ]);
+
+    if (!rawContracts.length) {
       const payload: LeapsChainResponse = {
-        symbol,
-        underlyingPrice: 0,
-        hv20: null,
-        rsi: null,
-        leapsExpirations: [],
-        contracts: [],
-        fetchedAt: Date.now(),
-        upstreamError: `Yahoo Finance upstream failed (${first.status})${details}`,
+        symbol, underlyingPrice: 0, hv20: null, rsi: null,
+        leapsExpirations: [], contracts: [], fetchedAt: Date.now(),
+        upstreamError: `No LEAPS options data found for ${symbol}`,
       };
       cache.set(cacheKey, { data: payload, timestamp: Date.now() });
       return res.status(200).json(payload);
     }
 
-    const firstJson = first.json;
-    const optResult = firstJson?.optionChain?.result?.[0];
-    if (!optResult) return res.status(404).json({ error: `No options data for ${symbol}` });
-
-    const underlyingPrice: number = optResult.quote?.regularMarketPrice ?? 0;
-    const allEpochs: number[] = (optResult.expirationDates ?? []) as number[];
-
-    // Filter to LEAPS only: >= 12 months out
-    const leapsEpochs = allEpochs.filter((ep) => ep * 1000 >= twelveMonthsFromNow);
-    if (leapsEpochs.length === 0) {
-      return res.status(200).json({
-        symbol, underlyingPrice, hv20: null, rsi: null,
-        leapsExpirations: [], contracts: [], fetchedAt: Date.now(),
-      });
-    }
-
-    // ── 2. Fetch HV20 + RSI-14 from daily candles (parallel with chain fetch) ──
-    const hvRsiPromise = (async (): Promise<{ hv20: number | null; rsi: number | null }> => {
-      try {
-        const quote = await fetchYahooJson(`/v8/finance/chart/${encodeURIComponent(symbol)}?range=3mo&interval=1d`, cookie, crumb);
-        if (!quote.ok || !quote.json) return { hv20: null, rsi: null };
-        const j = quote.json;
-        const closes: number[] = j?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
-        const valid = closes.filter(Boolean);
-
-        // HV20: annualized std dev of log-returns over last 21 closes
-        let hv20: number | null = null;
-        if (valid.length >= 22) {
-          const slice = valid.slice(-21);
-          const returns = slice.slice(1).map((c, i) => Math.log(c / slice[i]));
-          const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-          const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
-          hv20 = parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
-        }
-
-        // RSI-14: simple average method
-        let rsi: number | null = null;
-        if (valid.length >= 15) {
-          const last15 = valid.slice(-15);
-          const changes = last15.slice(1).map((c, i) => c - last15[i]);
-          const avgGain = changes.filter(c => c > 0).reduce((a, b) => a + b, 0) / 14;
-          const avgLoss = changes.filter(c => c < 0).map(c => Math.abs(c)).reduce((a, b) => a + b, 0) / 14;
-          rsi = avgLoss === 0 ? 100 : parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
-        }
-
-        return { hv20, rsi };
-      } catch { return { hv20: null, rsi: null }; }
-    })();
-
-    // ── 3. Fetch contracts for each LEAPS expiry ──────────────────────
+    // ── 3. Map contracts ──────────────────────────────────────────────
     const contractsMap = new Map<string, LeapsContract>();
-    const rate = 0.045;
-
-    const fetchExpiry = async (ep: number) => {
-      const quote = await fetchYahooJson(`${symbolPath}?date=${ep}`, cookie, crumb);
-      if (!quote.ok || !quote.json) return;
-      const j = quote.json;
-      const result = j?.optionChain?.result?.[0];
-      if (!result) return;
-      const exStr = epochToDate(ep);
-      const daysToExpiry = Math.max(1, Math.round((ep - todayEpoch) / 86400));
-      const T = daysToExpiry / 365;
-
-      const parse = (raw: Record<string, unknown>[], type: 'call' | 'put') => {
-        for (const c of raw) {
-          const bid = (c.bid as number) ?? 0;
-          const ask = (c.ask as number) ?? 0;
-          const lastPrice = (c.lastPrice as number) ?? 0;
-          const mid = bid > 0 && ask > 0 ? parseFloat(((bid + ask) / 2).toFixed(2)) : lastPrice;
-          const iv = (c.impliedVolatility as number) ?? 0;
-          if (iv <= 0 || mid <= 0) continue;
-
-          // Compute BS greeks
-          const g = type === 'call'
-            ? calculateCallGreeks({ spotPrice: underlyingPrice, strikePrice: c.strike as number, timeToExpiration: T, volatility: iv, riskFreeRate: rate })
-            : calculatePutGreeks({ spotPrice: underlyingPrice, strikePrice: c.strike as number, timeToExpiration: T, volatility: iv, riskFreeRate: rate });
-
-          const delta = g.delta ?? 0;
-          const thetaPerDay = (g.theta ?? 0) * 100; // per contract per day, $ terms per share * 100
-          const strike = c.strike as number;
-
-          const contract: LeapsContract = {
-            contractSymbol: c.contractSymbol as string,
-            strike,
-            expiration: ep,
-            expirationStr: exStr,
-            daysToExpiry,
-            type,
-            lastPrice,
-            bid,
-            ask,
-            mid,
-            impliedVolatility: parseFloat((iv * 100).toFixed(1)),
-            delta: parseFloat(delta.toFixed(3)),
-            theta: parseFloat(thetaPerDay.toFixed(2)),
-            gamma: parseFloat((g.gamma ?? 0).toFixed(5)),
-            vega: parseFloat(((g.vega ?? 0) * 100).toFixed(2)),
-            openInterest: (c.openInterest as number) ?? 0,
-            volume: (c.volume as number) ?? 0,
-            inTheMoney: (c.inTheMoney as boolean) ?? false,
-            breakeven: parseFloat((type === 'call' ? strike + mid : strike - mid).toFixed(2)),
-            costVs100Shares: underlyingPrice > 0 ? parseFloat(((mid * 100) / (underlyingPrice * 100) * 100).toFixed(1)) : 0,
-            annualizedTheta: mid > 0 ? parseFloat((Math.abs(thetaPerDay) * 365 / (mid * 100) * 100).toFixed(1)) : 0,
-          };
-          contractsMap.set(contract.contractSymbol, contract);
-        }
-      };
-
-      parse((result.options?.[0]?.calls ?? []) as Record<string, unknown>[], 'call');
-      parse((result.options?.[0]?.puts ?? []) as Record<string, unknown>[], 'put');
-    };
-
-    await Promise.all(leapsEpochs.map(fetchExpiry));
-    const { hv20, rsi } = await hvRsiPromise;
+    for (const raw of rawContracts) {
+      const contract = mapLeapsContract(raw, underlyingPrice, todayEpochSec);
+      if (contract) contractsMap.set(contract.contractSymbol, contract);
+    }
 
     const contracts = Array.from(contractsMap.values()).sort(
       (a, b) => a.expiration - b.expiration || a.type.localeCompare(b.type) || a.strike - b.strike,
     );
+
+    // Collect unique LEAPS expiration dates
+    const leapsExpirationSet = new Set<string>();
+    for (const c of contracts) leapsExpirationSet.add(c.expirationStr);
+    const leapsExpirations = Array.from(leapsExpirationSet).sort();
 
     const payload: LeapsChainResponse = {
       symbol,
       underlyingPrice,
       hv20,
       rsi,
-      leapsExpirations: leapsEpochs.map(epochToDate),
+      leapsExpirations,
       contracts,
       fetchedAt: Date.now(),
     };
@@ -317,6 +229,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(payload);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    return res.status(500).json({ error: msg });
+    const payload: LeapsChainResponse = {
+      symbol, underlyingPrice: 0, hv20: null, rsi: null,
+      leapsExpirations: [], contracts: [], fetchedAt: Date.now(),
+      upstreamError: `Massive upstream error: ${msg}`,
+    };
+    cache.set(cacheKey, { data: payload, timestamp: Date.now() });
+    return res.status(200).json(payload);
   }
 }

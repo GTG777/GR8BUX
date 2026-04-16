@@ -1,24 +1,30 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getAggBars, daysAgoDateStr, todayDateStr, type MassiveTimespan } from '@/lib/massive';
 
 // In-memory cache — keep hot tickers fast
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 // compact = 6 months (~125 trading days), full = 2 years (enough for EMA-200 + TSI warm-up)
-const YAHOO_RANGE: Record<string, string> = {
-  compact: '6mo',
-  full: '2y',
+const RANGE_DAYS: Record<string, number> = {
+  compact: 182,  // ~6 months
+  full: 730,     // 2 years
 };
 
-// TradingView interval → Yahoo Finance interval + range
-const TV_TO_YAHOO: Record<string, { yInterval: string; yRange: string; cacheTTL: number }> = {
-  '1':   { yInterval: '1m',  yRange: '7d',   cacheTTL: 60_000        },
-  '5':   { yInterval: '5m',  yRange: '60d',  cacheTTL: 5 * 60_000    },
-  '15':  { yInterval: '15m', yRange: '60d',  cacheTTL: 5 * 60_000    },
-  '60':  { yInterval: '60m', yRange: '730d', cacheTTL: 15 * 60_000   },
-  '240': { yInterval: '60m', yRange: '730d', cacheTTL: 15 * 60_000   },
-  'D':   { yInterval: '1d',  yRange: '2y',   cacheTTL: CACHE_TTL     },
-  'W':   { yInterval: '1wk', yRange: '5y',   cacheTTL: CACHE_TTL     },
+// TradingView interval → Massive aggregate params
+const TV_TO_MASSIVE: Record<string, {
+  multiplier: number;
+  timespan: MassiveTimespan;
+  fromDays: number;
+  cacheTTL: number;
+}> = {
+  '1':   { multiplier: 1,  timespan: 'minute', fromDays: 7,    cacheTTL: 60_000       },
+  '5':   { multiplier: 5,  timespan: 'minute', fromDays: 60,   cacheTTL: 5 * 60_000   },
+  '15':  { multiplier: 15, timespan: 'minute', fromDays: 60,   cacheTTL: 5 * 60_000   },
+  '60':  { multiplier: 1,  timespan: 'hour',   fromDays: 730,  cacheTTL: 15 * 60_000  },
+  '240': { multiplier: 1,  timespan: 'hour',   fromDays: 730,  cacheTTL: 15 * 60_000  },
+  'D':   { multiplier: 1,  timespan: 'day',    fromDays: 730,  cacheTTL: CACHE_TTL    },
+  'W':   { multiplier: 1,  timespan: 'week',   fromDays: 1825, cacheTTL: CACHE_TTL    },
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -31,10 +37,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid symbol.' });
   }
 
+  const today = todayDateStr();
+
+  // CST formatter for intraday bar timestamps (Massive returns ms UTC)
+  const cstFmt = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+
   // ── New path: TV interval param (used by Chart page TSI) ──
   const tvInterval = req.query.interval as string | undefined;
   if (tvInterval) {
-    const mapping = TV_TO_YAHOO[tvInterval];
+    const mapping = TV_TO_MASSIVE[tvInterval];
     if (!mapping) return res.status(400).json({ error: 'Unsupported interval' });
 
     const cacheKey = `candles:${symbol}:${tvInterval}`;
@@ -44,33 +59,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${mapping.yInterval}&range=${mapping.yRange}`;
-      const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } });
-      if (!response.ok) return res.status(response.status).json({ error: `Yahoo Finance returned ${response.status}` });
+      const from = daysAgoDateStr(mapping.fromDays);
+      const isIntraday = mapping.timespan === 'minute' || mapping.timespan === 'hour';
+      const bars = await getAggBars(symbol, mapping.multiplier, mapping.timespan, from, today, { limit: 50000 });
 
-      const json = await response.json();
-      const result = json?.chart?.result?.[0];
-      if (!result) return res.status(404).json({ error: `No candle data found for ${symbol}` });
+      if (!bars.length) return res.status(404).json({ error: `No candle data found for ${symbol}` });
 
-      const timestamps: number[] = result.timestamp ?? [];
-      const quote = result.indicators?.quote?.[0] ?? {};
-      const isIntraday = mapping.yInterval !== '1d' && mapping.yInterval !== '1wk';
-      const cstFmt = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'America/Chicago',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false,
-      });
-
-      const candles = timestamps
-        .map((ts, i) => ({
+      const candles = bars
+        .map((bar) => ({
           date: isIntraday
-            ? cstFmt.format(new Date(ts * 1000)).replace(' ', 'T').slice(0, 16) // 'YYYY-MM-DDTHH:mm' in CST
-            : new Date(ts * 1000).toISOString().slice(0, 10),
-          open:   (quote.open?.[i]   ?? 0),
-          high:   (quote.high?.[i]   ?? 0),
-          low:    (quote.low?.[i]    ?? 0),
-          close:  (quote.close?.[i]  ?? 0),
-          volume: (quote.volume?.[i] ?? 0),
+            ? cstFmt.format(new Date(bar.t)).replace(' ', 'T').slice(0, 16) // 'YYYY-MM-DDTHH:mm' in CST
+            : new Date(bar.t).toISOString().slice(0, 10),
+          open:   bar.o,
+          high:   bar.h,
+          low:    bar.l,
+          close:  bar.c,
+          volume: bar.v,
         }))
         .filter((c) => c.close > 0)
         .sort((a, b) => a.date.localeCompare(b.date));
@@ -81,18 +85,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       cache.set(cacheKey, { data, timestamp: Date.now() });
       return res.status(200).json(data);
     } catch (err) {
-      console.error('Yahoo Finance candles error:', err);
+      console.error('Massive candles error:', err);
       return res.status(500).json({ error: 'Failed to fetch candle data' });
     }
   }
 
   // ── Legacy path: range param ──
   const range = (req.query.range as string) || 'compact';
-  if (!YAHOO_RANGE[range]) {
+  if (!RANGE_DAYS[range]) {
     return res.status(400).json({ error: 'Range must be "compact" or "full"' });
   }
 
-  // Check cache
   const cacheKey = `candles:${symbol}:${range}`;
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -100,57 +103,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const yahooRange = YAHOO_RANGE[range];
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${yahooRange}`;
+    const from = daysAgoDateStr(RANGE_DAYS[range]);
+    const bars = await getAggBars(symbol, 1, 'day', from, today, { limit: 5000 });
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Yahoo Finance returned ${response.status}` });
-    }
-
-    const json = await response.json();
-    const result = json?.chart?.result?.[0];
-
-    if (!result) {
+    if (!bars.length) {
       return res.status(404).json({ error: `No candle data found for ${symbol}` });
     }
 
-    const timestamps: number[] = result.timestamp ?? [];
-    const quote = result.indicators?.quote?.[0] ?? {};
-    const opens: number[] = quote.open ?? [];
-    const highs: number[] = quote.high ?? [];
-    const lows: number[] = quote.low ?? [];
-    const closes: number[] = quote.close ?? [];
-    const volumes: number[] = quote.volume ?? [];
-
-    const candles = timestamps
-      .map((ts, i) => ({
-        date: new Date(ts * 1000).toISOString().slice(0, 10),
-        open: opens[i] ?? 0,
-        high: highs[i] ?? 0,
-        low: lows[i] ?? 0,
-        close: closes[i] ?? 0,
-        volume: volumes[i] ?? 0,
+    const candles = bars
+      .map((bar) => ({
+        date:   new Date(bar.t).toISOString().slice(0, 10),
+        open:   bar.o,
+        high:   bar.h,
+        low:    bar.l,
+        close:  bar.c,
+        volume: bar.v,
       }))
-      .filter((c) => c.close > 0) // drop any null bars
+      .filter((c) => c.close > 0)
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    if (candles.length === 0) {
+    if (!candles.length) {
       return res.status(404).json({ error: `No candle data found for ${symbol}` });
     }
 
     const data = { symbol, candles };
     cache.set(cacheKey, { data, timestamp: Date.now() });
-
     return res.status(200).json(data);
   } catch (err) {
-    console.error('Yahoo Finance candles error:', err);
+    console.error('Massive candles error:', err);
     return res.status(500).json({ error: 'Failed to fetch candle data' });
   }
 }

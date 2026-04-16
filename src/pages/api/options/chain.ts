@@ -1,70 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getOptionsChainPaged, todayDateStr, type MassiveOptionContract } from '@/lib/massive';
 
-// Cache per symbol+expiration, refresh every 5 minutes during market hours
+// Cache per symbol+expiration, 5 min TTL
 const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
-
-// Yahoo Finance now requires a session cookie + crumb for the options endpoint.
-// We fetch one crumb per server instance and cache it for 6 hours.
-const CRUMB_TTL = 6 * 60 * 60 * 1000;
-const crumbStore = { crumb: '', cookie: '', ts: 0 };
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-
-function extractCookieHeader(headers: Headers): string {
-  const h = headers as Headers & { getSetCookie?: () => string[] };
-  const setCookies = typeof h.getSetCookie === 'function' ? h.getSetCookie() : [];
-  if (setCookies.length > 0) {
-    return setCookies
-      .map((line) => line.split(';')[0]?.trim())
-      .filter(Boolean)
-      .join('; ');
-  }
-
-  const raw = headers.get('set-cookie') ?? '';
-  const attrNames = new Set(['path', 'expires', 'max-age', 'domain', 'samesite', 'secure', 'httponly', 'priority']);
-  const pairs = raw.match(/(^|,\s*)([^=;,\s]+)=([^;,\s]+)/g) ?? [];
-  return pairs
-    .map((p) => p.replace(/^,\s*/, ''))
-    .filter((p) => {
-      const key = p.split('=')[0]?.toLowerCase();
-      return !!key && !attrNames.has(key);
-    })
-    .join('; ');
-}
-
-async function getYahooCrumb(force = false): Promise<{ crumb: string; cookie: string }> {
-  if (!force && crumbStore.crumb && Date.now() - crumbStore.ts < CRUMB_TTL) {
-    return { crumb: crumbStore.crumb, cookie: crumbStore.cookie };
-  }
-  // Step 1 – get a Yahoo session cookie from the consent endpoint
-  const fcRes = await fetch('https://fc.yahoo.com', {
-    headers: { 'User-Agent': UA },
-    redirect: 'follow',
-  });
-  const cookie = extractCookieHeader(fcRes.headers);
-
-  // Step 2 – exchange the cookie for a crumb
-  const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-    headers: { 'User-Agent': UA, Cookie: cookie },
-  });
-  const crumb = (await crumbRes.text()).trim();
-  Object.assign(crumbStore, { crumb, cookie, ts: Date.now() });
-  return { crumb, cookie };
-}
 
 export interface OptionContract {
   contractSymbol: string;
   strike: number;
-  expiration: number;       // unix seconds
-  expirationStr: string;    // YYYY-MM-DD
+  expiration: number;        // unix seconds
+  expirationStr: string;     // YYYY-MM-DD
   type: 'call' | 'put';
   lastPrice: number;
   bid: number;
   ask: number;
-  mid: number;              // (bid + ask) / 2
+  mid: number;               // (bid + ask) / 2
   impliedVolatility: number; // 0–1 fraction (e.g. 0.20 = 20%)
-  delta: number | null;     // not provided by Yahoo — computed client-side if needed
+  delta: number | null;      // from Massive greeks
   openInterest: number;
   volume: number;
   inTheMoney: boolean;
@@ -74,9 +26,48 @@ export interface OptionContract {
 export interface OptionsChainResponse {
   symbol: string;
   underlyingPrice: number;
-  expirations: string[];     // all available YYYY-MM-DD dates
+  expirations: string[];     // available YYYY-MM-DD dates (from fetched data)
   contracts: OptionContract[];
   fetchedAt: number;
+}
+
+function mapContract(raw: MassiveOptionContract, underlyingPrice: number): OptionContract {
+  const { details, day, last_quote, greeks, implied_volatility, open_interest } = raw;
+  const bid = last_quote?.bid ?? 0;
+  const ask = last_quote?.ask ?? 0;
+  const lastPrice = day?.close ?? last_trade_price(raw) ?? 0;
+  const mid = bid > 0 && ask > 0
+    ? parseFloat(((bid + ask) / 2).toFixed(2))
+    : lastPrice;
+  const expDate = details.expiration_date; // YYYY-MM-DD
+  const expEpoch = Math.floor(new Date(expDate + 'T21:00:00Z').getTime() / 1000); // ~4pm ET
+
+  const spotPrice = raw.underlying_asset?.price ?? underlyingPrice;
+  const inTheMoney = details.contract_type === 'call'
+    ? spotPrice > details.strike_price
+    : spotPrice < details.strike_price;
+
+  return {
+    contractSymbol: details.ticker,
+    strike: details.strike_price,
+    expiration: expEpoch,
+    expirationStr: expDate,
+    type: details.contract_type,
+    lastPrice: parseFloat(lastPrice.toFixed(2)),
+    bid: parseFloat(bid.toFixed(2)),
+    ask: parseFloat(ask.toFixed(2)),
+    mid,
+    impliedVolatility: implied_volatility ?? 0,
+    delta: greeks?.delta ?? null,
+    openInterest: open_interest ?? 0,
+    volume: day?.volume ?? 0,
+    inTheMoney,
+    percentChange: day?.change_percent ?? 0,
+  };
+}
+
+function last_trade_price(raw: MassiveOptionContract): number {
+  return raw.last_trade?.price ?? 0;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -87,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid symbol' });
   }
 
-  // Optional: fetch a specific expiration epoch (Yahoo date param)
+  // Optional: filter to a specific expiration date (YYYY-MM-DD)
   const dateParam = req.query.date as string | undefined;
 
   const cacheKey = `chain:${symbol}:${dateParam ?? 'all'}`;
@@ -96,101 +87,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(cached.data);
   }
 
+  const today = todayDateStr();
+
   try {
-    // Fetch (or reuse cached) crumb + session cookie required by Yahoo Finance options API
-    let { crumb, cookie } = await getYahooCrumb();
+    const fetchParams = dateParam
+      ? { 'expiration_date.gte': dateParam, 'expiration_date.lte': dateParam, sort: 'strike_price' as const }
+      : { 'expiration_date.gte': today, sort: 'expiration_date' as const };
 
-    const yahooHeaders = () => ({ 'User-Agent': UA, Accept: 'application/json', Cookie: cookie });
+    // For a specific date: paginate fully; otherwise cap at 6 expirations
+    const { contracts: rawContracts, underlyingPrice } = await getOptionsChainPaged(
+      symbol,
+      fetchParams,
+      /* maxPages */ dateParam ? 20 : 10,
+      /* stopAtExpirations */ dateParam ? undefined : 6,
+    );
 
-    // Step 1: fetch available expirations (no date param = first expiry + list of all dates)
-    const baseUrl = `https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}`;
-    const crumbParam = `crumb=${encodeURIComponent(crumb)}`;
-    const firstUrl = dateParam ? `${baseUrl}?date=${dateParam}&${crumbParam}` : `${baseUrl}?${crumbParam}`;
-
-    let firstRes = await fetch(firstUrl, { headers: yahooHeaders() });
-
-    // If the crumb has expired, refresh once and retry
-    if (firstRes.status === 401) {
-      ({ crumb, cookie } = await getYahooCrumb(true));
-      const retryUrl = dateParam ? `${baseUrl}?date=${dateParam}&crumb=${encodeURIComponent(crumb)}` : `${baseUrl}?crumb=${encodeURIComponent(crumb)}`;
-      firstRes = await fetch(retryUrl, { headers: yahooHeaders() });
-    }
-
-    if (!firstRes.ok) {
-      return res.status(firstRes.status).json({ error: `Yahoo Finance returned ${firstRes.status}` });
-    }
-
-    const firstJson = await firstRes.json();
-    const optResult = firstJson?.optionChain?.result?.[0];
-    if (!optResult) {
+    if (!rawContracts.length) {
       return res.status(404).json({ error: `No options data found for ${symbol}` });
     }
 
-    const underlyingPrice: number = optResult.quote?.regularMarketPrice ?? 0;
-    const allExpirationEpochs: number[] = optResult.expirationDates ?? [];
+    // Collect unique expirations in sorted order
+    const expirationSet = new Set<string>();
+    for (const c of rawContracts) expirationSet.add(c.details.expiration_date);
+    const expirations = Array.from(expirationSet).sort();
 
-    // Convert epoch seconds → YYYY-MM-DD
-    const epochToDate = (ep: number) => new Date(ep * 1000).toISOString().slice(0, 10);
-    const expirations = allExpirationEpochs.map(epochToDate);
-
-    // Step 2: fetch up to the next 6 expirations to give the screener enough range
-    // (Yahoo returns one expiration per call — we batch them)
-    const today = Math.floor(Date.now() / 1000);
-    const futureEpochs = allExpirationEpochs
-      .filter((ep) => ep > today - 86400) // include today's expiry if any
-      .slice(0, 6);                         // cap at 6 to stay fast
-
-    const contractsMap = new Map<string, OptionContract>();
-
-    const fetchExpiry = async (ep: number) => {
-      const url = `${baseUrl}?date=${ep}&crumb=${encodeURIComponent(crumb)}`;
-      const r = await fetch(url, { headers: yahooHeaders() });
-      if (!r.ok) return;
-      const j = await r.json();
-      const result = j?.optionChain?.result?.[0];
-      if (!result) return;
-      const exStr = epochToDate(ep);
-
-      const parse = (raw: Record<string, unknown>[], type: 'call' | 'put') => {
-        for (const c of raw) {
-          const bid = (c.bid as number) ?? 0;
-          const ask = (c.ask as number) ?? 0;
-          const lastPrice = (c.lastPrice as number) ?? 0;
-          // Use bid/ask mid during market hours; fall back to lastPrice when market is closed
-          const mid = bid > 0 && ask > 0
-            ? parseFloat(((bid + ask) / 2).toFixed(2))
-            : lastPrice;
-          const contract: OptionContract = {
-            contractSymbol: c.contractSymbol as string,
-            strike: c.strike as number,
-            expiration: c.expiration as number,
-            expirationStr: exStr,
-            type,
-            lastPrice,
-            bid,
-            ask,
-            mid,
-            impliedVolatility: (c.impliedVolatility as number) ?? 0,
-            delta: null,
-            openInterest: (c.openInterest as number) ?? 0,
-            volume: (c.volume as number) ?? 0,
-            inTheMoney: (c.inTheMoney as boolean) ?? false,
-            percentChange: (c.percentChange as number) ?? 0,
-          };
-          contractsMap.set(contract.contractSymbol, contract);
-        }
-      };
-
-      parse((result.options?.[0]?.calls ?? []) as Record<string, unknown>[], 'call');
-      parse((result.options?.[0]?.puts ?? []) as Record<string, unknown>[], 'put');
-    };
-
-    // Fetch all target expirations in parallel
-    await Promise.all(futureEpochs.map(fetchExpiry));
-
-    const contracts = Array.from(contractsMap.values()).sort(
-      (a, b) => a.expiration - b.expiration || a.type.localeCompare(b.type) || a.strike - b.strike,
-    );
+    const contracts: OptionContract[] = rawContracts
+      .map((c) => mapContract(c, underlyingPrice))
+      .sort((a, b) =>
+        a.expiration - b.expiration ||
+        a.type.localeCompare(b.type) ||
+        a.strike - b.strike,
+      );
 
     const payload: OptionsChainResponse = {
       symbol,

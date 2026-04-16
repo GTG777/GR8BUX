@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getAggBars, todayDateStr } from '@/lib/massive';
 
 // Short cache — intraday data changes frequently
 const cache = new Map<string, { data: VWAPData; timestamp: number }>();
@@ -36,57 +37,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // 5-minute intraday bars for the last trading session
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
-    });
+    // Fetch 5-minute intraday bars for the current trading day from Massive
+    const today = todayDateStr();
+    const bars = await getAggBars(symbol, 5, 'minute', today, today, { limit: 1000 });
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Yahoo Finance returned ${response.status}` });
-    }
-
-    const json = await response.json();
-    const result = json?.chart?.result?.[0];
-    if (!result) {
+    if (!bars.length) {
       return res.status(404).json({ error: `No intraday data for ${symbol}` });
     }
 
-    const q = result.indicators?.quote?.[0] ?? {};
-    const highs: (number | null)[]   = q.high   ?? [];
-    const lows: (number | null)[]    = q.low    ?? [];
-    const closes: (number | null)[]  = q.close  ?? [];
-    const volumes: (number | null)[] = q.volume ?? [];
-
-    // Build valid bars (Yahoo sometimes includes null entries for gaps)
+    // Build valid bars (Massive bars are already clean — no nulls like Yahoo)
     interface Bar { tp: number; vol: number; close: number }
-    const bars: Bar[] = [];
-    for (let i = 0; i < closes.length; i++) {
-      const h = highs[i], l = lows[i], c = closes[i];
-      if (!h || !l || !c) continue;
-      bars.push({
-        tp: (h + l + c) / 3,
-        vol: volumes[i] ?? 0,
-        close: c,
-      });
-    }
+    const validBars: Bar[] = bars
+      .filter((b) => b.h && b.l && b.c)
+      .map((b) => ({
+        tp: (b.h + b.l + b.c) / 3,
+        vol: b.v ?? 0,
+        close: b.c,
+      }));
 
-    if (bars.length === 0) {
+    if (!validBars.length) {
       return res.status(404).json({ error: `No valid intraday bars for ${symbol}` });
     }
 
     // VWAP = Σ(TP × volume) / Σ(volume)
-    const cumTPV = bars.reduce((s, b) => s + b.tp * b.vol, 0);
-    const cumVol = bars.reduce((s, b) => s + b.vol, 0);
+    const cumTPV = validBars.reduce((s, b) => s + b.tp * b.vol, 0);
+    const cumVol = validBars.reduce((s, b) => s + b.vol, 0);
     // Fallback to simple average if no volume data (e.g. some ETFs on weekends)
-    const vwap = cumVol > 0 ? cumTPV / cumVol : bars.reduce((s, b) => s + b.tp, 0) / bars.length;
+    const vwap = cumVol > 0 ? cumTPV / cumVol : validBars.reduce((s, b) => s + b.tp, 0) / validBars.length;
 
     // Volume-weighted variance → standard deviation
-    const cumVarTPV = bars.reduce((s, b) => s + b.vol * (b.tp - vwap) ** 2, 0);
+    const cumVarTPV = validBars.reduce((s, b) => s + b.vol * (b.tp - vwap) ** 2, 0);
     const variance = cumVol > 0 ? cumVarTPV / cumVol : 0;
     const sd = Math.sqrt(variance);
 
-    const currentPrice = bars.at(-1)!.close;
+    const currentPrice = validBars.at(-1)!.close;
     const distancePct  = parseFloat(((currentPrice - vwap) / vwap * 100).toFixed(2));
     const bias: VWAPData['bias'] = distancePct > 0.3 ? 'bullish' : distancePct < -0.3 ? 'bearish' : 'neutral';
 
@@ -117,7 +101,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       band1Upper, band1Lower, band2Upper, band2Lower,
       currentPrice: parseFloat(currentPrice.toFixed(2)),
       distancePct, bias, location,
-      bars: bars.length,
+      bars: validBars.length,
       narrative,
     };
 

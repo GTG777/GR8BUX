@@ -1,21 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getMultipleStockSnapshots, getIndicesSnapshots } from '@/lib/massive';
 
 // Cache for 10 minutes — macro data doesn't change by the second
 const cache = new Map<string, { data: MacroData; timestamp: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-
 /* ── Symbols to fetch ──────────────────────────────────────────── */
-// ^VIX  = CBOE Volatility Index
-// ^TNX  = 10-year Treasury yield (×10 to get %)
-// ^IRX  = 13-week (≈2yr proxy) Treasury yield (×10 to get %)
+// I:VIX = CBOE Volatility Index
+// I:TNX = 10-year Treasury yield (actual % value, e.g. 4.35)
+// I:IRX = 13-week T-bill yield (≈2yr proxy)
 // GLD   = Gold ETF (proxy for Gold)
 // USO   = Oil ETF (proxy for crude oil)
 // UUP   = Dollar Bull ETF (proxy for DXY)
 // TLT   = 20+ yr Treasury Bond ETF (proxy for long bonds)
 // SPY   = S&P 500 ETF (market baseline)
-const SYMBOLS = ['^VIX', '^TNX', '^IRX', 'GLD', 'USO', 'UUP', 'TLT', 'SPY'];
+const INDEX_TICKERS = ['I:VIX', 'I:TNX', 'I:IRX'];
+const ETF_TICKERS   = ['GLD', 'USO', 'UUP', 'TLT', 'SPY'];
 
 export interface MacroQuote {
   symbol: string;
@@ -41,20 +41,6 @@ export interface MacroData {
   fetchedAt: number;
 }
 
-async function fetchQuote(symbol: string): Promise<{ price: number; change: number; changePct: number }> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
-  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`${symbol}: ${res.status}`);
-  const json = await res.json();
-  const meta = json?.chart?.result?.[0]?.meta;
-  if (!meta) throw new Error(`${symbol}: no meta`);
-  const price = meta.regularMarketPrice ?? 0;
-  const prev = meta.chartPreviousClose ?? meta.previousClose ?? price;
-  const change = parseFloat((price - prev).toFixed(4));
-  const changePct = prev !== 0 ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
-  return { price, change, changePct };
-}
-
 function vixRegime(vix: number): MacroData['vixRegime'] {
   if (vix < 15) return 'low';
   if (vix < 20) return 'normal';
@@ -62,12 +48,6 @@ function vixRegime(vix: number): MacroData['vixRegime'] {
   return 'extreme';
 }
 
-/**
- * Risk regime heuristic:
- *  - VIX < 20 + bonds falling + dollar falling → risk-on
- *  - VIX > 25 OR bonds rising strongly + dollar rising → risk-off
- *  - else neutral
- */
 function riskRegime(
   vix: number,
   bondChangePct: number,
@@ -76,6 +56,86 @@ function riskRegime(
   if (vix > 25 || bondChangePct > 0.5 || dollarChangePct > 0.5) return 'risk-off';
   if (vix < 18 && bondChangePct < 0 && dollarChangePct < 0) return 'risk-on';
   return 'neutral';
+}
+
+const ZERO_QUOTE = { price: 0, change: 0, changePct: 0 };
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const cached = cache.get('macro');
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return res.status(200).json(cached.data);
+  }
+
+  try {
+    // Fetch indices and ETFs in parallel
+    const [indexSnaps, etfSnaps] = await Promise.all([
+      getIndicesSnapshots(INDEX_TICKERS),
+      getMultipleStockSnapshots(ETF_TICKERS),
+    ]);
+
+    // Helper: build MacroQuote from index snapshot (Massive returns actual % for yields)
+    const indexQ = (ticker: string, symbol: string, label: string): MacroQuote => {
+      const snap = indexSnaps.get(ticker);
+      if (!snap) return { symbol, label, ...ZERO_QUOTE };
+      const price    = snap.value ?? 0;
+      const change   = snap.session?.change ?? 0;
+      const changePct = snap.session?.change_percent ?? 0;
+      return { symbol, label, price: parseFloat(price.toFixed(4)), change: parseFloat(change.toFixed(4)), changePct: parseFloat(changePct.toFixed(2)) };
+    };
+
+    // Helper: build MacroQuote from stock ETF snapshot
+    const etfQ = (ticker: string, label: string): MacroQuote => {
+      const snap = etfSnaps.get(ticker);
+      if (!snap) return { symbol: ticker, label, ...ZERO_QUOTE };
+      const price    = snap.day?.c ?? 0;
+      const prevClose = snap.prevDay?.c ?? price;
+      const change   = snap.todaysChange ?? parseFloat((price - prevClose).toFixed(4));
+      const changePct = snap.todaysChangePerc ?? (prevClose !== 0 ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0);
+      return { symbol: ticker, label, price: parseFloat(price.toFixed(4)), change: parseFloat(change.toFixed(4)), changePct: parseFloat(changePct.toFixed(2)) };
+    };
+
+    const vixQ  = indexQ('I:VIX', '^VIX', 'VIX');
+    const t10y  = indexQ('I:TNX', '^TNX', '10Y Yield');
+    const t2y   = indexQ('I:IRX', '^IRX', '2Y Yield');
+    const goldQ = etfQ('GLD', 'Gold (GLD)');
+    const oilQ  = etfQ('USO', 'Oil (USO)');
+    const dollarQ = etfQ('UUP', 'Dollar (UUP)');
+    const bondsQ  = etfQ('TLT', 'Bonds (TLT)');
+    const spyQ    = etfQ('SPY', 'SPY');
+
+    // Massive returns I:TNX and I:IRX as actual % values (e.g. 4.35 = 4.35%)
+    // No ×10 adjustment needed (unlike Yahoo Finance)
+    const t10yPct = t10y.price;
+    const t2yPct  = t2y.price;
+
+    const spreadBps = parseFloat(((t10yPct - t2yPct) * 100).toFixed(1));
+    const yieldCurveRegime: MacroData['yieldCurveRegime'] =
+      spreadBps > 25 ? 'normal' : spreadBps > -10 ? 'flat' : 'inverted';
+
+    const data: MacroData = {
+      vix: vixQ,
+      t10y,
+      t2y,
+      yieldSpread: spreadBps,
+      yieldCurveRegime,
+      gold: goldQ,
+      oil: oilQ,
+      dollar: dollarQ,
+      bonds: bondsQ,
+      spy: spyQ,
+      vixRegime: vixRegime(vixQ.price),
+      riskRegime: riskRegime(vixQ.price, bondsQ.changePct, dollarQ.changePct),
+      fetchedAt: Date.now(),
+    };
+
+    cache.set('macro', { data, timestamp: Date.now() });
+    return res.status(200).json(data);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return res.status(500).json({ error: msg });
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
