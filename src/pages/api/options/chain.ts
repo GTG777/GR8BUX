@@ -35,10 +35,14 @@ function mapContract(raw: MassiveOptionContract, underlyingPrice: number): Optio
   const { details, day, last_quote, greeks, implied_volatility, open_interest } = raw;
   const bid = last_quote?.bid ?? 0;
   const ask = last_quote?.ask ?? 0;
-  const lastPrice = day?.close ?? last_trade_price(raw) ?? 0;
+  // Never fall back to day.close — it's yesterday's price and will be stale/wrong
+  // If both bid and ask are live: use mid. If only bid: use bid. Otherwise: 0.
   const mid = bid > 0 && ask > 0
     ? parseFloat(((bid + ask) / 2).toFixed(2))
-    : lastPrice;
+    : bid > 0
+    ? parseFloat(bid.toFixed(2))
+    : 0;
+  const lastPrice = day?.close ?? last_trade_price(raw) ?? 0;
   const expDate = details.expiration_date; // YYYY-MM-DD
   const expEpoch = Math.floor(new Date(expDate + 'T21:00:00Z').getTime() / 1000); // ~4pm ET
 
