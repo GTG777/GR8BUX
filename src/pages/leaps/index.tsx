@@ -394,6 +394,9 @@ export default function LeapsPage() {
   // ── Screener state ──────────────────────────────────────────────
   const [sectorFilter, setSectorFilter] = useState('All');
   const [maxIvr, setMaxIvr] = useState(50);
+  const [accountSize, setAccountSize] = useState<number | ''>(
+    () => { try { const v = localStorage.getItem('gr8bux_account_size'); return v ? Number(v) : ''; } catch { return ''; } }
+  );
   const [screenerData, setScreenerData] = useState<ScreenerRow[]>(
     LEAPS_UNIVERSE.map((u) => ({ ...u, price: null, hv20: null, rsi: null, ivr: null, bestDelta: null, bestExpiry: null, bestPremium: null, loading: false, error: false }))
   );
@@ -522,6 +525,7 @@ export default function LeapsPage() {
         delta: row.bestDelta ?? 0.65,
         premium: row.bestPremium ?? 0,
         rsi: row.rsi ?? undefined,
+        accountSize: accountSize !== '' ? accountSize : undefined,
         detectedAt: new Date().toISOString(),
       });
     }
@@ -787,6 +791,21 @@ export default function LeapsPage() {
                 <label className="text-xs font-medium text-gray-500 block mb-1">Max IV Rank: <strong>{maxIvr}</strong></label>
                 <input type="range" min={10} max={100} value={maxIvr} onChange={(e) => setMaxIvr(Number(e.target.value))}
                   className="w-32 accent-indigo-500" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Account Size ($)</label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 50000"
+                  value={accountSize}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? '' : Number(e.target.value);
+                    setAccountSize(v);
+                    try { if (v !== '') localStorage.setItem('gr8bux_account_size', String(v)); else localStorage.removeItem('gr8bux_account_size'); } catch {}
+                  }}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none w-32"
+                />
               </div>
               <p className="text-xs text-gray-400 self-center">Green IV Rank = IV is cheap → good for LEAPS buyers</p>
             </div>
