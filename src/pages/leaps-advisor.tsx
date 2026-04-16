@@ -78,6 +78,7 @@ function CandidatesTable({
               <th className="px-3 py-2.5 text-right font-semibold">RSI</th>
               <th className="px-3 py-2.5 text-center font-semibold">AI Score</th>
               <th className="px-3 py-2.5 text-center font-semibold">Verdict</th>
+              <th className="px-3 py-2.5 text-center font-semibold">Earnings</th>
             </tr>
           </thead>
           <tbody>
@@ -212,6 +213,26 @@ function CandidatesTable({
                   <td className="px-3 py-2 text-center">
                     <VerdictBadge verdict={c.aiConsensus} />
                   </td>
+
+                  {/* Earnings risk */}
+                  <td className="px-3 py-2 text-center">
+                    {c.earningsDaysOut != null ? (
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${
+                          c.earningsDaysOut <= 7
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                            : c.earningsDaysOut <= 14
+                            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
+                            : 'bg-zinc-700/30 text-zinc-500 border border-zinc-700'
+                        }`}
+                        title={`Reports ${c.earningsDate ?? ''}`}
+                      >
+                        {c.earningsDaysOut === 0 ? 'Today!' : `${c.earningsDaysOut}d`}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-700">—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -224,6 +245,7 @@ function CandidatesTable({
         <span>Δ = delta (≈ prob. ITM at expiry)</span>
         <span>≈@X% = approx gain if stock moves X% (delta approx, no theta)</span>
         <span>IVR: &lt;25 = cheap ✓ &gt;50 = expensive</span>
+        <span>Earnings: days until report (red ≤7d, orange ≤14d — binary event risk)</span>
         <span className="text-zinc-700">Not financial advice.</span>
       </div>
     </div>

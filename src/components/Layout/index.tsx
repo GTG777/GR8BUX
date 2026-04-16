@@ -56,9 +56,10 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Research',
     emoji: '🔬',
     items: [
-      { href: '/news',      label: 'News',      icon: NewsIcon      },
-      { href: '/crypto',    label: 'Crypto',    icon: CryptoIcon    },
-      { href: '/community', label: 'Community', icon: CommunityIcon },
+      { href: '/earnings',  label: 'Earnings Calendar', icon: EarningsIcon  },
+      { href: '/news',      label: 'News',              icon: NewsIcon      },
+      { href: '/crypto',    label: 'Crypto',            icon: CryptoIcon    },
+      { href: '/community', label: 'Community',         icon: CommunityIcon },
     ],
   },
   {
@@ -111,6 +112,15 @@ function LeapsIcon() {
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l2 2 4-4" />
+    </svg>
+  );
+}
+
+function EarningsIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11v5m-2-2h4" />
     </svg>
   );
 }

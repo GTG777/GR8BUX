@@ -37,6 +37,8 @@ export interface LeapsCandidate {
   aiConfidence: number;
   aiScore: number;
   compositeScore: number;
+  earningsDaysOut: number | null;  // null = not in next 45 days
+  earningsDate: string | null;
 }
 
 export interface ChatResponse {
@@ -118,8 +120,13 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
   const aiMap: Record<string, any> = {};
   let latestRefresh = '';
 
+  // Earnings lookup map: symbol → { daysOut, reportDate }
+  const earningsMap: Record<string, { daysOut: number; reportDate: string }> = {};
+
   if (supabase) {
-    const [mdRes, aiRes] = await Promise.all([
+    const proto = 'https';
+    const host = process.env.URL ?? process.env.DEPLOY_URL ?? 'http://localhost:3000';
+    const [mdRes, aiRes, earningsRes] = await Promise.all([
       supabase
         .from('market_data')
         .select(
@@ -131,9 +138,13 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
         .from('ai_analyses')
         .select('symbol, consensus, confidence, result')
         .eq('setup_type', 'LEAPS_CANDIDATE'),
+      fetch(`${host}/api/market/earnings?days=45`).then((r) => r.ok ? r.json() : { events: [] }).catch(() => ({ events: [] })),
     ]);
     marketRows = mdRes.data ?? [];
     for (const r of aiRes.data ?? []) aiMap[r.symbol] = r;
+    for (const e of (earningsRes.events ?? [])) {
+      earningsMap[e.symbol] = { daysOut: e.daysOut, reportDate: e.reportDate };
+    }
     latestRefresh = marketRows.reduce(
       (latest, r) => (r.refreshed_at > latest ? r.refreshed_at : latest),
       ''
@@ -208,7 +219,13 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
     const aiConfidence = Number(ai?.confidence) || 0.5;
     const aiScore = Number(ai?.result?.analyses?.technical?.qualityScore) || 50;
 
-    // Composite score: consensus weight + technical score + IVR quality + RSI momentum
+    // Earnings risk
+    const earningsInfo = earningsMap[row.symbol] ?? null;
+    const earningsDaysOut = earningsInfo?.daysOut ?? null;
+    // Penalise candidates with earnings in < 14 days (binary event risk on long calls)
+    const earningsPenalty = earningsDaysOut != null && earningsDaysOut <= 14 ? -20 : 0;
+
+    // Composite score: consensus weight + technical score + IVR quality + RSI momentum – earnings penalty
     const ivrPenalty = Math.min(Number(row.ivr) || 30, 60);
     const rsiBonus = (() => {
       const r = Number(row.rsi);
@@ -220,7 +237,8 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
       (CONSENSUS_WEIGHT[aiConsensus] ?? 3) * 10 +
       aiScore * 0.25 +
       (50 - ivrPenalty) +
-      rsiBonus;
+      rsiBonus +
+      earningsPenalty;
 
     candidates.push({
       rank: 0,
@@ -248,6 +266,8 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
       aiConfidence,
       aiScore,
       compositeScore: Math.round(composite),
+      earningsDaysOut,
+      earningsDate: earningsInfo?.reportDate ?? null,
     });
   }
 
