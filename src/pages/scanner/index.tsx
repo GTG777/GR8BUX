@@ -413,17 +413,17 @@ function buildBullPuts(
     for (const shortP of sorted) {
       if (shortP.strike >= spot) continue;
       if (shortP.strike < spot * 0.5) continue; // filter stale/pre-split strikes
-      if (shortP.mid <= 0) continue;
+      if (shortP.bid <= 0 || shortP.ask <= 0) continue; // require live quote
       const sigma = shortP.impliedVolatility || 0.20;
       const pop = probAbove(spot, shortP.strike, T, sigma, r) * 100;
       if (pop < minPoP) continue;
 
       for (const w of targetWidths) {
         const longP = sorted.find((c) => Math.abs(c.strike - (shortP.strike - w)) < w * 0.4 && c.strike < shortP.strike);
-        if (!longP || longP.mid <= 0) continue;
+        if (!longP || longP.bid <= 0 || longP.ask <= 0) continue; // require live quote
         const actualWidth = shortP.strike - longP.strike;
         const credit = (shortP.mid - longP.mid) * 100;
-        if (credit < 5) continue;
+        if (credit < 25) continue;
         const maxLoss = actualWidth * 100 - credit;
         if (maxLoss <= 0) continue;
         const inp = (K: number, iv: number) => ({ spotPrice: spot, strikePrice: K, timeToExpiration: T, volatility: iv, riskFreeRate: r });
@@ -468,17 +468,17 @@ function buildBearCalls(
     for (const shortC of sorted) {
       if (shortC.strike <= spot) continue;
       if (shortC.strike > spot * 1.5) continue; // filter stale/pre-split strikes
-      if (shortC.mid <= 0) continue;
+      if (shortC.bid <= 0 || shortC.ask <= 0) continue; // require live quote
       const sigma = shortC.impliedVolatility || 0.20;
       const pop = probBelow(spot, shortC.strike, T, sigma, r) * 100;
       if (pop < minPoP) continue;
 
       for (const w of targetWidths) {
         const longC = sorted.find((c) => Math.abs(c.strike - (shortC.strike + w)) < w * 0.4 && c.strike > shortC.strike);
-        if (!longC || longC.mid <= 0) continue;
+        if (!longC || longC.bid <= 0 || longC.ask <= 0) continue; // require live quote
         const actualWidth = longC.strike - shortC.strike;
         const credit = (shortC.mid - longC.mid) * 100;
-        if (credit < 5) continue;
+        if (credit < 25) continue;
         const maxLoss = actualWidth * 100 - credit;
         if (maxLoss <= 0) continue;
         const inp = (K: number, iv: number) => ({ spotPrice: spot, strikePrice: K, timeToExpiration: T, volatility: iv, riskFreeRate: r });
