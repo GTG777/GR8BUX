@@ -20,7 +20,7 @@ const VERDICT_STYLES: Record<string, string> = {
   BUY:        'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-500/40',
   NEUTRAL:    'bg-gray-100 dark:bg-zinc-600/20 text-gray-500 dark:text-zinc-400 border border-gray-300 dark:border-zinc-600/40',
   WAIT:       'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-500/40',
-  AVOID:      'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-300 dark:-red-700 dark:text-red-400 border border-red-300 dark:border-red-500/40',
+  AVOID:      'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-500/40',
 };
 
 function VerdictBadge({ verdict }: { verdict: string }) {
@@ -41,7 +41,7 @@ function ScoreBar({ score }: { score: number }) {
       <div className="w-16 h-1.5 rounded-full bg-gray-200 dark:bg-zinc-700">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(score, 100)}%` }} />
       </div>
-      <span className="text-xs text-gray-500 dark:text-gray-500 dark:text-zinc-400">{score}</span>
+      <span className="text-xs text-gray-500 dark:text-zinc-400">{score}</span>
     </div>
   );
 }
@@ -92,26 +92,26 @@ function CandidatesTable({
                 <tr
                   key={c.symbol}
                   className={`border-t border-gray-100 dark:border-zinc-700/30 hover:bg-gray-50 dark:hover:bg-zinc-700/20 transition-colors ${
-                    i % 2 === 0 ? 'bg-white dark:bg-zinc-900/40' : 'bg-gray-50/50 dark:nc-900/40' : 'bg-gray-50/50 dark:bg-zinc-800/20'
+                    i % 2 === 0 ? 'bg-white dark:bg-zinc-900/40' : 'bg-gray-50/50 dark:bg-zinc-800/20'
                   }`}
                 >
                   {/* Rank */}
-                  <td className="px-3 py-2 text-gray-400 dark:text-gray-400 dark:text-zinc-500 font-mono">{c.rank}</td>
+                  <td className="px-3 py-2 text-gray-400 dark:text-zinc-500 font-mono">{c.rank}</td>
 
                   {/* Ticker */}
                   <td className="px-3 py-2">
                     <div className="font-bold text-gray-900 dark:text-white">{c.symbol}</div>
-                    <div className="text-gray-500 dark:text-gray-500 dark:text-zinc-500">{c.sector}</div>
+                    <div className="text-gray-500 dark:text-zinc-500">{c.sector}</div>
                   </td>
 
                   {/* Price */}
-                  <td className="px-3 py-2 text-right text-gray-800 dark:text-gray-800 dark:text-zinc-200 font-mono">
+                  <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-200 font-mono">
                     ${c.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </td>
 
                   {/* Strike */}
                   <td className="px-3 py-2 text-right">
-                    <span className={c.inTheMoney ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-gray-700 dark:d-400 font-medium' : 'text-gray-700 dark:text-zinc-300'}>
+                    <span className={c.inTheMoney ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-gray-700 dark:text-zinc-300'}>
                       ${c.strike.toLocaleString()}
                     </span>
                     {c.inTheMoney && (
@@ -122,23 +122,23 @@ function CandidatesTable({
                   {/* Expiry */}
                   <td className="px-3 py-2">
                     <div className="text-gray-800 dark:text-zinc-200">{c.expiry}</div>
-                    <div className="text-gray-500 dark:text-gray-500 dark:text-zinc-500">{c.dte}d</div>
+                    <div className="text-gray-500 dark:text-zinc-500">{c.dte}d</div>
                   </td>
 
                   {/* Delta */}
                   <td className="px-3 py-2 text-right">
                     <span className="text-indigo-400 font-mono">{c.delta.toFixed(2)}</span>
-                    <div className="text-gray-400 dark:text-gray-400 dark:text-zinc-600">{c.probITM}% ITM</div>
+                    <div className="text-gray-400 dark:text-zinc-600">{c.probITM}% ITM</div>
                   </td>
 
                   {/* Mid per contract */}
-                  <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-800 dark:text-zinc-200">
+                  <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-zinc-200">
                     ${c.costPerContract.toLocaleString()}
                   </td>
 
                   {/* Contracts needed */}
                   <td className="px-3 py-2 text-right">
-                    <span className="font-bold text-white">{c.contractsNeeded}×</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{c.contractsNeeded}×</span>
                   </td>
 
                   {/* Total capital */}
@@ -149,7 +149,7 @@ function CandidatesTable({
                           ? 'text-red-400'
                           : c.totalCost > 20000
                           ? 'text-yellow-400'
-                          : 'text-gray-800 dark:text-gray-800 dark:text-zinc-200'
+                          : 'text-gray-800 dark:text-zinc-200'
                       }
                     >
                       ${c.totalCost.toLocaleString()}
@@ -157,20 +157,20 @@ function CandidatesTable({
                   </td>
 
                   {/* Gain at 2% */}
-                  <td className="px-3 py-2 text-right font-mono text-gray-500 dark:text-gray-500 dark:text-zinc-400">
+                  <td className="px-3 py-2 text-right font-mono text-gray-500 dark:text-zinc-400">
                     ${gainAt2.toLocaleString()}
                   </td>
 
                   {/* Gain at 3% */}
                   <td className="px-3 py-2 text-right font-mono">
-                    <span className={goalMet ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-700 dark:400 font-semibold' : 'text-gray-700 dark:text-zinc-300'}>
+                    <span className={goalMet ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-700 dark:text-zinc-300'}>
                       ${gainAt3.toLocaleString()}
                     </span>
                     {goalMet && <span className="ml-1 text-emerald-600">✓</span>}
                   </td>
 
                   {/* Gain at 5% */}
-                  <td className="px-3 py-2 text-right font-mono text-emerald-600 dark:text-emerald-600 dark:text-emerald-300">
+                  <td className="px-3 py-2 text-right font-mono text-emerald-600 dark:text-emerald-300">
                     ${gainAt5.toLocaleString()}
                   </td>
 
@@ -197,7 +197,7 @@ function CandidatesTable({
                           ? 'text-blue-500 dark:text-blue-400'
                           : c.rsi > 70
                           ? 'text-red-500 dark:text-red-400'
-                          : 'text-gray-700 dark:text-gray-700 dark:text-zinc-300'
+                          : 'text-gray-700 dark:text-zinc-300'
                       }
                     >
                       {c.rsi.toFixed(0)}
@@ -230,7 +230,7 @@ function CandidatesTable({
                         {c.earningsDaysOut === 0 ? 'Today!' : `${c.earningsDaysOut}d`}
                       </span>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-400 dark:text-zinc-700">—</span>
+                      <span className="text-gray-400 dark:text-zinc-700">—</span>
                     )}
                   </td>
                 </tr>
@@ -246,7 +246,7 @@ function CandidatesTable({
         <span>≈@X% = approx gain if stock moves X% (delta approx, no theta)</span>
         <span>IVR: &lt;25 = cheap ✓ &gt;50 = expensive</span>
         <span>Earnings: days until report (red ≤7d, orange ≤14d — binary event risk)</span>
-        <span className="text-gray-400 dark:text-gray-400 dark:text-zinc-700">Not financial advice.</span>
+        <span className="text-gray-400 dark:text-zinc-700">Not financial advice.</span>
       </div>
     </div>
   );
@@ -259,7 +259,7 @@ function TypingDots() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-2 h-2 bg-gray-400 dark:bg-gray-400 dark:bg-zinc-500 rounded-full animate-bounce"
+          className="w-2 h-2 bg-gray-400 dark:bg-zinc-500 rounded-full animate-bounce"
           style={{ animationDelay: `${i * 0.18}s` }}
         />
       ))}
@@ -274,7 +274,7 @@ function MessageContent({ text }: { text: string }) {
     <span>
       {parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-semibold text-gray-900 dark:text-gray-900 dark:text-white">{part.slice(2, -2)}</strong>;
+          return <strong key={i} className="font-semibold text-gray-900 dark:text-white">{part.slice(2, -2)}</strong>;
         }
         if (part.startsWith('*') && part.endsWith('*')) {
           return <em key={i} className="not-italic font-semibold text-indigo-300">{part.slice(1, -1)}</em>;
@@ -426,7 +426,7 @@ export default function LeapsAdvisorPage() {
       </Head>
 
       {/* Full-height chat container, negates Layout's p-6 */}
-      <div className="-m-6 flex flex-col bg-gray-100 dark:bg-gray-100 dark:bg-zinc-950 overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
+      <div className="-m-6 flex flex-col bg-gray-100 dark:bg-zinc-950 overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
 
         {/* ── Header ────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-sm px-5 py-3 flex items-center justify-between">
@@ -436,7 +436,7 @@ export default function LeapsAdvisorPage() {
               AI-powered scanner · 18 tickers · Claude + live Massive.com data
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500 dark:text-zinc-500">
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-500">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>15-min delayed</span>
           </div>
@@ -486,7 +486,7 @@ export default function LeapsAdvisorPage() {
                   <>
                     <IntentPills intent={msg.intent} />
                     {msg.dataAge && (
-                      <p className="text-xs text-gray-400 dark:text-gray-400 dark:text-zinc-600 mt-1.5 pl-1">
+                      <p className="text-xs text-gray-400 dark:text-zinc-600 mt-1.5 pl-1">
                         Market data: {msg.dataAge}
                       </p>
                     )}
@@ -494,7 +494,7 @@ export default function LeapsAdvisorPage() {
                 )}
 
                 {/* Timestamp */}
-                <p className="text-xs text-gray-400 dark:text-gray-400 dark:text-zinc-700 mt-1 pl-1">
+                <p className="text-xs text-gray-400 dark:text-zinc-700 mt-1 pl-1">
                   {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
@@ -525,7 +525,7 @@ export default function LeapsAdvisorPage() {
                 key={chip.label}
                 onClick={() => sendMessage(chip.label)}
                 disabled={loading}
-                className="flex-shrink-0 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 hover:text-gray-900 dark:text-zinc-300 dark:hover:text-white border border-gray-300 dark:border-zinc-700 hover:border-gray-400 dark:hover:text-gray-900 dark:text-zinc-300 dark:hover:text-white border border-gray-300 dark:border-zinc-700 hover:border-gray-400 dark:hover:border-zinc-600 rounded-full px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="flex-shrink-0 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 hover:text-gray-900 dark:text-zinc-300 dark:hover:text-white border border-gray-300 dark:border-zinc-700 hover:border-gray-400 dark:hover:border-zinc-600 rounded-full px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 <span>{chip.icon}</span>
                 <span>{chip.label}</span>
@@ -552,7 +552,7 @@ export default function LeapsAdvisorPage() {
             <button
               onClick={() => sendMessage(input)}
               disabled={loading || !input.trim()}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-300 dark:disabled:bg-gray-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 text-sm font-medium transition-colors flex-shrink-0 flex items-center gap-2"
+              className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 text-sm font-medium transition-colors flex-shrink-0 flex items-center gap-2"
             >
               {loading ? (
                 <>
@@ -573,7 +573,7 @@ export default function LeapsAdvisorPage() {
             </button>
           </div>
 
-          <p className="text-xs text-gray-400 dark:text-gray-400 dark:text-zinc-700 mt-2 text-center">
+          <p className="text-xs text-gray-400 dark:text-zinc-700 mt-2 text-center">
             Enter to send · Shift+Enter for new line · Gains are delta approximations, not financial advice
           </p>
         </div>
