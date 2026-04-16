@@ -109,33 +109,29 @@ async function earningsHandler(req: NextApiRequest, res: NextApiResponse) {
     });
   }
 
-  // ── Fetch fresh from Alpha Vantage ───────────────────────────────────────
-  const avKey = process.env.ALPHAVANTAGE_API_KEY;
-  if (!avKey) {
-    return res.status(500).json({ error: 'ALPHAVANTAGE_API_KEY not configured' });
-  }
-
-  let rawRows: Array<Record<string, string>> = [];
+  // ── Fetch from Alpha Vantage earnings calendar ───────────────────────────
+  interface EarningRow { symbol: string; reportDate: string; fiscalDateEnding: string; estimate: number | null; name: string; }
+  let rawRows: EarningRow[] = [];
   try {
+    const avKey = process.env.ALPHAVANTAGE_API_KEY ?? '';
+    if (!avKey) throw new Error('ALPHAVANTAGE_API_KEY not configured');
     const url = `https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${avKey}`;
-    const avRes = await fetch(url, {
-      signal: AbortSignal.timeout(7000),
-    });
+    const avRes = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!avRes.ok) throw new Error(`Alpha Vantage ${avRes.status}`);
     const csv = await avRes.text();
-    rawRows = parseCSV(csv);
+    rawRows = parseCSV(csv).map((r) => ({
+      symbol: r['symbol'] ?? '',
+      reportDate: r['reportDate'] ?? '',
+      fiscalDateEnding: r['fiscalDateEnding'] ?? '',
+      estimate: r['estimate'] ? parseFloat(r['estimate']) : null,
+      name: r['name'] ?? '',
+    })).filter((r) => r.symbol && r.reportDate);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[earnings] Alpha Vantage fetch failed:', msg);
-    // Return stale cache if available
     if (_cache) {
       const filtered = _cache.data.filter((e) => e.daysOut <= days);
-      return res.status(200).json({
-        events: filtered,
-        total: filtered.length,
-        cachedAt: new Date(_cache.fetchedAt).toISOString(),
-        stale: true,
-      });
+      return res.status(200).json({ events: filtered, total: filtered.length, cachedAt: new Date(_cache.fetchedAt).toISOString(), stale: true });
     }
     return res.status(502).json({ error: `Earnings data unavailable: ${msg}` });
   }
@@ -145,11 +141,9 @@ async function earningsHandler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const supabase = getSupabaseServiceRoleClient();
     if (supabase) {
-      const timeout = <T>(p: Promise<T>): Promise<T> =>
-        Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('Supabase timeout')), 4000))]);
       const [mdRes, aiRes] = await Promise.all([
-        timeout(supabase.from('market_data').select('symbol, name, sector, ivr, rsi, price')),
-        timeout(supabase.from('ai_analyses').select('symbol, consensus').eq('setup_type', 'LEAPS_CANDIDATE')),
+        supabase.from('market_data').select('symbol, name, sector, ivr, rsi, price'),
+        supabase.from('ai_analyses').select('symbol, consensus').eq('setup_type', 'LEAPS_CANDIDATE'),
       ]);
       for (const r of mdRes.data ?? []) {
         enrichMap[r.symbol] = {
@@ -176,10 +170,10 @@ async function earningsHandler(req: NextApiRequest, res: NextApiResponse) {
   const events: EarningsEvent[] = [];
 
   for (const row of rawRows) {
-    const sym = row['symbol']?.toUpperCase();
+    const sym = row.symbol?.toUpperCase();
     if (!sym || !LEAPS_SYMBOLS.has(sym)) continue;
 
-    const reportDate = row['reportDate'] ?? '';
+    const reportDate = row.reportDate ?? '';
     if (!reportDate) continue;
 
     const reportDay = new Date(reportDate + 'T00:00:00');
@@ -189,17 +183,17 @@ async function earningsHandler(req: NextApiRequest, res: NextApiResponse) {
     const enrich = enrichMap[sym];
     const ivRank = enrich?.ivRank ?? null;
     const aiConsensus = enrich?.aiConsensus ?? null;
-    const estEps = row['estimate'] ? parseFloat(row['estimate']) : null;
+    const estEps = row.estimate;
 
     events.push({
       symbol: sym,
-      name: enrich?.name ?? row['name'] ?? sym,
+      name: enrich?.name ?? row.name ?? sym,
       sector: enrich?.sector ?? 'Unknown',
       reportDate,
       daysOut,
-      fiscalDateEnding: row['fiscalDateEnding'] ?? '',
+      fiscalDateEnding: row.fiscalDateEnding ?? '',
       estimatedEPS: estEps != null && !isNaN(estEps) ? estEps : null,
-      currency: row['currency'] ?? 'USD',
+      currency: 'USD',
       ivRank,
       rsi: enrich?.rsi ?? null,
       price: enrich?.price ?? null,
