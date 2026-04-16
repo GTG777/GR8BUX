@@ -223,7 +223,7 @@ function CandidatesTable({
                             ? 'bg-red-500/20 text-red-400 border border-red-500/40'
                             : c.earningsDaysOut <= 14
                             ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-500/40'
-                            : 'bg-gray-100 dark:bg-zinc-700/30 text-gray-500 dark:text-zinc-500 border border-gray-300 dark:border-zinc-700'ext-zinc-500 border border-gray-300 dark:border-zinc-700'
+                            : 'bg-gray-100 dark:bg-zinc-700/30 text-gray-500 dark:text-zinc-500 border border-gray-300 dark:border-zinc-700'
                         }`}
                         title={`Reports ${c.earningsDate ?? ''}`}
                       >
