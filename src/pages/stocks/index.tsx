@@ -52,6 +52,8 @@ interface Indicators {
   high20: number;
   low20: number;
   trendScore: number; // -3 to +3
+  rsi: number;         // RSI(14) — 0 to 100
+  obvSlope: number;    // OBV 10-bar slope: positive = accumulation
 }
 
 interface StockSetup {
@@ -197,6 +199,37 @@ function calcHV(closes: number[], period: number): number {
   return parseFloat((Math.sqrt(v) * Math.sqrt(252) * 100).toFixed(1));
 }
 
+function calcRSI(closes: number[], period = 14): number {
+  if (closes.length < period + 1) return 50;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) avgGain += diff; else avgLoss -= diff;
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  if (avgLoss === 0) return 100;
+  return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+}
+
+function calcOBVSlope(candles: Candle[], lookback = 10): number {
+  if (candles.length < lookback + 1) return 0;
+  const slice = candles.slice(-(lookback + 1));
+  const obv: number[] = [0];
+  for (let i = 1; i < slice.length; i++) {
+    const prev = obv[i - 1];
+    if (slice[i].close > slice[i - 1].close)      obv.push(prev + slice[i].volume);
+    else if (slice[i].close < slice[i - 1].close) obv.push(prev - slice[i].volume);
+    else                                            obv.push(prev);
+  }
+  const n = obv.length;
+  const xMean = (n - 1) / 2;
+  const yMean = obv.reduce((a, b) => a + b) / n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += (i - xMean) * (obv[i] - yMean); den += (i - xMean) ** 2; }
+  return den === 0 ? 0 : num / den;
+}
+
 /* ── Compute all indicators ─────────────────────────────────────── */
 function computeIndicators(candles: Candle[]): Indicators {
   const closes  = candles.map(c => c.close);
@@ -229,11 +262,15 @@ function computeIndicators(candles: Candle[]): Indicators {
   if (price > ema50)  trendScore++; else trendScore--;
   if (price > ema200) trendScore++; else trendScore--;
 
+  const rsi      = calcRSI(closes);
+  const obvSlope  = calcOBVSlope(candles);
+
   return {
     price, prevClose, changePct,
     ema20, ema50, ema200, tsi, tsiSignal, atr14,
     bbUpper: bb.upper, bbMiddle: bb.middle, bbLower: bb.lower,
     ...macd, hv20, volumeRatio, high20, low20, trendScore,
+    rsi, obvSlope,
   };
 }
 
@@ -660,19 +697,35 @@ function SetupCard({ setup }: { setup: StockSetup }) {
 function PredictiveCard({ ind }: { ind: Indicators }) {
   const { price, tsi, tsiSignal, macdHist, macdLine, macdSignal,
           bbUpper, bbLower, bbMiddle, atr14, hv20, volumeRatio,
-          trendScore, ema20, ema50, ema200 } = ind;
+          trendScore, ema20, ema50, ema200, high20, low20,
+          rsi, obvSlope } = ind;
 
-  // ── Reversal Risk ──────────────────────────────────────────────
+  // ── Derived values ─────────────────────────────────────────────
+  const rangePos      = high20 > low20 ? (price - low20) / (high20 - low20) : 0.5;
+  const pctR          = parseFloat((rangePos * 100).toFixed(1));
+  const emaBullStack  = ema20 > ema50 && ema50 > ema200;
+  const emaBearStack  = ema20 < ema50 && ema50 < ema200;
+  const crossGapPct   = Math.abs(ema20 - ema50) / ema50 * 100;
+  const nearCross     = crossGapPct < 1.5;
+  const goldenCross   = nearCross && ema20 > ema50;
+  const obvBull       = obvSlope > 0;
+
+  // ── Reversal Risk (enhanced with RSI + OBV + range position) ──
   let reversalRisk = 20;
-  if (tsi > 50)                   reversalRisk += 18;
-  else if (tsi < -50)             reversalRisk += 18;
-  if (price > bbUpper)            reversalRisk += 15;
-  else if (price < bbLower)       reversalRisk += 15;
-  if (Math.abs(trendScore) < 3)   reversalRisk += 8;
-  if (volumeRatio < 0.75)         reversalRisk += 8;  // trend on declining volume
-  if (tsi > tsiSignal && tsi > 25) reversalRisk += 6; // TSI diverging high
+  if (tsi > 50)                     reversalRisk += 18;
+  else if (tsi < -50)               reversalRisk += 18;
+  if (rsi > 70)                     reversalRisk += 12;
+  else if (rsi < 30)                reversalRisk += 12;
+  if (price > bbUpper)              reversalRisk += 15;
+  else if (price < bbLower)         reversalRisk += 15;
+  if (!obvBull && trendScore > 0)   reversalRisk += 10; // OBV divergence
+  if (Math.abs(trendScore) < 3)     reversalRisk += 8;
+  if (volumeRatio < 0.75)           reversalRisk += 8;
+  if (tsi > tsiSignal && tsi > 25)  reversalRisk += 6;
   if (tsi < tsiSignal && tsi < -25) reversalRisk += 6;
-  reversalRisk = Math.min(82, Math.max(12, reversalRisk));
+  if (pctR > 85 && trendScore < 2)  reversalRisk += 6;
+  if (pctR < 15 && trendScore > -2) reversalRisk += 6;
+  reversalRisk = Math.min(88, Math.max(10, reversalRisk));
   const continuationRisk = 100 - reversalRisk;
 
   // ── Regime ─────────────────────────────────────────────────────
@@ -686,31 +739,44 @@ function PredictiveCard({ ind }: { ind: Indicators }) {
                     : regime === 'Volatile' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-700/40'
                     : 'text-gray-600 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700';
 
+  // ── RSI label ──────────────────────────────────────────────────
+  const rsiLabel = rsi >= 70 ? 'Overbought' : rsi <= 30 ? 'Oversold' : rsi >= 55 ? 'Bullish' : rsi <= 45 ? 'Bearish' : 'Neutral';
+  const rsiTextColor = rsi >= 70 ? 'text-red-600 dark:text-red-400' : rsi <= 30 ? 'text-emerald-600 dark:text-emerald-400' : rsi >= 55 ? 'text-emerald-500 dark:text-emerald-400' : rsi <= 45 ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-zinc-400';
+
   // ── Momentum trajectory ────────────────────────────────────────
-  const tsiAboveSignal = tsi > tsiSignal;
+  const tsiAboveSignal  = tsi > tsiSignal;
   const macdAboveSignal = macdLine > macdSignal;
-  const macdExpanding  = macdHist > 0 ? macdHist > 0.02 : macdHist < -0.02;
-  const momentumBull   = tsiAboveSignal && macdAboveSignal;
-  const momentumBear   = !tsiAboveSignal && !macdAboveSignal;
+  const macdExpanding   = macdHist > 0 ? macdHist > 0.02 : macdHist < -0.02;
+  const momentumBull    = tsiAboveSignal && macdAboveSignal;
+  const momentumBear    = !tsiAboveSignal && !macdAboveSignal;
 
   // ── ATR forward range ─────────────────────────────────────────
   const f5  = { hi: (price + 1.0 * atr14).toFixed(2), lo: (price - 1.0 * atr14).toFixed(2) };
   const f10 = { hi: (price + 1.5 * atr14).toFixed(2), lo: (price - 1.5 * atr14).toFixed(2) };
   const f20 = { hi: (price + 2.2 * atr14).toFixed(2), lo: (price - 2.2 * atr14).toFixed(2) };
 
-  // ── Counter-signals / warnings ─────────────────────────────────
+  // ── Counter-signals (enhanced) ────────────────────────────────
   const warnings: string[] = [];
+  if (rsi > 75)                        warnings.push(`RSI ${rsi} — strongly overbought, high mean-reversion risk`);
+  else if (rsi > 70)                   warnings.push(`RSI ${rsi} — overbought zone, watch for rejection`);
+  if (rsi < 25)                        warnings.push(`RSI ${rsi} — strongly oversold, snap-back likely`);
+  else if (rsi < 30)                   warnings.push(`RSI ${rsi} — oversold zone, potential reversal`);
+  if (!obvBull && trendScore > 0)      warnings.push('OBV declining while price rising — distribution warning');
+  if (obvBull && trendScore < 0)       warnings.push('OBV rising while price falling — accumulation signal');
+  if (nearCross)                       warnings.push(`EMA20/50 ${goldenCross ? 'golden' : 'death'} cross imminent (${crossGapPct.toFixed(1)}% apart)`);
   if (tsi > 55)                        warnings.push(`TSI ${tsi.toFixed(1)} — historically extended, pullback risk`);
   if (tsi < -55)                       warnings.push(`TSI ${tsi.toFixed(1)} — deeply oversold, snap-back risk`);
   if (price > bbUpper)                 warnings.push(`Price above Bollinger upper ($${bbUpper.toFixed(2)}) — stretched`);
   if (price < bbLower)                 warnings.push(`Price below Bollinger lower ($${bbLower.toFixed(2)}) — stretched`);
+  if (pctR > 88)                       warnings.push(`Price at ${pctR}% of 20-day range — near resistance zone`);
+  if (pctR < 12)                       warnings.push(`Price at ${pctR}% of 20-day range — near support zone`);
   if (volumeRatio < 0.75)              warnings.push(`Volume ${volumeRatio}× avg — weak conviction behind move`);
   if (trendScore <= 0 && tsi > 10)     warnings.push('Momentum diverging from trend structure');
   if (macdHist < 0 && tsi > 0)        warnings.push('MACD histogram flipping negative vs positive TSI — mixed');
   if (Math.abs(price - ema20) / ema20 > 0.06) warnings.push(`Price ${((Math.abs(price - ema20) / ema20) * 100).toFixed(1)}% from EMA20 — extended, pullback likely`);
   if (warnings.length === 0)           warnings.push('No significant counter-signals detected');
 
-  const riskBarColor = reversalRisk >= 60 ? 'bg-red-500' : reversalRisk >= 40 ? 'bg-yellow-400' : 'bg-emerald-500';
+  const riskBarColor  = reversalRisk >= 60 ? 'bg-red-500' : reversalRisk >= 40 ? 'bg-yellow-400' : 'bg-emerald-500';
   const riskTextColor = reversalRisk >= 60 ? 'text-red-600 dark:text-red-400' : reversalRisk >= 40 ? 'text-yellow-600 dark:text-yellow-400' : 'text-emerald-600 dark:text-emerald-400';
 
   return (
@@ -719,9 +785,7 @@ function PredictiveCard({ ind }: { ind: Indicators }) {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <span className="text-xl">🔮</span>
         <span className="font-bold text-gray-800 dark:text-white text-base">Predictive Analytics</span>
-        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${regimeColor}`}>
-          {regime}
-        </span>
+        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${regimeColor}`}>{regime}</span>
         <span className="ml-auto text-xs text-gray-400 dark:text-zinc-500 hidden sm:inline">Forward-looking signal analysis</span>
       </div>
 
@@ -743,21 +807,86 @@ function PredictiveCard({ ind }: { ind: Indicators }) {
           </div>
         </div>
 
-        {/* Momentum state */}
+        {/* EMA Stack alignment + Golden/Death cross */}
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Momentum Trajectory</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div className={`rounded-lg px-3 py-2 text-center border ${tsiAboveSignal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40'}`}>
-              <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">TSI vs Signal</p>
-              <p className={`text-sm font-bold ${tsiAboveSignal ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">EMA Stack Alignment</p>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1 items-end shrink-0">
+              <div className={`w-3.5 rounded-sm ${ema20 > ema50 ? 'bg-emerald-500' : 'bg-red-400'}`} style={{ height: 32 }} />
+              <div className={`w-3.5 rounded-sm ${ema50 > ema200 ? 'bg-emerald-400' : 'bg-red-300'}`} style={{ height: 22 }} />
+              <div className="w-3.5 rounded-sm bg-gray-300 dark:bg-zinc-500" style={{ height: 14 }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-bold ${emaBullStack ? 'text-emerald-600 dark:text-emerald-400' : emaBearStack ? 'text-red-600 dark:text-red-400' : 'text-yellow-500'}`}>
+                {emaBullStack ? 'Full Bull Stack' : emaBearStack ? 'Full Bear Stack' : 'Mixed Alignment'}
+              </p>
+              <div className="flex gap-3 text-[9px] mt-0.5">
+                <span className={ema20 > ema50 ? 'text-emerald-500' : 'text-red-400'}>EMA20 {ema20 > ema50 ? '>' : '<'} EMA50</span>
+                <span className={ema50 > ema200 ? 'text-emerald-500' : 'text-red-400'}>EMA50 {ema50 > ema200 ? '>' : '<'} EMA200</span>
+              </div>
+              {nearCross && (
+                <p className={`text-[10px] font-semibold mt-1 ${goldenCross ? 'text-yellow-500' : 'text-orange-500'}`}>
+                  ⚡ {goldenCross ? 'Golden' : 'Death'} cross imminent — {crossGapPct.toFixed(1)}% gap
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* RSI gauge */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">RSI (14)</p>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: 'linear-gradient(to right, #22c55e 0%, #86efac 28%, #d1d5db 45%, #d1d5db 55%, #fca5a5 72%, #ef4444 100%)' }}>
+                <div className="absolute top-0 bottom-0 w-1.5 bg-white dark:bg-zinc-900 rounded-full shadow-md border border-gray-300 dark:border-zinc-600" style={{ left: `calc(${Math.min(98, Math.max(2, rsi))}% - 3px)` }} />
+              </div>
+              <div className="flex justify-between text-[8px] text-gray-400 dark:text-zinc-600 mt-0.5 px-0.5">
+                <span>0</span><span>30</span><span>50</span><span>70</span><span>100</span>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <span className={`text-sm font-bold ${rsiTextColor}`}>{rsi}</span>
+              <span className={`block text-[9px] font-semibold ${rsiTextColor}`}>{rsiLabel}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 20-Day Range Position */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">20-Day Range Position</p>
+          <div className="relative h-3 rounded-full overflow-hidden" style={{ background: 'linear-gradient(to right, #3b82f6 0%, #9ca3af 30%, #9ca3af 70%, #ef4444 100%)' }}>
+            <div className="absolute top-0 bottom-0 w-2 bg-white dark:bg-zinc-900 rounded-full shadow border border-gray-300 dark:border-zinc-600" style={{ left: `calc(${Math.min(96, Math.max(2, rangePos * 100))}% - 4px)` }} />
+          </div>
+          <div className="flex justify-between text-[9px] mt-1.5">
+            <span className="text-blue-500 dark:text-blue-400 font-medium">${low20.toFixed(2)} (20d low)</span>
+            <span className={`font-bold ${ pctR > 80 ? 'text-red-500' : pctR < 20 ? 'text-blue-500' : 'text-gray-500 dark:text-zinc-400' }`}>{pctR}% of range</span>
+            <span className="text-red-500 dark:text-red-400 font-medium">${high20.toFixed(2)} (20d high)</span>
+          </div>
+        </div>
+
+        {/* OBV + Momentum tiles */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Volume & Momentum</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className={`rounded-lg px-2 py-2 text-center border ${obvBull ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40'}`}>
+              <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">OBV Trend</p>
+              <p className={`text-xs font-bold ${obvBull ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {obvBull ? '↗ Accum.' : '↘ Distrib.'}
+              </p>
+              <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-0.5">{obvBull ? 'Buy pressure' : 'Sell pressure'}</p>
+            </div>
+            <div className={`rounded-lg px-2 py-2 text-center border ${tsiAboveSignal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40'}`}>
+              <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">TSI vs Sig</p>
+              <p className={`text-xs font-bold ${tsiAboveSignal ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                 {tsiAboveSignal ? '▲ Above' : '▼ Below'}
               </p>
-              <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-0.5">{tsi.toFixed(1)} vs {tsiSignal.toFixed(1)}</p>
+              <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-0.5">{tsi.toFixed(1)} / {tsiSignal.toFixed(1)}</p>
             </div>
-            <div className={`rounded-lg px-3 py-2 text-center border ${macdAboveSignal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40'}`}>
-              <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">MACD Histogram</p>
-              <p className={`text-sm font-bold ${macdAboveSignal ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                {macdExpanding ? '↗ Expanding' : '↘ Contracting'}
+            <div className={`rounded-lg px-2 py-2 text-center border ${macdAboveSignal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40'}`}>
+              <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">MACD Hist</p>
+              <p className={`text-xs font-bold ${macdAboveSignal ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {macdExpanding ? '↗ Expand' : '↘ Contract'}
               </p>
               <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-0.5">{macdHist >= 0 ? '+' : ''}{macdHist.toFixed(3)}</p>
             </div>
@@ -784,10 +913,10 @@ function PredictiveCard({ ind }: { ind: Indicators }) {
         </div>
       </div>
 
-      {/* Counter-signals / warnings */}
-      <ul className="space-y-2">
+      {/* Counter-signals */}
+      <ul className="space-y-1.5">
         {warnings.map((w, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-zinc-400">
+          <li key={i} className="flex items-start gap-2 text-xs text-gray-600 dark:text-zinc-400">
             <span className={`font-bold shrink-0 mt-0.5 ${w.includes('No significant') ? 'text-emerald-500' : 'text-yellow-500'}`}>
               {w.includes('No significant') ? '✓' : '⚠'}
             </span>
