@@ -656,6 +656,149 @@ function SetupCard({ setup }: { setup: StockSetup }) {
   );
 }
 
+/* ── Predictive Analytics Card ──────────────────────────────────── */
+function PredictiveCard({ ind }: { ind: Indicators }) {
+  const { price, tsi, tsiSignal, macdHist, macdLine, macdSignal,
+          bbUpper, bbLower, bbMiddle, atr14, hv20, volumeRatio,
+          trendScore, ema20, ema50, ema200 } = ind;
+
+  // ── Reversal Risk ──────────────────────────────────────────────
+  let reversalRisk = 20;
+  if (tsi > 50)                   reversalRisk += 18;
+  else if (tsi < -50)             reversalRisk += 18;
+  if (price > bbUpper)            reversalRisk += 15;
+  else if (price < bbLower)       reversalRisk += 15;
+  if (Math.abs(trendScore) < 3)   reversalRisk += 8;
+  if (volumeRatio < 0.75)         reversalRisk += 8;  // trend on declining volume
+  if (tsi > tsiSignal && tsi > 25) reversalRisk += 6; // TSI diverging high
+  if (tsi < tsiSignal && tsi < -25) reversalRisk += 6;
+  reversalRisk = Math.min(82, Math.max(12, reversalRisk));
+  const continuationRisk = 100 - reversalRisk;
+
+  // ── Regime ─────────────────────────────────────────────────────
+  const bbWidth = (bbUpper - bbLower) / bbMiddle;
+  const regime =
+    bbWidth > 0.07 && Math.abs(trendScore) >= 2 ? 'Trending'  :
+    bbWidth < 0.03                               ? 'Ranging'   :
+    hv20 > 0.35                                  ? 'Volatile'  : 'Neutral';
+  const regimeColor = regime === 'Trending' ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700/40'
+                    : regime === 'Ranging'  ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700/40'
+                    : regime === 'Volatile' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-700/40'
+                    : 'text-gray-600 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700';
+
+  // ── Momentum trajectory ────────────────────────────────────────
+  const tsiAboveSignal = tsi > tsiSignal;
+  const macdAboveSignal = macdLine > macdSignal;
+  const macdExpanding  = macdHist > 0 ? macdHist > 0.02 : macdHist < -0.02;
+  const momentumBull   = tsiAboveSignal && macdAboveSignal;
+  const momentumBear   = !tsiAboveSignal && !macdAboveSignal;
+
+  // ── ATR forward range ─────────────────────────────────────────
+  const f5  = { hi: (price + 1.0 * atr14).toFixed(2), lo: (price - 1.0 * atr14).toFixed(2) };
+  const f10 = { hi: (price + 1.5 * atr14).toFixed(2), lo: (price - 1.5 * atr14).toFixed(2) };
+  const f20 = { hi: (price + 2.2 * atr14).toFixed(2), lo: (price - 2.2 * atr14).toFixed(2) };
+
+  // ── Counter-signals / warnings ─────────────────────────────────
+  const warnings: string[] = [];
+  if (tsi > 55)                        warnings.push(`TSI ${tsi.toFixed(1)} — historically extended, pullback risk`);
+  if (tsi < -55)                       warnings.push(`TSI ${tsi.toFixed(1)} — deeply oversold, snap-back risk`);
+  if (price > bbUpper)                 warnings.push(`Price above Bollinger upper ($${bbUpper.toFixed(2)}) — stretched`);
+  if (price < bbLower)                 warnings.push(`Price below Bollinger lower ($${bbLower.toFixed(2)}) — stretched`);
+  if (volumeRatio < 0.75)              warnings.push(`Volume ${volumeRatio}× avg — weak conviction behind move`);
+  if (trendScore <= 0 && tsi > 10)     warnings.push('Momentum diverging from trend structure');
+  if (macdHist < 0 && tsi > 0)        warnings.push('MACD histogram flipping negative vs positive TSI — mixed');
+  if (Math.abs(price - ema20) / ema20 > 0.06) warnings.push(`Price ${((Math.abs(price - ema20) / ema20) * 100).toFixed(1)}% from EMA20 — extended, pullback likely`);
+  if (warnings.length === 0)           warnings.push('No significant counter-signals detected');
+
+  const riskBarColor = reversalRisk >= 60 ? 'bg-red-500' : reversalRisk >= 40 ? 'bg-yellow-400' : 'bg-emerald-500';
+  const riskTextColor = reversalRisk >= 60 ? 'text-red-600 dark:text-red-400' : reversalRisk >= 40 ? 'text-yellow-600 dark:text-yellow-400' : 'text-emerald-600 dark:text-emerald-400';
+
+  return (
+    <div className="rounded-xl border border-indigo-200 dark:border-indigo-700/40 shadow-sm p-5 bg-indigo-50/60 dark:bg-indigo-950/20">
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-xl">🔮</span>
+        <span className="font-bold text-gray-800 dark:text-white text-base">Predictive Analytics</span>
+        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${regimeColor}`}>
+          {regime}
+        </span>
+        <span className="ml-auto text-xs text-gray-400 dark:text-zinc-500 hidden sm:inline">Forward-looking signal analysis</span>
+      </div>
+
+      {/* Main metrics block */}
+      <div className="bg-white dark:bg-zinc-900/80 bg-opacity-80 rounded-xl p-4 mb-4 space-y-4">
+
+        {/* Reversal Risk / Continuation */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Trend Reversal vs Continuation</p>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex-1 h-2 rounded-full bg-gray-200 dark:bg-zinc-700 overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${riskBarColor}`} style={{ width: `${reversalRisk}%` }} />
+            </div>
+            <span className={`text-xs font-bold w-8 text-right ${riskTextColor}`}>{reversalRisk}%</span>
+          </div>
+          <div className="flex justify-between text-[10px] text-gray-400 dark:text-zinc-600">
+            <span className="text-emerald-500 dark:text-emerald-600 font-medium">Continuation {continuationRisk}%</span>
+            <span className={`font-medium ${riskTextColor}`}>Reversal {reversalRisk}%</span>
+          </div>
+        </div>
+
+        {/* Momentum state */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Momentum Trajectory</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className={`rounded-lg px-3 py-2 text-center border ${tsiAboveSignal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40'}`}>
+              <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">TSI vs Signal</p>
+              <p className={`text-sm font-bold ${tsiAboveSignal ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {tsiAboveSignal ? '▲ Above' : '▼ Below'}
+              </p>
+              <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-0.5">{tsi.toFixed(1)} vs {tsiSignal.toFixed(1)}</p>
+            </div>
+            <div className={`rounded-lg px-3 py-2 text-center border ${macdAboveSignal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40'}`}>
+              <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">MACD Histogram</p>
+              <p className={`text-sm font-bold ${macdAboveSignal ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {macdExpanding ? '↗ Expanding' : '↘ Contracting'}
+              </p>
+              <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-0.5">{macdHist >= 0 ? '+' : ''}{macdHist.toFixed(3)}</p>
+            </div>
+          </div>
+          <div className={`mt-2 text-center text-xs font-semibold ${momentumBull ? 'text-emerald-600 dark:text-emerald-400' : momentumBear ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+            {momentumBull ? '✦ Dual Confirmation — bullish momentum' : momentumBear ? '✦ Dual Confirmation — bearish momentum' : '⚡ Mixed — signals diverging'}
+          </div>
+        </div>
+
+        {/* ATR forward range */}
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">ATR Forward Price Range</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {([['5d', f5], ['10d', f10], ['20d', f20]] as const).map(([label, range]) => (
+              <div key={label} className="rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 px-2 py-2">
+                <p className="text-[9px] font-semibold text-gray-400 dark:text-zinc-500 uppercase mb-1">{label}</p>
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">${range.hi}</p>
+                <div className="w-px h-3 bg-gray-300 dark:bg-zinc-600 mx-auto my-0.5" />
+                <p className="text-xs font-bold text-red-500 dark:text-red-400">${range.lo}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-1.5 text-center">Based on ATR14 (${atr14.toFixed(2)}) × volatility multiplier</p>
+        </div>
+      </div>
+
+      {/* Counter-signals / warnings */}
+      <ul className="space-y-2">
+        {warnings.map((w, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-zinc-400">
+            <span className={`font-bold shrink-0 mt-0.5 ${w.includes('No significant') ? 'text-emerald-500' : 'text-yellow-500'}`}>
+              {w.includes('No significant') ? '✓' : '⚠'}
+            </span>
+            <span>{w}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /* ── Pivot Points & Fibonacci (forward-looking S/R) ─────────────── */
 function calcPivots(candles: Candle[]) {
   const c   = candles[candles.length - 1];
@@ -1137,6 +1280,7 @@ export default function StockScannerPage() {
                     <>
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {setups.map((s) => <SetupCard key={s.id} setup={s} />)}
+                        {indicators && <PredictiveCard ind={indicators} />}
                       </div>
                       {allCandles.length > 0 && indicators && (
                         <SetupProjectionChart
