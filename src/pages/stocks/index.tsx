@@ -1451,11 +1451,6 @@ export default function StockScannerPage() {
           );
         })()}
 
-        <p className="text-center text-xs text-gray-400 pb-4">
-          Price data via Yahoo Finance. Setups generated algorithmically from EMA, RSI, MACD, ATR and Bollinger Band indicators.
-          For educational use only — always verify with your broker before trading.
-        </p>
-
       </div>
     </Layout>
   );
