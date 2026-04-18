@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRouter } from 'next/router';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
@@ -215,9 +215,9 @@ const AdvancedWatchlist: React.FC = () => {
 
   const SortIcon = ({ column }: { column: keyof WatchlistItem }) => {
     if (sortColumn !== column) {
-      return <span className="ml-1 text-gray-400">⇅</span>;
+      return <span className="ml-1 text-gray-400">?</span>;
     }
-    return <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>;
+    return <span className="ml-1">{sortOrder === 'asc' ? '?' : '?'}</span>;
   };
 
   return (
@@ -225,7 +225,7 @@ const AdvancedWatchlist: React.FC = () => {
       <div className="space-y-6">
         {/* Add Symbol */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Symbol</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Symbol</h2>
           <div className="flex gap-2">
             <input
               type="text"
@@ -255,40 +255,40 @@ const AdvancedWatchlist: React.FC = () => {
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-100 border-b border-gray-300">
+              <thead className="bg-gray-100 dark:bg-zinc-800/60 border-b border-gray-300 dark:border-zinc-700/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('symbol')}>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-zinc-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700/50" onClick={() => handleSort('symbol')}>
                     Ticker <SortIcon column="symbol" />
                   </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('price')}>
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-zinc-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700/50" onClick={() => handleSort('price')}>
                     Current Price <SortIcon column="price" />
                   </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('change')}>
+                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900 dark:text-zinc-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700/50" onClick={() => handleSort('change')}>
                     Day Change <SortIcon column="change" />
                   </th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tsi')}>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-zinc-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700/50" onClick={() => handleSort('tsi')}>
                     True Strength Index <SortIcon column="tsi" />
                   </th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('isCoiling')}>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-zinc-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700/50" onClick={() => handleSort('isCoiling')}>
                     Coiling <SortIcon column="isCoiling" />
                   </th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('coilingStrength')}>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-zinc-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700/50" onClick={() => handleSort('coilingStrength')}>
                     Coiling Strength <SortIcon column="coilingStrength" />
                   </th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('volumeRatio')}>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-zinc-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-zinc-700/50" onClick={() => handleSort('volumeRatio')}>
                     Vol Ratio <SortIcon column="volumeRatio" />
                   </th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">5D Chart</th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">Action</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-zinc-300">5D Chart</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-zinc-300">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {getSortedWatchlist().map((item, idx) => (
-                  <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
+                  <tr key={idx} className="border-b border-gray-200 dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40">
                     <td className="px-6 py-4 text-sm font-semibold">
                       <button
                         onClick={() => router.push(`/stocks?symbol=${item.symbol}`)}
-                        className="text-blue-700 hover:text-blue-900 hover:underline font-bold"
+                        className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline font-bold"
                       >
                         {item.symbol}
                       </button>
@@ -322,8 +322,8 @@ const AdvancedWatchlist: React.FC = () => {
                       {item.loading ? (
                         <Skeleton className="h-4 w-10 mx-auto" />
                       ) : item.isCoiling === true ? (
-                        <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-semibold text-xs">
-                          Yes ⚡
+                        <span className="inline-block px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded font-semibold text-xs">
+                          Yes ?
                         </span>
                       ) : (
                         <span className="text-gray-500">No</span>
@@ -334,7 +334,7 @@ const AdvancedWatchlist: React.FC = () => {
                         <Skeleton className="h-4 w-14 mx-auto" />
                       ) : item.coilingStrength !== null ? (
                         <div className="flex items-center justify-center gap-2">
-                          <div className="w-12 bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div className="w-12 bg-gray-200 dark:bg-zinc-700 rounded-full h-2 overflow-hidden">
                             <div
                               className={`h-full ${
                                 item.coilingStrength > 0.7 ? 'bg-red-500' : item.coilingStrength > 0.4 ? 'bg-yellow-500' : 'bg-blue-500'
@@ -342,7 +342,7 @@ const AdvancedWatchlist: React.FC = () => {
                               style={{ width: `${item.coilingStrength * 100}%` }}
                             ></div>
                           </div>
-                          <span className="font-semibold text-gray-900 text-xs">
+                          <span className="font-semibold text-gray-900 dark:text-white text-xs">
                             {(item.coilingStrength * 100).toFixed(0)}%
                           </span>
                         </div>
@@ -408,21 +408,21 @@ const AdvancedWatchlist: React.FC = () => {
 
         {/* Info */}
         <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-semibold text-blue-900 mb-2">True Strength Index (TSI)</h3>
-            <p className="text-sm text-blue-800">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40 rounded-lg p-4">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">True Strength Index (TSI)</h3>
+            <p className="text-sm text-blue-800 dark:text-blue-400">
               Momentum oscillator (-100 to +100). Positive = uptrend, Negative = downtrend. Useful for confirming price movements.
             </p>
           </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            <h3 className="font-semibold text-purple-900 mb-2">Day Change</h3>
-            <p className="text-sm text-purple-800">
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700/40 rounded-lg p-4">
+            <h3 className="font-semibold text-purple-900 dark:text-purple-300 mb-2">Day Change</h3>
+            <p className="text-sm text-purple-800 dark:text-purple-400">
               Dollar and percentage change from previous close. Green = gain, Red = loss.
             </p>
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h3 className="font-semibold text-yellow-900 mb-2">Coiling ⚡</h3>
-            <p className="text-sm text-yellow-800">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/40 rounded-lg p-4">
+            <h3 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">Coiling ?</h3>
+            <p className="text-sm text-yellow-800 dark:text-yellow-400">
               Tight consolidation with decreasing volatility. Often precedes significant breakout moves.
             </p>
           </div>

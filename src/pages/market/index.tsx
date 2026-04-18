@@ -87,8 +87,8 @@ function TickerTape() {
 ───────────────────────────────────────────── */
 function MiniChart({ symbol, title }: { symbol: string; title: string }) {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-3 pt-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
+      <div className="px-3 pt-2 text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">
         {title}
       </div>
       <TVWidget
@@ -100,7 +100,7 @@ function MiniChart({ symbol, title }: { symbol: string; title: string }) {
           height: 160,
           locale: 'en',
           dateRange: '1D',
-          colorTheme: 'light',
+          colorTheme: 'dark',
           trendLineColor: 'rgba(41, 98, 255, 1)',
           underLineColor: 'rgba(41, 98, 255, 0.3)',
           underLineBottomColor: 'rgba(41, 98, 255, 0)',
@@ -118,8 +118,8 @@ function MiniChart({ symbol, title }: { symbol: string; title: string }) {
 ───────────────────────────────────────────── */
 function SectorHeatmap() {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 mb-3">🗺️ Sector Performance</h2>
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🗺️ Sector Performance</h2>
       <TVWidget
         src={`${TV_EMBED}/embed-widget-etf-heatmap.js`}
         height={420}
@@ -130,7 +130,7 @@ function SectorHeatmap() {
           grouping: 'asset_class',
           locale: 'en',
           symbolUrl: '',
-          colorTheme: 'light',
+          colorTheme: 'dark',
           hasTopBar: false,
           isDataSetEnabled: false,
           isZoomEnabled: true,
@@ -149,13 +149,13 @@ function SectorHeatmap() {
 ───────────────────────────────────────────── */
 function MarketOverviewWidget() {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 mb-3">📊 Market Overview</h2>
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">📊 Market Overview</h2>
       <TVWidget
         src={`${TV_EMBED}/embed-widget-market-overview.js`}
         height={500}
         config={{
-          colorTheme: 'light',
+          colorTheme: 'dark',
           dateRange: '12M',
           showChart: true,
           locale: 'en',
@@ -224,8 +224,8 @@ function MarketOverviewWidget() {
 ───────────────────────────────────────────── */
 function MarketScreener() {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 mb-3">🔍 Stock Screener</h2>
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🔍 Stock Screener</h2>
       <TVWidget
         src={`${TV_EMBED}/embed-widget-screener.js`}
         height={600}
@@ -236,7 +236,7 @@ function MarketScreener() {
           defaultScreen: 'general',
           market: 'us',
           showToolbar: true,
-          colorTheme: 'light',
+          colorTheme: 'dark',
           locale: 'en',
         }}
       />
@@ -249,13 +249,13 @@ function MarketScreener() {
 ───────────────────────────────────────────── */
 function HotlistsWidget() {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 mb-3">🔥 Top Movers</h2>
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🔥 Top Movers</h2>
       <TVWidget
         src={`${TV_EMBED}/embed-widget-hotlists.js`}
         height={600}
         config={{
-          colorTheme: 'light',
+          colorTheme: 'dark',
           dateRange: '1D',
           exchange: 'US',
           showChart: true,
@@ -293,7 +293,7 @@ export default function MarketOverviewPage() {
   return (
     <Layout>
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900">Market Overview</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Market Overview</h1>
 
         {/* Macro Dashboard */}
         <MacroBar />
