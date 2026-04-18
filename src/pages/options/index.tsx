@@ -384,7 +384,7 @@ function TVWidget({ symbol }: { symbol: string }) {
       symbol,
       interval: 'D',
       timezone: 'America/Chicago',
-      theme: 'light',
+      theme: 'dark',
       style: '1',
       locale: 'en',
       enable_publishing: false,
