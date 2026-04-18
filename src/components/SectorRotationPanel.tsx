@@ -28,22 +28,22 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 const REGIME_META: Record<RotationRegime, { label: string; color: string; tip: string }> = {
   'risk-on':   {
     label: '🚀 Risk-On',
-    color: 'bg-green-100 text-green-800 border-green-200',
+    color: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700/50',
     tip:   'Offensive sectors (Tech, Financials, Consumer Disc.) are outperforming.\nMarket is in growth/expansion mode — favour long momentum setups.',
   },
   'defensive': {
     label: '🛡️ Defensive Rotation',
-    color: 'bg-amber-100 text-amber-800 border-amber-200',
+    color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-700/50',
     tip:   'Defensive sectors (Utilities, Staples, Health Care) leading.\nInvestors seeking safety — potential market top or macro fear.',
   },
   'commodity': {
     label: '⛽ Commodity Rotation',
-    color: 'bg-orange-100 text-orange-800 border-orange-200',
+    color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-700/50',
     tip:   'Energy and Materials outperforming the broader market.\nInflation or supply concerns driving commodity names higher.',
   },
   'mixed': {
     label: '↔️ Mixed',
-    color: 'bg-gray-100 text-gray-700 border-gray-200',
+    color: 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 border-gray-200 dark:border-zinc-700',
     tip:   'No dominant sector theme today.\nWait for clearer leadership before making directional rotation bets.',
   },
 };
@@ -68,9 +68,9 @@ function SectorCard({ s }: { s: SectorQuote }) {
   const absRel = Math.abs(s.relStrength);
 
   const statusColor =
-    s.status === 'leading'  ? 'border-green-300 bg-green-50' :
-    s.status === 'lagging'  ? 'border-red-300 bg-red-50' :
-                              'border-gray-200 bg-white';
+    s.status === 'leading'  ? 'border-green-300 dark:border-green-700/50 bg-green-50 dark:bg-green-900/20' :
+    s.status === 'lagging'  ? 'border-red-300 dark:border-red-700/50 bg-red-50 dark:bg-red-900/20' :
+                              'border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800';
 
   const changePctColor =
     s.changePct >= 0 ? 'text-green-600' : 'text-red-600';
@@ -90,7 +90,7 @@ function SectorCard({ s }: { s: SectorQuote }) {
     <Tooltip text={tip}>
       <div className={`rounded-lg border p-3 flex flex-col gap-1 ${statusColor}`}>
         <div className="flex items-center justify-between">
-          <span className="text-sm font-bold text-gray-700">
+          <span className="text-sm font-bold text-gray-700 dark:text-zinc-300">
             {s.emoji} {s.symbol}
           </span>
           {s.status === 'leading' && (
@@ -100,7 +100,7 @@ function SectorCard({ s }: { s: SectorQuote }) {
             <span className="text-[10px] font-bold text-red-700 bg-red-200 px-1.5 py-0.5 rounded">LAG</span>
           )}
         </div>
-        <span className="text-[11px] text-gray-500 leading-tight">{s.label}</span>
+        <span className="text-[11px] text-gray-500 dark:text-zinc-400 leading-tight">{s.label}</span>
         <div className="flex items-center justify-between mt-1">
           <span className={`text-sm font-semibold ${changePctColor}`}>
             {s.changePct >= 0 ? '+' : ''}{s.changePct.toFixed(2)}%
@@ -110,7 +110,7 @@ function SectorCard({ s }: { s: SectorQuote }) {
           </span>
         </div>
         {/* Relative strength mini bar */}
-        <div className="h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
+        <div className="h-1 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden mt-1">
           <div
             className={`h-full rounded-full ${barColor}`}
             style={{ width: `${barPct}%` }}
@@ -146,11 +146,11 @@ export default function SectorRotationPanel() {
 
   if (!data) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-48 mb-3" />
+      <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 animate-pulse">
+        <div className="h-4 bg-gray-200 dark:bg-zinc-700 rounded w-48 mb-3" />
         <div className="grid grid-cols-4 lg:grid-cols-6 gap-3">
           {Array.from({ length: 11 }).map((_, i) => (
-            <div key={i} className="h-20 bg-gray-100 rounded-lg" />
+            <div key={i} className="h-20 bg-gray-100 dark:bg-zinc-800 rounded-lg" />
           ))}
         </div>
       </div>
@@ -161,16 +161,16 @@ export default function SectorRotationPanel() {
   const ts = new Date(data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4 space-y-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 space-y-4">
       {/* Header row */}
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-sm font-bold text-gray-700">🔄 Sector Rotation</h2>
+        <h2 className="text-sm font-bold text-gray-700 dark:text-zinc-300">🔄 Sector Rotation</h2>
         <Tooltip text={regime.tip}>
           <span className={`text-xs font-semibold border px-2 py-1 rounded-full cursor-help ${regime.color}`}>
             {regime.label}
           </span>
         </Tooltip>
-        <span className="text-xs text-gray-400 ml-auto">
+        <span className="text-xs text-gray-400 dark:text-zinc-600 ml-auto">
           SPY {data.spy.changePct >= 0 ? '+' : ''}{data.spy.changePct.toFixed(2)}% · as of {ts}
         </span>
       </div>
@@ -183,7 +183,7 @@ export default function SectorRotationPanel() {
       </div>
 
       {/* Narrative */}
-      <p className="text-xs text-gray-500 leading-relaxed border-t border-gray-100 pt-3">
+      <p className="text-xs text-gray-500 dark:text-zinc-400 leading-relaxed border-t border-gray-100 dark:border-zinc-800 pt-3">
         {data.narrative}
       </p>
     </div>

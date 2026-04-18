@@ -27,8 +27,8 @@ function Tile({ q, unit = '', decimals = 2, tooltip }: {
       onMouseLeave={() => setShowTip(false)}
       onMouseMove={(e) => { if (tooltip) setPos({ x: e.clientX + 12, y: e.clientY - 8 }); }}
     >
-      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{q.label}</span>
-      <span className="text-base font-bold text-gray-800 leading-none">
+      <span className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-wide">{q.label}</span>
+      <span className="text-base font-bold text-gray-800 dark:text-white leading-none">
         {fmtPrice(q, decimals)}{unit}
       </span>
       <span className={`text-xs font-medium ${changeColor(q.changePct)}`}>{fmtPct(q.changePct)}</span>
@@ -47,10 +47,10 @@ function Tile({ q, unit = '', decimals = 2, tooltip }: {
 /* ── VIX regime badge ────────────────────────────────────────────── */
 function VixBadge({ regime }: { regime: MacroData['vixRegime'] }) {
   const map = {
-    low:      { label: 'VIX Low < 15',      cls: 'bg-green-100 text-green-800',  tip: 'Markets are calm. Premium sellers have an edge but premiums are thin. Complacency risk rising.' },
-    normal:   { label: 'VIX Normal 15–20',   cls: 'bg-blue-100 text-blue-800',   tip: 'Normal volatility conditions — balanced environment for both buying and selling premium.' },
-    elevated: { label: 'VIX Elevated 20–30', cls: 'bg-amber-100 text-amber-800', tip: 'Elevated fear — premiums are rich. Excellent time to sell credit spreads and collect inflated premium.' },
-    extreme:  { label: 'VIX Extreme > 30',   cls: 'bg-red-100 text-red-800',     tip: 'Panic mode. IV is very expensive — premium sellers win big if fear subsides. Wide bid/ask spreads require care.' },
+    low:      { label: 'VIX Low < 15',      cls: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',  tip: 'Markets are calm. Premium sellers have an edge but premiums are thin. Complacency risk rising.' },
+    normal:   { label: 'VIX Normal 15–20',   cls: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',   tip: 'Normal volatility conditions — balanced environment for both buying and selling premium.' },
+    elevated: { label: 'VIX Elevated 20–30', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300', tip: 'Elevated fear — premiums are rich. Excellent time to sell credit spreads and collect inflated premium.' },
+    extreme:  { label: 'VIX Extreme > 30',   cls: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',     tip: 'Panic mode. IV is very expensive — premium sellers win big if fear subsides. Wide bid/ask spreads require care.' },
   };
   const { label, cls, tip } = map[regime];
   const [showTip, setShowTip] = useState(false);
@@ -78,9 +78,9 @@ function VixBadge({ regime }: { regime: MacroData['vixRegime'] }) {
 /* ── Yield curve badge ───────────────────────────────────────────── */
 function YieldCurveBadge({ regime, spreadBps }: { regime: MacroData['yieldCurveRegime']; spreadBps: number }) {
   const map = {
-    normal:   { label: `Normal +${spreadBps}bps`,   cls: 'bg-green-100 text-green-800',  tip: 'Healthy yield curve — long rates above short rates. Economy expanding, banks profitable. Risk-on conditions favoured.' },
-    flat:     { label: `Flat ±${Math.abs(spreadBps)}bps`,    cls: 'bg-yellow-100 text-yellow-800', tip: 'Flat yield curve — growth uncertainty. Markets pricing in slowing but no recession. Mixed signals for equities.' },
-    inverted: { label: `Inverted ${spreadBps}bps`,  cls: 'bg-red-100 text-red-800',     tip: 'Inverted yield curve — historically signals recession within 12–18 months. Risk-off bias, defensive sectors preferred.' },
+    normal:   { label: `Normal +${spreadBps}bps`,   cls: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',  tip: 'Healthy yield curve — long rates above short rates. Economy expanding, banks profitable. Risk-on conditions favoured.' },
+    flat:     { label: `Flat ±${Math.abs(spreadBps)}bps`,    cls: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300', tip: 'Flat yield curve — growth uncertainty. Markets pricing in slowing but no recession. Mixed signals for equities.' },
+    inverted: { label: `Inverted ${spreadBps}bps`,  cls: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',     tip: 'Inverted yield curve — historically signals recession within 12–18 months. Risk-off bias, defensive sectors preferred.' },
   };
   const { label, cls, tip } = map[regime];
   const [showTip, setShowTip] = useState(false);
@@ -150,7 +150,7 @@ export default function MacroBar() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4 flex items-center gap-3 text-sm text-gray-400">
+      <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 flex items-center gap-3 text-sm text-gray-400 dark:text-zinc-500">
         <span className="w-4 h-4 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
         Loading macro data…
       </div>
@@ -159,28 +159,28 @@ export default function MacroBar() {
 
   if (error || !data) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-3 text-xs text-gray-400">
+      <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-3 text-xs text-gray-400 dark:text-zinc-500">
         {error || 'Macro data unavailable'}
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4 space-y-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 space-y-4">
 
       {/* ── Row 1: Header + regime badges ── */}
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-bold text-gray-700 shrink-0">Macro Dashboard</span>
+        <span className="text-sm font-bold text-gray-700 dark:text-zinc-300 shrink-0">Macro Dashboard</span>
         <RiskBadge regime={data.riskRegime} />
         <VixBadge regime={data.vixRegime} />
         <YieldCurveBadge regime={data.yieldCurveRegime} spreadBps={data.yieldSpread} />
-        <span className="ml-auto text-[10px] text-gray-400">
+        <span className="ml-auto text-[10px] text-gray-400 dark:text-zinc-600">
           {new Date(data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · 10min cache
         </span>
       </div>
 
       {/* ── Row 2: Tiles grid ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-x-4 gap-y-3 border-t border-gray-100 pt-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-x-4 gap-y-3 border-t border-gray-100 dark:border-zinc-800 pt-4">
 
         <Tile
           q={data.vix}
@@ -195,11 +195,11 @@ export default function MacroBar() {
         />
 
         <div className="flex flex-col gap-0.5 min-w-[100px]">
-          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Yield Curve</span>
-          <span className="text-base font-bold text-gray-800 leading-none">
+          <span className="text-[10px] font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-wide">Yield Curve</span>
+          <span className="text-base font-bold text-gray-800 dark:text-white leading-none">
             {data.t2y.price.toFixed(2)}% / {data.t10y.price.toFixed(2)}%
           </span>
-          <span className="text-xs text-gray-500">2Y / 10Y · spread {data.yieldSpread > 0 ? '+' : ''}{data.yieldSpread}bps</span>
+          <span className="text-xs text-gray-500 dark:text-zinc-400">2Y / 10Y · spread {data.yieldSpread > 0 ? '+' : ''}{data.yieldSpread}bps</span>
         </div>
 
         <Tile
@@ -235,7 +235,7 @@ export default function MacroBar() {
       </div>
 
       {/* ── Row 3: Intermarket narrative ── */}
-      <div className="border-t border-gray-100 pt-3">
+      <div className="border-t border-gray-100 dark:border-zinc-800 pt-3">
         <IntermarketNarrative data={data} />
       </div>
     </div>
