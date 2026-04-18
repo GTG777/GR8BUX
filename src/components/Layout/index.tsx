@@ -351,7 +351,7 @@ export function Layout({ children, title }: LayoutProps) {
           <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
             {!collapsed && (
               <div className="bg-white rounded-lg px-2 py-1">
-                <Image src="/gr8buxlogo.png" alt="GR8BUX" width={110} height={36} className="object-contain" priority />
+                <Image src="/gr8buxlogo.png" alt="GR8BUX" width={220} height={72} className="object-contain" priority />
               </div>
             )}
             <button
