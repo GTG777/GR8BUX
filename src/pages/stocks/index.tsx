@@ -449,7 +449,7 @@ function TSIChart({ data }: { data: TSIPoint[] }) {
         <div className="flex items-center gap-3">
           <h3 className="text-sm font-semibold text-gray-900">True Strength Index (25, 13, 7)</h3>
           <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-            isBull ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+            isBull ? 'bg-green-100 text-green-700 dark:text-green-400' : 'bg-red-100 text-red-600 dark:text-red-400'
           }`}>
             {isBull ? '▲ Bullish' : '▼ Bearish'}
           </span>
@@ -458,7 +458,7 @@ function TSIChart({ data }: { data: TSIPoint[] }) {
           <span>TSI <span className="font-bold" style={{ color: tsiColor }}>{lastTSI.toFixed(1)}</span></span>
           <span>Signal <span className="font-bold" style={{ color: sigColor }}>{lastSig.toFixed(1)}</span></span>
           <span className={`font-bold ${
-            lastTSI > 25 ? 'text-green-600' : lastTSI < -25 ? 'text-red-600' : 'text-gray-500'
+            lastTSI > 25 ? 'text-green-600 dark:text-green-400' : lastTSI < -25 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
           }`}>
             {lastTSI > 25 ? 'Overbought' : lastTSI < -25 ? 'Oversold' : 'Neutral'}
           </span>
@@ -497,7 +497,7 @@ function TSIChart({ data }: { data: TSIPoint[] }) {
         </LineChart>
       </ResponsiveContainer>
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-500 border-t pt-3">
+      <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400 border-t pt-3">
         <span>📈 <strong>TSI crosses above Signal</strong> → Buy signal</span>
         <span>📉 <strong>TSI crosses below Signal</strong> → Sell signal</span>
         <span>⬆️ <strong>Above +25</strong> → Strong bullish momentum</span>
@@ -548,17 +548,17 @@ function TechBar({ ind }: { ind: Indicators }) {
     ind.trendScore ===  1 ? 'Mixed Bullish'    :
     ind.trendScore === -1 ? 'Mixed Bearish'    :
     ind.trendScore === -2 ? 'Downtrend'        : 'Strong Downtrend';
-  const trendColor  = ind.trendScore > 0 ? 'text-green-600' : ind.trendScore < 0 ? 'text-red-600' : 'text-gray-500';
-  const tsiColor    = ind.tsi > 25 ? 'text-green-700' : ind.tsi < -25 ? 'text-red-600' : 'text-gray-800';
+  const trendColor  = ind.trendScore > 0 ? 'text-green-600 dark:text-green-400' : ind.trendScore < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400';
+  const tsiColor    = ind.tsi > 25 ? 'text-green-700 dark:text-green-400' : ind.tsi < -25 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-100';
   const tsiLabel    = ind.tsi > 25 ? 'Bullish' : ind.tsi < -25 ? 'Bearish' : 'Neutral';
-  const changeColor = ind.changePct >= 0 ? 'text-green-600' : 'text-red-600';
-  const volColor    = ind.volumeRatio >= 1.3 ? 'text-green-600' : ind.volumeRatio < 0.7 ? 'text-gray-400' : 'text-gray-700';
+  const changeColor = ind.changePct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+  const volColor    = ind.volumeRatio >= 1.3 ? 'text-green-600 dark:text-green-400' : ind.volumeRatio < 0.7 ? 'text-gray-400' : 'text-gray-700 dark:text-gray-200';
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 flex flex-wrap items-start gap-6 text-sm">
       <div>
         <p className="text-xs text-gray-400 mb-0.5">Last Price</p>
-        <p className="text-2xl font-bold text-gray-800">${ind.price.toFixed(2)}</p>
+        <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">${ind.price.toFixed(2)}</p>
         <p className={`text-xs font-semibold ${changeColor}`}>
           {ind.changePct >= 0 ? '+' : ''}{ind.changePct}% today
         </p>
@@ -575,14 +575,14 @@ function TechBar({ ind }: { ind: Indicators }) {
       </div>
       <div>
         <p className="text-xs text-gray-400 mb-0.5">MACD</p>
-        <p className={`font-bold ${ind.macdHist > 0 ? 'text-green-600' : 'text-red-600'}`}>
+        <p className={`font-bold ${ind.macdHist > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
           {ind.macdHist > 0 ? '▲ Bullish' : '▼ Bearish'}
         </p>
         <p className="text-xs text-gray-400">Hist: {ind.macdHist.toFixed(3)}</p>
       </div>
       <div>
         <p className="text-xs text-gray-400 mb-0.5">ATR 14</p>
-        <p className="font-bold text-gray-800">${ind.atr14}</p>
+        <p className="font-bold text-gray-800 dark:text-gray-100">${ind.atr14}</p>
         <p className="text-xs text-gray-400">HV20: {ind.hv20}%</p>
       </div>
       <div>
@@ -592,7 +592,7 @@ function TechBar({ ind }: { ind: Indicators }) {
       </div>
       <div>
         <p className="text-xs text-gray-400 mb-0.5">Bollinger Bands</p>
-        <p className="font-mono text-xs text-gray-700">${ind.bbLower} – ${ind.bbUpper}</p>
+        <p className="font-mono text-xs text-gray-700 dark:text-gray-200">${ind.bbLower} – ${ind.bbUpper}</p>
         <p className="text-xs text-gray-400">20-day high/low: ${ind.high20.toFixed(2)} / ${ind.low20.toFixed(2)}</p>
       </div>
     </div>
@@ -609,7 +609,7 @@ function DirectionBadge({ dir }: { dir: 'long' | 'short' }) {
 function GradeBadge({ grade }: { grade: 'A' | 'B' | 'C' }) {
   const cls = grade === 'A' ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
             : grade === 'B' ? 'bg-yellow-100  text-yellow-800  border-yellow-200'
-            :                 'bg-gray-100    text-gray-600    border-gray-200';
+            :                 'bg-gray-100    text-gray-600 dark:text-gray-300    border-gray-200';
   return <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${cls}`}>Grade {grade}</span>;
 }
 
@@ -637,27 +637,27 @@ function SetupCard({ setup }: { setup: StockSetup }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center mb-4">
           <div>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Entry</p>
-            <p className="text-2xl font-extrabold text-gray-800">${setup.entry.toFixed(2)}</p>
+            <p className="text-2xl font-extrabold text-gray-800 dark:text-gray-100">${setup.entry.toFixed(2)}</p>
             <p className="text-xs text-gray-400">Market price</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold text-red-400 uppercase tracking-widest mb-1">Stop Loss</p>
-            <p className="text-2xl font-extrabold text-red-600">${setup.stop.toFixed(2)}</p>
+            <p className="text-2xl font-extrabold text-red-600 dark:text-red-400">${setup.stop.toFixed(2)}</p>
             <p className="text-xs text-red-400">−${setup.stopDist} (−{setup.stopPct}%)</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold text-green-500 uppercase tracking-widest mb-1">
               Target 1 <span className="text-gray-400 font-normal normal-case">(2:1)</span>
             </p>
-            <p className="text-2xl font-extrabold text-green-700">${setup.target1.toFixed(2)}</p>
+            <p className="text-2xl font-extrabold text-green-700 dark:text-green-400">${setup.target1.toFixed(2)}</p>
             <p className="text-xs text-green-500">+${t1Gain}</p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-green-700 uppercase tracking-widest mb-1">
+            <p className="text-[10px] font-semibold text-green-700 dark:text-green-400 uppercase tracking-widest mb-1">
               Target 2 <span className="text-gray-400 font-normal normal-case">(3:1)</span>
             </p>
             <p className="text-2xl font-extrabold text-green-800">${setup.target2.toFixed(2)}</p>
-            <p className="text-xs text-green-600">+${t2Gain}</p>
+            <p className="text-xs text-green-600 dark:text-green-400">+${t2Gain}</p>
           </div>
         </div>
 
@@ -667,14 +667,14 @@ function SetupCard({ setup }: { setup: StockSetup }) {
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">
               Probability of Success
             </p>
-            <p className="text-4xl font-extrabold text-gray-800">{setup.pop}%</p>
+            <p className="text-4xl font-extrabold text-gray-800 dark:text-gray-100">{setup.pop}%</p>
             <p className="text-xs text-gray-400 mt-1">Estimated win rate for this setup</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">
               Risk : Reward
             </p>
-            <p className="text-4xl font-extrabold text-gray-800">1 : {setup.rrRatio1}</p>
+            <p className="text-4xl font-extrabold text-gray-800 dark:text-gray-100">1 : {setup.rrRatio1}</p>
             <p className="text-xs text-gray-400 mt-1">Risk ${setup.stopDist} to make ${t1Gain}</p>
           </div>
         </div>
@@ -683,7 +683,7 @@ function SetupCard({ setup }: { setup: StockSetup }) {
       {/* Reasons */}
       <ul className="space-y-2">
         {setup.reasons.map((r, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+          <li key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
             <span className={`font-bold shrink-0 mt-0.5 ${checkClr}`}>✓</span>
             <span>{r}</span>
           </li>
@@ -1150,19 +1150,19 @@ function SetupProjectionChart({
       <div className="mt-3 pt-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
         <div>
           <p className="font-semibold text-indigo-600 mb-1">Pivot Points <span className="text-gray-400 font-normal">(leading)</span></p>
-          <p className="text-gray-500">PP/R1/R2/S1/S2 from prior session H/L/C. Price frequently reverses at R1/S1 before targets are reached. Look for T1 landing near R1 or S1 as confluence.</p>
+          <p className="text-gray-500 dark:text-gray-400">PP/R1/R2/S1/S2 from prior session H/L/C. Price frequently reverses at R1/S1 before targets are reached. Look for T1 landing near R1 or S1 as confluence.</p>
         </div>
         <div>
           <p className="font-semibold text-amber-700 mb-1">Fibonacci <span className="text-gray-400 font-normal">(leading)</span></p>
-          <p className="text-gray-500">38.2%, 50%, 61.8% retracement of the 60-bar swing. Institutional algorithms scale in/out at these algorithmic levels — strong clusters = high-probability zones.</p>
+          <p className="text-gray-500 dark:text-gray-400">38.2%, 50%, 61.8% retracement of the 60-bar swing. Institutional algorithms scale in/out at these algorithmic levels — strong clusters = high-probability zones.</p>
         </div>
         <div>
-          <p className="font-semibold text-gray-500 mb-1">ATR Cone <span className="text-gray-400 font-normal">(projection)</span></p>
-          <p className="text-gray-500">±ATR × √t shows the statistically expected price range for the next {PROJ} sessions based on realized volatility — not a forecast, but a probability envelope.</p>
+          <p className="font-semibold text-gray-500 dark:text-gray-400 mb-1">ATR Cone <span className="text-gray-400 font-normal">(projection)</span></p>
+          <p className="text-gray-500 dark:text-gray-400">±ATR × √t shows the statistically expected price range for the next {PROJ} sessions based on realized volatility — not a forecast, but a probability envelope.</p>
         </div>
         <div>
-          <p className="font-semibold text-green-700 mb-1">Target Confluence</p>
-          <p className="text-gray-500">When T1 or T2 aligns with a Pivot or Fibonacci level it becomes a high-conviction target. Divergence means the target may run past or fail to reach that level.</p>
+          <p className="font-semibold text-green-700 dark:text-green-400 mb-1">Target Confluence</p>
+          <p className="text-gray-500 dark:text-gray-400">When T1 or T2 aligns with a Pivot or Fibonacci level it becomes a high-conviction target. Divergence means the target may run past or fail to reach that level.</p>
         </div>
       </div>
     </div>
@@ -1255,7 +1255,7 @@ export default function StockScannerPage() {
         {/* ── Header ── */}
         <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
           <div className="flex flex-wrap items-center gap-3 mb-3">
-            <h1 className="text-xl font-bold text-gray-800 shrink-0">Stock Scanner</h1>
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 shrink-0">Stock Scanner</h1>
             <p className="text-xs text-gray-400">
               Technical setups · Entry, exit &amp; stop-loss · Risk:Reward + Probability of success
             </p>
@@ -1285,7 +1285,7 @@ export default function StockScannerPage() {
                 className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                   symbol === t
                     ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
+                    : 'bg-gray-50 text-gray-600 dark:text-gray-300 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
                 }`}
               >
                 {t}
@@ -1316,7 +1316,7 @@ export default function StockScannerPage() {
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                       activeTab === t
                         ? 'border-indigo-600 text-indigo-700'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200'
                     }`}
                   >
                     {t}
@@ -1331,7 +1331,7 @@ export default function StockScannerPage() {
                   {loading && (
                     <div className="flex items-center justify-center py-20">
                       <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
-                      <span className="text-gray-500 text-sm">Scanning {symbol}…</span>
+                      <span className="text-gray-500 dark:text-gray-400 text-sm">Scanning {symbol}…</span>
                     </div>
                   )}
                   {!loading && lastScanned && (
@@ -1360,7 +1360,7 @@ export default function StockScannerPage() {
                     <CandlePatternsPanel candles={allCandles} symbol={symbol} />
                   )}
                   <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Indicator Glossary</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Indicator Glossary</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                       {[
                         ['TSI (25/13)',       'True Strength Index. Double-smoothed momentum. Above 0 = bullish momentum.'],
@@ -1372,8 +1372,8 @@ export default function StockScannerPage() {
                         ['Volume Ratio',     'Today vs 20-day avg volume. > 1.3× = conviction behind the move.'],
                       ].map(([term, def]) => (
                         <div key={term} className="flex gap-3 text-xs py-1">
-                          <span className="font-semibold text-gray-700 w-36 shrink-0">{term}</span>
-                          <span className="text-gray-500">{def}</span>
+                          <span className="font-semibold text-gray-700 dark:text-gray-200 w-36 shrink-0">{term}</span>
+                          <span className="text-gray-500 dark:text-gray-400">{def}</span>
                         </div>
                       ))}
                     </div>
@@ -1389,7 +1389,7 @@ export default function StockScannerPage() {
                     : loading
                       ? <div className="flex items-center justify-center py-20">
                           <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
-                          <span className="text-gray-500 text-sm">Loading insider data…</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-sm">Loading insider data…</span>
                         </div>
                       : <p className="text-sm text-gray-400 py-8 text-center">No insider data available for {symbol}.</p>
                   }
@@ -1402,7 +1402,7 @@ export default function StockScannerPage() {
                   {loading && (
                     <div className="flex items-center justify-center py-20">
                       <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
-                      <span className="text-gray-500 text-sm">Scanning {symbol}…</span>
+                      <span className="text-gray-500 dark:text-gray-400 text-sm">Scanning {symbol}…</span>
                     </div>
                   )}
                   {!loading && setups.length > 0 && (
@@ -1428,7 +1428,7 @@ export default function StockScannerPage() {
                     </div>
                   )}
                   <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">How Setups Are Scored</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">How Setups Are Scored</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                       {[
                         ['Entry',          'Current market price for the position.'],
@@ -1439,8 +1439,8 @@ export default function StockScannerPage() {
                         ['Grade A/B/C',    'A = all signals aligned; B = most aligned; C = mixed.'],
                       ].map(([term, def]) => (
                         <div key={term} className="flex gap-3 text-xs py-1">
-                          <span className="font-semibold text-gray-700 w-36 shrink-0">{term}</span>
-                          <span className="text-gray-500">{def}</span>
+                          <span className="font-semibold text-gray-700 dark:text-gray-200 w-36 shrink-0">{term}</span>
+                          <span className="text-gray-500 dark:text-gray-400">{def}</span>
                         </div>
                       ))}
                     </div>
