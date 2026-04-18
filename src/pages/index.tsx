@@ -86,7 +86,7 @@ export default function Home() {
       {/* ── Navbar ── */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
-          <img src="/logo-full.png" alt="GR8BUX" className="h-14 w-auto" />
+          <img src="/logo-full.png" alt="GR8BUX" className="h-[156px] w-auto" />
           <nav className="hidden md:flex items-center gap-8">
             {NAV_LINKS.map(l => (
               <Link key={l.href} href={l.href} className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">{l.label}</Link>
