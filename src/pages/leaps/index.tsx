@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
+import { LeapsAdvisorChat } from '@/components/LeapsAdvisorChat';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { LeapsContract, LeapsChainResponse } from '@/pages/api/options/leaps-chain';
 import { AIAdvisorPanel } from '@/components';
@@ -357,7 +358,7 @@ const GUIDES: Record<string, GuideData> = {
 /* ─────────────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────────────── */
-type Tab = 'screener' | 'chain' | 'builder' | 'portfolio' | 'rules';
+type Tab = 'screener' | 'chain' | 'builder' | 'portfolio' | 'rules' | 'advisor';
 type SortKey = 'expiry' | 'strike' | 'delta' | 'premium' | 'theta' | 'oi' | 'be';
 
 // Portfolio position (persisted to localStorage)
@@ -716,6 +717,7 @@ export default function LeapsPage() {
     { id: 'builder',  label: '🛠️ Builder' },
     { id: 'portfolio',label: '💼 Portfolio' },
     { id: 'rules',    label: '📖 Rules & Tips' },
+    { id: 'advisor',  label: '🤖 AI Advisor' },
   ];
 
   return (
@@ -1628,6 +1630,11 @@ export default function LeapsPage() {
 
           </div>
         )}
+
+        {/* ══════════════════════════════════════════════════════
+            TAB: AI ADVISOR
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'advisor' && <LeapsAdvisorChat />}
 
         <p className="text-center text-xs text-gray-400 pb-4">
           LEAPS data via Yahoo Finance. Black-Scholes greeks computed server-side. For educational purposes — not financial advice.

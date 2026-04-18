@@ -18,6 +18,7 @@ import {
 import { Layout } from '@/components/Layout';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { BlackScholesInputs } from '@/lib/greeks';
+import type { OptionContract } from '@/pages/api/options/chain';
 
 /* ── Types ────────────────────────────────────────────────────────── */
 type StrategyId =
@@ -68,6 +69,14 @@ interface CalcResult {
 }
 
 interface HVData { hv10: number; hv20: number; hv30: number; hv60: number; currentPrice: number }
+
+interface OptionsAnalytics {
+  ivr: number | null;
+  maxPain: number;
+  gex: { strike: number; gex: number }[];
+  totalGex: number;
+  nearestExpiry: string;
+}
 
 /* ── Strategy definitions ─────────────────────────────────────────── */
 const STRATEGIES: Record<StrategyId, StrategyDef> = {
@@ -297,6 +306,224 @@ function buildCalcResult(
     }
   }
   return { legs, netCost, maxProfit, maxLoss, breakevenPrices, pnlChart };
+}
+
+/* ── Options Analytics helpers ─────────────────────────────────── */
+function dteTillOpt(exStr: string): number {
+  const exp = new Date(exStr + 'T16:00:00-05:00');
+  return Math.max(1, Math.round((exp.getTime() - Date.now()) / 86400000));
+}
+function calcIVR(contracts: OptionContract[]): number | null {
+  const ivs = contracts.map((c) => c.impliedVolatility).filter((v) => v > 0);
+  if (ivs.length < 4) return null;
+  const min = Math.min(...ivs); const max = Math.max(...ivs);
+  if (max === min) return null;
+  ivs.sort((a, b) => a - b);
+  const mid = ivs.slice(Math.floor(ivs.length * 0.3), Math.ceil(ivs.length * 0.7));
+  const current = mid.reduce((s, v) => s + v, 0) / mid.length;
+  return parseFloat(((current - min) / (max - min) * 100).toFixed(1));
+}
+function calcMaxPainOpt(contracts: OptionContract[], spot: number): number {
+  const nextExpiry = contracts.reduce((e, c) => (!e || c.expirationStr < e ? c.expirationStr : e), '');
+  const near = contracts.filter((c) => c.expirationStr === nextExpiry);
+  const strikes = [...new Set(near.map((c) => c.strike))].sort((a, b) => a - b);
+  let minPain = Infinity; let maxPainStrike = spot;
+  for (const ts of strikes) {
+    let pain = 0;
+    for (const c of near) {
+      const oi = c.openInterest ?? 0;
+      if (c.type === 'call' && ts > c.strike) pain += (ts - c.strike) * oi * 100;
+      if (c.type === 'put'  && ts < c.strike) pain += (c.strike - ts) * oi * 100;
+    }
+    if (pain < minPain) { minPain = pain; maxPainStrike = ts; }
+  }
+  return maxPainStrike;
+}
+function calcGEXOpt(contracts: OptionContract[], spot: number): { gexByStrike: { strike: number; gex: number }[]; totalGex: number; nearestExpiry: string } {
+  const nextExpiry = contracts.reduce((e, c) => (!e || c.expirationStr < e ? c.expirationStr : e), '');
+  const near = contracts.filter((c) => c.expirationStr === nextExpiry);
+  const T = Math.max(dteTillOpt(nextExpiry) / 365, 1 / 365);
+  const r = 0.045;
+  const byStrike = new Map<number, number>();
+  for (const c of near) {
+    if (c.openInterest <= 0 || c.impliedVolatility <= 0) continue;
+    const sigma = c.impliedVolatility;
+    const d1 = (Math.log(spot / c.strike) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+    const gamma = Math.exp(-0.5 * d1 * d1) / (spot * sigma * Math.sqrt(T) * Math.sqrt(2 * Math.PI));
+    const dollarGamma = gamma * c.openInterest * 100 * spot * spot * 0.01;
+    const sign = c.type === 'call' ? -1 : 1;
+    byStrike.set(c.strike, (byStrike.get(c.strike) ?? 0) + sign * dollarGamma);
+  }
+  const gexByStrike = Array.from(byStrike.entries())
+    .map(([strike, gex]) => ({ strike, gex: parseFloat(gex.toFixed(0)) }))
+    .sort((a, b) => Math.abs(b.gex) - Math.abs(a.gex)).slice(0, 10);
+  const totalGex = parseFloat(Array.from(byStrike.values()).reduce((s, v) => s + v, 0).toFixed(0));
+  return { gexByStrike, totalGex, nearestExpiry: nextExpiry };
+}
+function computeOptionsAnalytics(contracts: OptionContract[], spot: number): OptionsAnalytics {
+  const { gexByStrike, totalGex, nearestExpiry } = calcGEXOpt(contracts, spot);
+  return { ivr: calcIVR(contracts), maxPain: calcMaxPainOpt(contracts, spot), gex: gexByStrike, totalGex, nearestExpiry };
+}
+
+/* ── TradingView widget ─────────────────────────────────────────── */
+function TVWidget({ symbol }: { symbol: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const CHART_H = 420;
+  useEffect(() => {
+    if (!containerRef.current) return;
+    containerRef.current.innerHTML = '';
+    const widgetDiv = document.createElement('div');
+    widgetDiv.className = 'tradingview-widget-container__widget';
+    widgetDiv.style.cssText = `height:${CHART_H}px;width:100%`;
+    containerRef.current.appendChild(widgetDiv);
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      width: '100%', height: CHART_H, symbol, interval: 'D',
+      timezone: 'America/Chicago', theme: 'light', style: '1', locale: 'en',
+      enable_publishing: false, allow_symbol_change: false,
+      hide_side_toolbar: false, withdateranges: true, save_image: false,
+      studies: [
+        { id: 'MAExp@tv-basicstudies', inputs: { length: 20 } },
+        { id: 'MAExp@tv-basicstudies', inputs: { length: 50 } },
+        { id: 'Volume@tv-basicstudies' },
+      ],
+    });
+    containerRef.current.appendChild(script);
+  }, [symbol]);
+  return <div className="tradingview-widget-container" ref={containerRef} style={{ height: CHART_H, width: '100%' }} />;
+}
+
+/* ── Info tooltip ───────────────────────────────────────────────── */
+function InfoTip({ text }: { text: string }) {
+  const [visible, setVisible] = React.useState(false);
+  const [pos, setPos] = React.useState({ x: 0, y: 0 });
+  return (
+    <>
+      <span
+        className="cursor-help text-gray-400 hover:text-indigo-500 select-none text-xs leading-none"
+        onMouseEnter={(e) => { setPos({ x: e.clientX + 12, y: e.clientY - 8 }); setVisible(true); }}
+        onMouseLeave={() => setVisible(false)}
+        onMouseMove={(e) => setPos({ x: e.clientX + 12, y: e.clientY - 8 })}
+        aria-label="More info"
+      >
+        ⓘ
+      </span>
+      {visible && (
+        <div
+          className="fixed z-[9999] w-72 bg-gray-900 text-white text-xs rounded-lg px-3 py-2.5 shadow-xl pointer-events-none leading-relaxed"
+          style={{ left: pos.x, top: pos.y }}
+        >
+          {text}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Options Analytics Panel ────────────────────────────────────── */
+function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number }) {
+  const ivrColor = oa.ivr === null ? 'text-gray-400'
+    : oa.ivr >= 70 ? 'text-red-600' : oa.ivr >= 40 ? 'text-amber-600' : 'text-green-600';
+  const ivrBarColor = oa.ivr === null ? 'bg-gray-300'
+    : oa.ivr >= 70 ? 'bg-red-500' : oa.ivr >= 40 ? 'bg-amber-400' : 'bg-green-500';
+  const maxPainDiff = spot > 0 ? ((oa.maxPain - spot) / spot * 100) : 0;
+  const gexRegime = oa.totalGex > 0
+    ? { label: 'Positive GEX — Volatility Dampener', color: 'text-green-700', bg: 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800' }
+    : { label: 'Negative GEX — Volatility Expander', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800' };
+  const absGex = oa.gex.map((g) => Math.abs(g.gex));
+  const maxAbsGex = Math.max(...absGex, 1);
+  const gexDominantStrike = oa.gex[0];
+  return (
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
+      <h3 className="text-sm font-bold text-gray-700 dark:text-zinc-300 mb-4 flex items-center gap-2">
+        Options Analytics
+        <span className="text-xs font-normal text-gray-400">&middot; nearest expiry: {oa.nearestExpiry}</span>
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* IVR */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            IV Rank (IVR)
+            <InfoTip text="IV Rank compares current IV to its 52-week range. 70+ = expensive (sell premium). Below 30 = cheap (buy premium)." />
+          </p>
+          <div className="flex items-end gap-2">
+            <span className={`text-4xl font-extrabold leading-none ${ivrColor}`}>
+              {oa.ivr !== null ? oa.ivr.toFixed(0) : '—'}
+            </span>
+            <span className="text-xs text-gray-400 mb-1">/ 100</span>
+          </div>
+          <div className="h-2 bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${ivrBarColor}`} style={{ width: `${Math.min(100, oa.ivr ?? 0)}%` }} />
+          </div>
+          <p className="text-xs text-gray-500">
+            {oa.ivr === null ? 'Insufficient data'
+              : oa.ivr >= 80 ? '🔥 IV expensive — strong edge to sell spreads'
+              : oa.ivr >= 60 ? '✅ Above-average IV — good time to collect premium'
+              : oa.ivr >= 40 ? '⚠️ Neutral IV — standard sizing'
+              : oa.ivr >= 20 ? '🔵 Compressed IV — reduce size or avoid selling'
+              : '❄️ Very low IV — consider buying instead'}
+          </p>
+        </div>
+        {/* Max Pain */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            Max Pain
+            <InfoTip text="Max Pain = strike where most options expire worthless. Acts as a price magnet near expiry." />
+          </p>
+          <div className="flex items-end gap-2">
+            <span className="text-4xl font-extrabold leading-none text-indigo-600">${oa.maxPain}</span>
+          </div>
+          <p className="text-xs text-gray-500">
+            Spot: <span className="font-semibold text-gray-700">${spot.toFixed(2)}</span>
+            <span className={`ml-2 font-semibold ${maxPainDiff > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({maxPainDiff > 0 ? '+' : ''}{maxPainDiff.toFixed(1)}%)
+            </span>
+          </p>
+        </div>
+        {/* GEX */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            Gamma Exposure (GEX)
+            <InfoTip text="Positive GEX = MMs dampen volatility. Negative GEX = MMs amplify moves." />
+          </p>
+          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${gexRegime.bg} ${gexRegime.color}`}>
+            {oa.totalGex > 0 ? '🛡️' : '⚡'} {gexRegime.label}
+          </div>
+          <p className="text-xs text-gray-500">
+            Net GEX: <span className={`font-semibold ${oa.totalGex > 0 ? 'text-green-700' : 'text-red-600'}`}>
+              {oa.totalGex > 0 ? '+' : ''}{(oa.totalGex / 1e6).toFixed(1)}M
+            </span>
+          </p>
+          {gexDominantStrike && (
+            <p className="text-xs text-gray-500">
+              Largest wall: <span className="font-semibold">${gexDominantStrike.strike}</span>
+              <span className="text-gray-400"> ({gexDominantStrike.gex > 0 ? '+' : ''}{(gexDominantStrike.gex / 1e6).toFixed(1)}M)</span>
+            </p>
+          )}
+          <div className="space-y-0.5 pt-1">
+            {oa.gex.slice(0, 6).map((g) => {
+              const maxAbs = maxAbsGex;
+              return (
+                <div key={g.strike} className="flex items-center gap-1.5 text-[10px]">
+                  <span className="text-gray-400 w-12 text-right">${g.strike}</span>
+                  <div className="flex-1 h-2.5 bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${g.gex > 0 ? 'bg-green-400' : 'bg-red-400'}`}
+                      style={{ width: `${(Math.abs(g.gex) / maxAbs * 100).toFixed(0)}%` }} />
+                  </div>
+                  <span className={`w-10 ${g.gex > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {g.gex > 0 ? '+' : ''}{(g.gex / 1e6).toFixed(1)}M
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ── HV helper ──────────────────────────────────────────────────── */
@@ -876,6 +1103,9 @@ const QUICK_TICKERS = ['SPY', 'QQQ', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'AM
 export default function CalculatorPage() {
   const router = useRouter();
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'builder' | 'chain'>('builder');
+
   // Symbol
   const [symbol, setSymbol] = useState('SPY');
   const [input, setInput] = useState('SPY');
@@ -898,6 +1128,10 @@ export default function CalculatorPage() {
   const [hvData, setHvData] = useState<HVData | null>(null);
   const [hvLoading, setHvLoading] = useState(false);
   const [calcError, setCalcError] = useState('');
+
+  // Options analytics (chain tab)
+  const [optionsAnalytics, setOptionsAnalytics] = useState<OptionsAnalytics | null>(null);
+  const [chainLoading, setChainLoading] = useState(false);
 
   const strat = STRATEGIES[stratId];
   const paramsApplied = useRef(false);
@@ -922,14 +1156,34 @@ export default function CalculatorPage() {
     }
   }, []);
 
-  useEffect(() => { fetchHV(symbol); }, [symbol, fetchHV]);
+  // Fetch options chain when switching to chain tab or symbol changes
+  const fetchChain = useCallback(async (sym: string) => {
+    setChainLoading(true);
+    setOptionsAnalytics(null);
+    try {
+      const res = await fetch(`/api/options/chain?symbol=${encodeURIComponent(sym)}`);
+      if (res.ok) {
+        const json = await res.json();
+        const price = hvData?.currentPrice ?? 0;
+        if (json.contracts?.length && price > 0) {
+          setOptionsAnalytics(computeOptionsAnalytics(json.contracts, price));
+        }
+      }
+    } finally {
+      setChainLoading(false);
+    }
+  }, [hvData]);
 
-  // Apply URL query params (strategy + symbol) once router is ready
+  useEffect(() => { fetchHV(symbol); }, [symbol, fetchHV]);
+  useEffect(() => { if (activeTab === 'chain') fetchChain(symbol); }, [activeTab, symbol, fetchChain]);
+
+  // Apply URL query params (strategy + symbol + tab) once router is ready
   useEffect(() => {
     if (!router.isReady || paramsApplied.current) return;
     paramsApplied.current = true;
 
-    const { strategy, symbol: symParam } = router.query;
+    const { strategy, symbol: symParam, tab } = router.query;
+    if (tab === 'chain') setActiveTab('chain');
     if (typeof strategy === 'string' && STRATEGY_IDS.has(strategy)) {
       setStratId(strategy as StrategyId);
     }
@@ -1029,18 +1283,19 @@ export default function CalculatorPage() {
   const inputCls = 'border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 w-full bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500';
 
   return (
-    <Layout title="Options Calculator">
+    <Layout title="Options Lab">
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
         {/* ── Header ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-gray-800">Options Calculator</h1>
-              {/* Strategy badge */}
-              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${CATEGORY_COLOR[strat.category]}`}>
-                {strat.name}
-              </span>
+              <h1 className="text-xl font-bold text-gray-800 dark:text-white">Options Lab</h1>
+              {activeTab === 'builder' && (
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${CATEGORY_COLOR[strat.category]}`}>
+                  {strat.name}
+                </span>
+              )}
             </div>
             <Link
               href="/strategies"
@@ -1048,6 +1303,16 @@ export default function CalculatorPage() {
             >
               ← All Strategies
             </Link>
+          </div>
+
+          {/* Tab bar */}
+          <div className="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-lg p-1 w-fit mb-4">
+            {([['builder', '🧮 Strategy Builder'], ['chain', '📊 Chain & Analytics']] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setActiveTab(id)}
+                className={`px-4 py-1.5 rounded text-xs font-semibold transition-colors ${activeTab === id ? 'bg-white dark:bg-zinc-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700'}`}>
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Symbol search + quick tickers */}
@@ -1087,7 +1352,33 @@ export default function CalculatorPage() {
           )}
         </div>
 
-        {/* ── Strategy Builder ── */}
+        {/* ── Chain & Analytics Tab ── */}
+        {activeTab === 'chain' && (
+          <div className="space-y-6">
+            {/* TradingView chart */}
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+              <TVWidget symbol={symbol} />
+            </div>
+            {/* Analytics panel */}
+            {chainLoading && (
+              <div className="flex items-center gap-2 py-6 justify-center text-gray-400 text-sm">
+                <span className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                Loading options chain…
+              </div>
+            )}
+            {!chainLoading && optionsAnalytics && hvData && (
+              <OptionsAnalyticsMini oa={optionsAnalytics} spot={hvData.currentPrice} />
+            )}
+            {!chainLoading && !optionsAnalytics && (
+              <div className="rounded-xl border border-dashed border-gray-200 dark:border-zinc-800 p-8 text-center text-gray-400 text-sm">
+                No options chain data available for {symbol}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Strategy Builder Tab ── */}
+        {activeTab === 'builder' && (<>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Strategy Builder</h3>
 
@@ -1310,9 +1601,9 @@ export default function CalculatorPage() {
             <div className="mt-4 pt-4 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-500 mb-2">Jump to strategy analysis:</p>
               <div className="flex flex-wrap gap-2">
-                <Link href="/options" className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors">
-                  Options Analysis →
-                </Link>
+                <button onClick={() => setActiveTab('chain')} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors">
+                  Chain & Analytics →
+                </button>
                 <Link href="/strategies" className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors">
                   All Strategies →
                 </Link>
@@ -1320,6 +1611,7 @@ export default function CalculatorPage() {
             </div>
           </div>
         </div>
+        </>)} {/* end activeTab === 'builder' */}
 
         <p className="text-center text-xs text-gray-400 pb-4">
           Options pricing via Black-Scholes model. For educational purposes only — not financial advice.

@@ -40,34 +40,34 @@ function TrendingCoinCard({ coin }: { coin: TrendingCoin }) {
       href={`https://www.coingecko.com/en/coins/${coin.cgId}`}
       target="_blank"
       rel="noopener noreferrer"
-      className={`rounded-xl border bg-white shadow-sm p-3 flex flex-col gap-2 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer ${
-        coin.coinbaseListed ? 'border-blue-100' : 'border-gray-200'
+      className={`rounded-xl border bg-white dark:bg-zinc-900 shadow-sm p-3 flex flex-col gap-2 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500/50 transition-all cursor-pointer ${
+        coin.coinbaseListed ? 'border-blue-100 dark:border-blue-500/30' : 'border-gray-200 dark:border-zinc-700/60'
       }`}
     >
       <div className="flex items-center gap-2">
-        <span className="text-xs font-bold text-gray-300 w-5">#{coin.rank}</span>
+        <span className="text-xs font-bold text-gray-300 dark:text-zinc-600 w-5">#{coin.rank}</span>
         {coin.thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={coin.thumb} alt={coin.symbol} className="w-6 h-6 rounded-full" />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-gray-200" />
+          <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-zinc-700" />
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-gray-800 truncate">{coin.symbol}</p>
-          <p className="text-[10px] text-gray-400 truncate">{coin.name}</p>
+          <p className="text-sm font-bold text-gray-800 dark:text-zinc-100 truncate">{coin.symbol}</p>
+          <p className="text-[10px] text-gray-400 dark:text-zinc-500 truncate">{coin.name}</p>
         </div>
         {coin.coinbaseListed && (
-          <span className="text-[10px] bg-blue-50 border border-blue-200 text-blue-600 px-1.5 py-0.5 rounded font-semibold">CB</span>
+          <span className="text-[10px] bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-semibold">CB</span>
         )}
       </div>
       <div className="flex justify-between items-center">
-        <span className="text-sm font-semibold text-gray-700">{fmtCoinPrice(coin.price)}</span>
+        <span className="text-sm font-semibold text-gray-700 dark:text-zinc-200">{fmtCoinPrice(coin.price)}</span>
         <span className={`text-xs font-bold ${up ? 'text-green-600' : 'text-red-500'}`}>
           {up ? '+' : ''}{coin.change24h.toFixed(2)}%
         </span>
       </div>
       {coin.marketCapRank && (
-        <p className="text-[10px] text-gray-400">MCap rank #{coin.marketCapRank}</p>
+        <p className="text-[10px] text-gray-400 dark:text-zinc-500">MCap rank #{coin.marketCapRank}</p>
       )}
     </a>
   );
@@ -80,7 +80,7 @@ function NewsItem({ item }: { item: CryptoNewsItem }) {
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-blue-200 hover:shadow-sm transition-all group"
+      className="flex gap-3 p-3 rounded-xl border border-gray-100 dark:border-zinc-700/40 bg-white dark:bg-zinc-900 hover:border-blue-200 dark:hover:border-blue-500/30 hover:shadow-sm transition-all group"
     >
       {item.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -92,17 +92,17 @@ function NewsItem({ item }: { item: CryptoNewsItem }) {
         />
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800 group-hover:text-blue-700 line-clamp-2 leading-snug">
+        <p className="text-sm font-medium text-gray-800 dark:text-zinc-100 group-hover:text-blue-700 dark:group-hover:text-blue-400 line-clamp-2 leading-snug">
           {item.title}
         </p>
         <div className="flex flex-wrap items-center gap-2 mt-1.5">
-          <span className="text-[10px] text-gray-400">{item.source}</span>
-          <span className="text-[10px] text-gray-300">·</span>
-          <span className="text-[10px] text-gray-400">{timeAgo(item.publishedAt)}</span>
+          <span className="text-[10px] text-gray-400 dark:text-zinc-500">{item.source}</span>
+          <span className="text-[10px] text-gray-300 dark:text-zinc-700">·</span>
+          <span className="text-[10px] text-gray-400 dark:text-zinc-500">{timeAgo(item.publishedAt)}</span>
           {item.categories && (
             <>
-              <span className="text-[10px] text-gray-300">·</span>
-              <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] text-gray-300 dark:text-zinc-700">·</span>
+              <span className="text-[10px] bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400 px-1.5 py-0.5 rounded">
                 {item.categories.split('|').slice(0, 3).join(' · ')}
               </span>
             </>
@@ -116,9 +116,9 @@ function NewsItem({ item }: { item: CryptoNewsItem }) {
 /* ── Signal badge ───────────────────────────────────────────────── */
 function SignalBadge({ signal }: { signal: CryptoOverview['marketSignal'] }) {
   const cfg = {
-    'risk-on':  { cls: 'bg-green-100 text-green-800 border-green-200', label: '▲ Risk-On' },
-    'risk-off': { cls: 'bg-red-100   text-red-700   border-red-200',   label: '▼ Risk-Off' },
-    'neutral':  { cls: 'bg-gray-100  text-gray-600  border-gray-200',  label: '◆ Neutral' },
+    'risk-on':  { cls: 'bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-green-300 border-green-200 dark:border-green-500/30', label: '▲ Risk-On' },
+    'risk-off': { cls: 'bg-red-100   dark:bg-red-500/20   text-red-700   dark:text-red-300   border-red-200   dark:border-red-500/30',   label: '▼ Risk-Off' },
+    'neutral':  { cls: 'bg-gray-100  dark:bg-zinc-800     text-gray-600  dark:text-zinc-400  border-gray-200  dark:border-zinc-700',   label: '◆ Neutral' },
   }[signal];
   return (
     <span className={`px-3 py-1 rounded-full border text-sm font-bold ${cfg.cls}`}>
@@ -136,8 +136,8 @@ function FearGreedGauge({ value, label }: { value: number; label: string }) {
     value <= 75 ? '#22c55e' : '#16a34a';
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-center">
-      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">Fear &amp; Greed</p>
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-900 p-4 shadow-sm text-center">
+      <p className="text-xs text-gray-400 dark:text-zinc-500 font-semibold uppercase tracking-wide mb-3">Fear &amp; Greed</p>
       {/* Semi-circle gauge */}
       <div className="relative inline-flex items-end justify-center mb-2" style={{ width: 120, height: 64 }}>
         <svg viewBox="0 0 120 64" width={120} height={64}>
@@ -158,7 +158,7 @@ function FearGreedGauge({ value, label }: { value: number; label: string }) {
         </div>
       </div>
       <p className="text-sm font-semibold" style={{ color: colour }}>{label}</p>
-      <div className="flex justify-between text-[10px] text-gray-300 mt-1 px-1">
+      <div className="flex justify-between text-[10px] text-gray-300 dark:text-zinc-600 mt-1 px-1">
         <span>Fear</span><span>Greed</span>
       </div>
     </div>
@@ -168,21 +168,21 @@ function FearGreedGauge({ value, label }: { value: number; label: string }) {
 /* ── BTC Dominance card ─────────────────────────────────────────── */
 function DominanceCard({ value }: { value: number | null }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">BTC Dominance</p>
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-900 p-4 shadow-sm">
+      <p className="text-xs text-gray-400 dark:text-zinc-500 font-semibold uppercase tracking-wide mb-3">BTC Dominance</p>
       {value !== null ? (
         <>
-          <p className="text-3xl font-bold text-gray-800 mb-2">{value.toFixed(1)}%</p>
+          <p className="text-3xl font-bold text-gray-800 dark:text-zinc-100 mb-2">{value.toFixed(1)}%</p>
           {/* BTC vs Alt bar */}
           <div className="flex h-3 rounded overflow-hidden mb-2">
             <div className="bg-orange-400 transition-all" style={{ width: `${value}%` }} />
             <div className="bg-indigo-300 flex-1" />
           </div>
-          <div className="flex justify-between text-[10px] text-gray-400">
+          <div className="flex justify-between text-[10px] text-gray-400 dark:text-zinc-500">
             <span>🟠 BTC {value.toFixed(1)}%</span>
             <span>🟣 Alts {(100 - value).toFixed(1)}%</span>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 dark:text-zinc-400 mt-2">
             {value > 55
               ? 'Rising dominance — capital rotating into BTC (defensive)'
               : value < 48
@@ -204,8 +204,8 @@ function CoinCard({ ticker }: { ticker: CryptoTicker }) {
     ticker.trend === 'up'       ? 'text-green-600' :
     ticker.trend === 'down'     ? 'text-red-500'   : 'text-gray-500';
   const trendBg =
-    ticker.trend === 'up'       ? 'bg-green-50 border-green-200' :
-    ticker.trend === 'down'     ? 'bg-red-50   border-red-100'   : 'bg-gray-50 border-gray-200';
+    ticker.trend === 'up'       ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30' :
+    ticker.trend === 'down'     ? 'bg-red-50 dark:bg-red-500/10   border-red-100 dark:border-red-500/20'   : 'bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700/60';
 
   const fundingColour =
     ticker.fundingRate === null  ? 'text-gray-400' :
@@ -214,14 +214,14 @@ function CoinCard({ ticker }: { ticker: CryptoTicker }) {
     ticker.fundingRate < -5      ? 'text-blue-600' : 'text-gray-600';
 
   return (
-    <div className={`rounded-xl border bg-white shadow-sm p-4 ${trendBg}`}>
+    <div className={`rounded-xl border bg-white dark:bg-zinc-900 shadow-sm p-4 ${trendBg}`}>
       <div className="flex justify-between items-start mb-3">
         <div>
-          <p className="text-base font-bold text-gray-800">{ticker.symbol}</p>
-          <p className="text-xs text-gray-400">{ticker.name}</p>
+          <p className="text-base font-bold text-gray-800 dark:text-zinc-100">{ticker.symbol}</p>
+          <p className="text-xs text-gray-400 dark:text-zinc-500">{ticker.name}</p>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-gray-800">{fmtPrice(ticker.price)}</p>
+          <p className="text-lg font-bold text-gray-800 dark:text-zinc-100">{fmtPrice(ticker.price)}</p>
           <p className={`text-sm font-semibold ${up ? 'text-green-600' : 'text-red-500'}`}>
             {up ? '+' : ''}{ticker.change24h.toFixed(2)}%
           </p>
@@ -238,7 +238,7 @@ function CoinCard({ ticker }: { ticker: CryptoTicker }) {
 
       {/* High / Low bar */}
       <div className="mb-2">
-        <div className="relative h-1.5 bg-gray-200 rounded overflow-hidden">
+        <div className="relative h-1.5 bg-gray-200 dark:bg-zinc-700 rounded overflow-hidden">
           <div
             className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-400 to-green-400 rounded"
             style={{
@@ -247,15 +247,15 @@ function CoinCard({ ticker }: { ticker: CryptoTicker }) {
             }}
           />
         </div>
-        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+        <div className="flex justify-between text-[10px] text-gray-400 dark:text-zinc-500 mt-0.5">
           <span>L {fmtPrice(ticker.low24h)}</span>
           <span>H {fmtPrice(ticker.high24h)}</span>
         </div>
       </div>
 
       {/* Funding + Volume */}
-      <div className="text-xs text-gray-400 flex flex-col gap-0.5">
-        <span>Vol 24h: <span className="text-gray-600">{fmtVol(ticker.volume24h)}</span></span>
+      <div className="text-xs text-gray-400 dark:text-zinc-500 flex flex-col gap-0.5">
+        <span>Vol 24h: <span className="text-gray-600 dark:text-zinc-300">{fmtVol(ticker.volume24h)}</span></span>
         <span>Funding: <span className={fundingColour}>{ticker.fundingLabel}</span></span>
       </div>
     </div>
@@ -265,13 +265,13 @@ function CoinCard({ ticker }: { ticker: CryptoTicker }) {
 /* ── Funding rate table ─────────────────────────────────────────── */
 function FundingTable({ tickers }: { tickers: CryptoTicker[] }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">
-        Funding Rates <span className="text-xs font-normal text-gray-400">(annualised — positive = longs pay shorts)</span>
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-900 shadow-sm p-4">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-zinc-200 mb-3">
+        Funding Rates <span className="text-xs font-normal text-gray-400 dark:text-zinc-500">(annualised — positive = longs pay shorts)</span>
       </h3>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-xs text-gray-400 border-b border-gray-100 text-left">
+          <tr className="text-xs text-gray-400 dark:text-zinc-500 border-b border-gray-100 dark:border-zinc-700/30 text-left">
             <th className="pb-2 pr-4">Coin</th>
             <th className="pb-2 pr-4 text-right">Rate (ann.)</th>
             <th className="pb-2">Interpretation</th>
@@ -285,8 +285,8 @@ function FundingTable({ tickers }: { tickers: CryptoTicker[] }) {
               t.fundingRate > 5      ? 'text-amber-600':
               t.fundingRate < -5     ? 'text-blue-600' : 'text-gray-600';
             return (
-              <tr key={t.symbol} className="border-b border-gray-50 last:border-0">
-                <td className="py-2 pr-4 font-semibold text-gray-700">{t.symbol}</td>
+              <tr key={t.symbol} className="border-b border-gray-50 dark:border-zinc-800 last:border-0">
+                <td className="py-2 pr-4 font-semibold text-gray-700 dark:text-zinc-200">{t.symbol}</td>
                 <td className={`py-2 pr-4 text-right font-mono font-bold ${colour}`}>
                   {t.fundingRate !== null ? `${t.fundingRate > 0 ? '+' : ''}${t.fundingRate.toFixed(2)}%` : '—'}
                 </td>
@@ -296,7 +296,7 @@ function FundingTable({ tickers }: { tickers: CryptoTicker[] }) {
           })}
         </tbody>
       </table>
-      <p className="text-[10px] text-gray-400 mt-3">
+      <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-3">
         High positive rates (+30%+) signal excessive long leverage — squeeze risk increases.
         Negative rates indicate shorts are dominant.
       </p>
@@ -350,17 +350,17 @@ export default function CryptoPage() {
         {/* ── Header ── */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Crypto Signals</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Crypto Signals</h1>
+          <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
               Layer 11 — BTC/ETH/SOL/BNB · Fear &amp; Greed · Funding Rates · Dominance · Risk Signal
             </p>
           </div>
           {data && <SignalBadge signal={data.marketSignal} />}
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-xs text-gray-400">Auto-refreshes every 60s{lastRefresh ? ` · last ${lastRefresh}` : ''}</span>
+            <span className="text-xs text-gray-400 dark:text-zinc-500">Auto-refreshes every 60s{lastRefresh ? ` · last ${lastRefresh}` : ''}</span>
             <button
               onClick={() => { setLoading(true); fetchData(); }}
-              className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+              className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-600 dark:text-zinc-300 transition-colors"
             >
               ↺ Refresh
             </button>
@@ -369,7 +369,7 @@ export default function CryptoPage() {
 
         {/* ── Loading ── */}
         {loading && (
-          <div className="flex items-center justify-center py-24 text-gray-400">
+          <div className="flex items-center justify-center py-24 text-gray-400 dark:text-zinc-500">
             <svg className="animate-spin w-6 h-6 mr-3" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -390,9 +390,9 @@ export default function CryptoPage() {
           <div className="space-y-6">
             {/* Signal verdict */}
             <div className={`rounded-xl border p-4 text-sm font-medium ${
-              data.marketSignal === 'risk-on'  ? 'bg-green-50 border-green-200 text-green-800' :
-              data.marketSignal === 'risk-off' ? 'bg-red-50   border-red-200   text-red-700'   :
-                                                 'bg-gray-50  border-gray-200  text-gray-700'
+              data.marketSignal === 'risk-on'  ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-800 dark:text-green-300' :
+              data.marketSignal === 'risk-off' ? 'bg-red-50 dark:bg-red-500/10   border-red-200 dark:border-red-500/30   text-red-700 dark:text-red-300'   :
+                                                 'bg-gray-50 dark:bg-zinc-800/50  border-gray-200 dark:border-zinc-700/60  text-gray-700 dark:text-zinc-200'
             }`}>
               {data.marketSignal === 'risk-on'  ? '▲ ' :
                data.marketSignal === 'risk-off' ? '▼ ' : '◆ '}
@@ -417,10 +417,10 @@ export default function CryptoPage() {
 
             {/* Trending coins */}
             {trending && trending.coins.length > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-900 shadow-sm p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700">Trending Cryptos</h3>
-                  <span className="text-xs text-gray-400">· top searched on CoinGecko · last 24h</span>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-zinc-200">Trending Cryptos</h3>
+                  <span className="text-xs text-gray-400 dark:text-zinc-500">· top searched on CoinGecko · last 24h</span>
                   <span className="ml-auto text-[10px] text-blue-600 font-semibold">CB = listed on Coinbase (USA)</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -433,11 +433,11 @@ export default function CryptoPage() {
 
             {/* Crypto news */}
             {trending && trending.news.length > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-900 shadow-sm p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700">Trending Crypto News</h3>
-                  <span className="text-xs text-gray-400">· latest for trending coins</span>
-                  <span className="ml-auto text-[10px] text-gray-400">via CryptoCompare</span>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-zinc-200">Trending Crypto News</h3>
+                  <span className="text-xs text-gray-400 dark:text-zinc-500">· latest for trending coins</span>
+                  <span className="ml-auto text-[10px] text-gray-400 dark:text-zinc-600">via CryptoCompare</span>
                 </div>
                 <div className="space-y-2">
                   {trending.news.map((item) => (
@@ -448,9 +448,9 @@ export default function CryptoPage() {
             )}
 
             {/* Signal methodology */}
-            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Signal Methodology</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-gray-500">
+            <div className="rounded-xl border border-gray-100 dark:border-zinc-700/40 bg-gray-50 dark:bg-zinc-800/50 p-4">
+              <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide mb-2">Signal Methodology</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-gray-500 dark:text-zinc-400">
                 <span>▲ <strong>Risk-On</strong>: BTC above EMA20 + Fear &amp; Greed &gt; 55</span>
                 <span>▼ <strong>Risk-Off</strong>: BTC below EMA20 + Fear &amp; Greed &lt; 45</span>
                 <span>🟠 <strong>High Dominance (&gt;55%)</strong>: Capital defensive in BTC</span>
@@ -458,7 +458,7 @@ export default function CryptoPage() {
                 <span>📈 <strong>Funding &gt;30%</strong>: Longs overextended — squeeze risk</span>
                 <span>📉 <strong>Funding &lt;−10%</strong>: Shorts dominant — potential short squeeze</span>
               </div>
-              <p className="text-[10px] text-gray-400 mt-2">
+              <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-2">
                 Data: CoinGecko (prices, OHLC, dominance) · Alternative.me (Fear &amp; Greed) · Bybit (funding rates)
               </p>
             </div>

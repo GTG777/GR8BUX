@@ -98,6 +98,104 @@ const LEGEND = [
   { color: 'bg-red-500', label: 'Avoid — AI consensus is bearish or avoid' },
 ];
 
+// ── Sorting ───────────────────────────────────────────────────────────────
+type SortCol = 'date' | 'symbol' | 'company' | 'sector' | 'price' | 'eps' | 'fiscalEnd' | 'ivr' | 'rsi' | 'verdict' | 'strategy';
+type SortDir = 'asc' | 'desc';
+interface SortState { col: SortCol; dir: SortDir; }
+
+function SortTh({ col, sort, onSort, children, className = '' }: {
+  col: SortCol; sort: SortState | null; onSort: (c: SortCol) => void;
+  children: React.ReactNode; className?: string;
+}) {
+  const active = sort?.col === col;
+  const icon = active ? (sort?.dir === 'asc' ? '↑' : '↓') : '↕';
+  return (
+    <th
+      onClick={() => onSort(col)}
+      className={`px-4 py-2 cursor-pointer select-none group transition-colors ${
+        active ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-500 dark:text-zinc-500 hover:text-indigo-400 dark:hover:text-indigo-400'
+      } ${className}`}
+    >
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        {children}
+        <span className={`text-[10px] ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>{icon}</span>
+      </span>
+    </th>
+  );
+}
+
+function EarningsTableHead({ sort, onSort, showDate = false }: {
+  sort: SortState | null; onSort: (c: SortCol) => void; showDate?: boolean;
+}) {
+  return (
+    <thead>
+      <tr className="border-b border-gray-200 dark:border-zinc-700/40">
+        {showDate && <SortTh col="date" sort={sort} onSort={onSort} className="text-left">Date</SortTh>}
+        <SortTh col="symbol" sort={sort} onSort={onSort} className="text-left">Symbol</SortTh>
+        <SortTh col="company" sort={sort} onSort={onSort} className="text-left">Company</SortTh>
+        <SortTh col="sector" sort={sort} onSort={onSort} className="text-left">Sector</SortTh>
+        <SortTh col="price" sort={sort} onSort={onSort} className="text-right">Price</SortTh>
+        <SortTh col="eps" sort={sort} onSort={onSort} className="text-right">Est. EPS</SortTh>
+        <SortTh col="fiscalEnd" sort={sort} onSort={onSort} className="text-right">Fiscal End</SortTh>
+        <SortTh col="ivr" sort={sort} onSort={onSort} className="text-center">IVR</SortTh>
+        <SortTh col="rsi" sort={sort} onSort={onSort} className="text-right">RSI</SortTh>
+        <SortTh col="verdict" sort={sort} onSort={onSort} className="text-center">AI Verdict</SortTh>
+        <SortTh col="strategy" sort={sort} onSort={onSort} className="text-center">Strategy</SortTh>
+        <th className="px-4 py-2 text-center text-gray-500 dark:text-zinc-500">Trade</th>
+      </tr>
+    </thead>
+  );
+}
+
+function EarningsTableRow({ e, i, showDate = false }: { e: EarningsEvent; i: number; showDate?: boolean }) {
+  return (
+    <tr className={`border-t border-gray-100 dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors ${i % 2 === 0 ? 'bg-gray-50/50 dark:bg-zinc-900/20' : ''}`}>
+      {showDate && (
+        <td className="px-4 py-2.5 text-gray-500 dark:text-zinc-500 whitespace-nowrap">{fmtDate(e.reportDate)}</td>
+      )}
+      <td className="px-4 py-2.5">
+        <span className="font-bold text-gray-900 dark:text-white text-sm">{e.symbol}</span>
+        {e.urgency === 'today' && <span className="ml-2 text-red-400 text-xs font-semibold animate-pulse">TODAY</span>}
+      </td>
+      <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[160px] truncate">{e.name}</td>
+      <td className="px-4 py-2.5 text-gray-500 dark:text-zinc-500">{e.sector}</td>
+      <td className="px-4 py-2.5 text-right text-gray-800 dark:text-zinc-200 font-mono">
+        {e.price != null ? `$${e.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
+      </td>
+      <td className="px-4 py-2.5 text-right font-mono">
+        {e.estimatedEPS != null ? (
+          <span className={e.estimatedEPS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
+            {e.estimatedEPS >= 0 ? '+' : ''}{e.estimatedEPS.toFixed(2)}
+          </span>
+        ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
+      </td>
+      <td className="px-4 py-2.5 text-right text-gray-500 dark:text-zinc-500">{e.fiscalDateEnding || '—'}</td>
+      <td className="px-4 py-2.5"><IVRBar ivr={e.ivRank} /></td>
+      <td className="px-4 py-2.5 text-right">
+        {e.rsi != null ? (
+          <span className={e.rsi > 70 ? 'text-red-500 dark:text-red-400' : e.rsi < 35 ? 'text-blue-500 dark:text-blue-400' : 'text-gray-600 dark:text-zinc-400'}>
+            {e.rsi.toFixed(0)}
+          </span>
+        ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
+      </td>
+      <td className="px-4 py-2.5 text-center">
+        {e.aiConsensus ? (
+          <span className={`font-semibold ${CONSENSUS_COLOR[e.aiConsensus] ?? 'text-zinc-400'}`}>{e.aiConsensus.replace('_', ' ')}</span>
+        ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
+      </td>
+      <td className="px-4 py-2.5 text-center">
+        <StrategyBadge strategy={e.strategy} ivCrush={e.ivCrush} />
+      </td>
+      <td className="px-4 py-2.5 text-center">
+        <div className="flex gap-1.5 justify-center">
+          <Link href={`/options?symbol=${e.symbol}`} className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 rounded border border-gray-300 dark:border-zinc-700 transition-colors">Chain</Link>
+          <Link href={`/leaps?symbol=${e.symbol}`} className="px-2 py-0.5 text-xs bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 text-indigo-600 dark:text-indigo-300 rounded border border-indigo-200 dark:border-indigo-700/50 transition-colors">LEAPS</Link>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function EarningsCalendarPage() {
   const [events, setEvents]       = useState<EarningsEvent[]>([]);
@@ -136,6 +234,33 @@ export default function EarningsCalendarPage() {
   });
 
   const grouped = groupByDate(filtered);
+
+  // ── Sorting ───────────────────────────────────────────────────────────────
+  const [sort, setSort] = useState<SortState | null>(null);
+  function toggleSort(col: SortCol) {
+    setSort(prev => {
+      if (!prev || prev.col !== col) return { col, dir: 'asc' };
+      if (prev.dir === 'asc') return { col, dir: 'desc' };
+      return null;
+    });
+  }
+  const sortedFlat = sort ? [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sort.col) {
+      case 'date':      cmp = a.reportDate.localeCompare(b.reportDate); break;
+      case 'symbol':    cmp = a.symbol.localeCompare(b.symbol); break;
+      case 'company':   cmp = a.name.localeCompare(b.name); break;
+      case 'sector':    cmp = (a.sector ?? '').localeCompare(b.sector ?? ''); break;
+      case 'price':     cmp = (a.price ?? 0) - (b.price ?? 0); break;
+      case 'eps':       cmp = (a.estimatedEPS ?? -Infinity) - (b.estimatedEPS ?? -Infinity); break;
+      case 'fiscalEnd': cmp = (a.fiscalDateEnding ?? '').localeCompare(b.fiscalDateEnding ?? ''); break;
+      case 'ivr':       cmp = (a.ivRank ?? -1) - (b.ivRank ?? -1); break;
+      case 'rsi':       cmp = (a.rsi ?? -1) - (b.rsi ?? -1); break;
+      case 'verdict':   cmp = (a.aiConsensus ?? '').localeCompare(b.aiConsensus ?? ''); break;
+      case 'strategy':  cmp = (a.strategy ?? '').localeCompare(b.strategy ?? ''); break;
+    }
+    return sort.dir === 'asc' ? cmp : -cmp;
+  }) : null;
 
   // ── Summary stats ────────────────────────────────────────────────────────
   const thisWeekCount  = events.filter((e) => e.daysOut <= 7).length;
@@ -236,8 +361,37 @@ export default function EarningsCalendarPage() {
           </div>
         )}
 
+        {/* ── Flat sorted view ───────────────────────────────────────────── */}
+        {!loading && !error && sortedFlat && (
+          <div className="bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-zinc-800/60 border-b border-gray-200 dark:border-zinc-700/50">
+              <span className="text-xs text-gray-500 dark:text-zinc-500">
+                {sortedFlat.length} results · sorted by{' '}
+                <span className="text-indigo-500 dark:text-indigo-400 font-medium">{sort?.col}</span>{' '}
+                {sort?.dir === 'asc' ? '↑' : '↓'} · click header again to reverse, third click to group
+              </span>
+              <button
+                onClick={() => setSort(null)}
+                className="text-xs text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 border border-gray-300 dark:border-zinc-700 rounded px-2 py-0.5 transition-colors"
+              >
+                ← Group by Date
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs whitespace-nowrap">
+                <EarningsTableHead sort={sort} onSort={toggleSort} showDate />
+                <tbody>
+                  {sortedFlat.map((e, i) => (
+                    <EarningsTableRow key={`${e.symbol}-${e.reportDate}`} e={e} i={i} showDate />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* ── Calendar groups ────────────────────────────────────────────── */}
-        {!loading && !error && Array.from(grouped.entries()).map(([date, dateEvents]) => {
+        {!loading && !error && !sort && Array.from(grouped.entries()).map(([date, dateEvents]) => {
           const daysOut = dateEvents[0].daysOut;
           return (
             <div key={date} className="bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
@@ -249,112 +403,12 @@ export default function EarningsCalendarPage() {
                 </div>
                 <span className="text-xs text-gray-500 dark:text-zinc-500">{dateEvents.length} reporting</span>
               </div>
-
-              {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs whitespace-nowrap">
-                  <thead>
-                    <tr className="text-gray-500 dark:text-zinc-500 border-b border-gray-200 dark:border-zinc-700/40">
-                      <th className="px-4 py-2 text-left">Symbol</th>
-                      <th className="px-4 py-2 text-left">Company</th>
-                      <th className="px-4 py-2 text-left">Sector</th>
-                      <th className="px-4 py-2 text-right">Price</th>
-                      <th className="px-4 py-2 text-right">Est. EPS</th>
-                      <th className="px-4 py-2 text-right">Fiscal End</th>
-                      <th className="px-4 py-2 text-center">IVR</th>
-                      <th className="px-4 py-2 text-right">RSI</th>
-                      <th className="px-4 py-2 text-center">AI Verdict</th>
-                      <th className="px-4 py-2 text-center">Strategy</th>
-                      <th className="px-4 py-2 text-center">Trade</th>
-                    </tr>
-                  </thead>
+                  <EarningsTableHead sort={sort} onSort={toggleSort} />
                   <tbody>
                     {dateEvents.map((e, i) => (
-                      <tr
-                        key={e.symbol}
-                        className={`border-t border-gray-100 dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors ${
-                          i % 2 === 0 ? 'bg-gray-50/50 dark:bg-zinc-900/20' : ''
-                        }`}
-                      >
-                        {/* Symbol */}
-                        <td className="px-4 py-2.5">
-                          <span className="font-bold text-gray-900 dark:text-white text-sm">{e.symbol}</span>
-                          {e.urgency === 'today' && (
-                            <span className="ml-2 text-red-400 text-xs font-semibold animate-pulse">REPORTS TODAY</span>
-                          )}
-                        </td>
-
-                        {/* Company */}
-                        <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[160px] truncate">{e.name}</td>
-
-                        {/* Sector */}
-                        <td className="px-4 py-2.5 text-gray-500 dark:text-zinc-500">{e.sector}</td>
-
-                        {/* Price */}
-                        <td className="px-4 py-2.5 text-right text-gray-800 dark:text-zinc-200 font-mono">
-                          {e.price != null ? `$${e.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
-                        </td>
-
-                        {/* Est EPS */}
-                        <td className="px-4 py-2.5 text-right font-mono">
-                          {e.estimatedEPS != null ? (
-                            <span className={e.estimatedEPS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
-                              {e.estimatedEPS >= 0 ? '+' : ''}{e.estimatedEPS.toFixed(2)}
-                            </span>
-                          ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
-                        </td>
-
-                        {/* Fiscal end */}
-                        <td className="px-4 py-2.5 text-right text-gray-500 dark:text-zinc-500">{e.fiscalDateEnding || '—'}</td>
-
-                        {/* IVR */}
-                        <td className="px-4 py-2.5">
-                          <IVRBar ivr={e.ivRank} />
-                        </td>
-
-                        {/* RSI */}
-                        <td className="px-4 py-2.5 text-right">
-                          {e.rsi != null ? (
-                            <span className={
-                              e.rsi > 70 ? 'text-red-500 dark:text-red-400' :
-                              e.rsi < 35 ? 'text-blue-500 dark:text-blue-400' :
-                              'text-gray-600 dark:text-zinc-400'
-                            }>{e.rsi.toFixed(0)}</span>
-                          ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
-                        </td>
-
-                        {/* AI Verdict */}
-                        <td className="px-4 py-2.5 text-center">
-                          {e.aiConsensus ? (
-                            <span className={`font-semibold ${CONSENSUS_COLOR[e.aiConsensus] ?? 'text-zinc-400'}`}>
-                              {e.aiConsensus.replace('_', ' ')}
-                            </span>
-                          ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
-                        </td>
-
-                        {/* Strategy */}
-                        <td className="px-4 py-2.5 text-center">
-                          <StrategyBadge strategy={e.strategy} ivCrush={e.ivCrush} />
-                        </td>
-
-                        {/* Trade links */}
-                        <td className="px-4 py-2.5 text-center">
-                          <div className="flex gap-1.5 justify-center">
-                            <Link
-                              href={`/options?symbol=${e.symbol}`}
-                              className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 rounded border border-gray-300 dark:border-zinc-700 transition-colors"
-                            >
-                              Chain
-                            </Link>
-                            <Link
-                              href={`/leaps?symbol=${e.symbol}`}
-                              className="px-2 py-0.5 text-xs bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 text-indigo-600 dark:text-indigo-300 rounded border border-indigo-200 dark:border-indigo-700/50 transition-colors"
-                            >
-                              LEAPS
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
+                      <EarningsTableRow key={e.symbol} e={e} i={i} />
                     ))}
                   </tbody>
                 </table>
