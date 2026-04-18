@@ -81,7 +81,7 @@ export default function SignInPage() {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <img src="/logo-full.svg" alt="GR8BUX" className="h-14 w-auto" />
+            <img src="/logo-full.png" alt="GR8BUX" className="h-14 w-auto" />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900">Welcome Back</h2>
           <p className="mt-2 text-sm text-gray-600">Sign in to your GR8BUX account</p>

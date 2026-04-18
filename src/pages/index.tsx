@@ -35,7 +35,7 @@ export default function Home() {
       {/* Navigation */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <img src="/logo-full.svg" alt="GR8BUX" className="h-9 w-auto" />
+          <img src="/logo-full.png" alt="GR8BUX" className="h-9 w-auto" />
           <div className="flex gap-4">
             <Link
               href="/auth/signin"
@@ -57,7 +57,7 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
-            <img src="/logo-full.svg" alt="GR8BUX" className="h-20 w-auto" />
+            <img src="/logo-full.png" alt="GR8BUX" className="h-20 w-auto" />
           </div>
           <p className="text-xl text-gray-600 mb-8">
             Track your stock and options trades with professional analytics and market insights

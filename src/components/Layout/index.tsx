@@ -349,7 +349,7 @@ export function Layout({ children, title }: LayoutProps) {
           {/* Logo / Brand */}
           <div className={`flex items-center h-16 px-4 border-b border-gray-700 ${collapsed ? 'justify-center' : 'justify-between'}`}>
             {!collapsed ? (
-              <img src="/logo-full.svg" alt="GR8BUX" className="h-9 w-auto" />
+              <img src="/logo-full.png" alt="GR8BUX" className="h-9 w-auto" />
             ) : (
               <img src="/logo-icon.svg" alt="GR8BUX" className="h-8 w-8" />
             )}
