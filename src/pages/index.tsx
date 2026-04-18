@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -35,7 +36,7 @@ export default function Home() {
       {/* Navigation */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">GR8BUX</h1>
+          <Image src="/gr8buxlogo.png" alt="GR8BUX" width={140} height={46} className="object-contain" priority />
           <div className="flex gap-4">
             <Link
               href="/auth/signin"
@@ -56,7 +57,9 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 py-16">
         {/* Header */}
         <div className="text-center mb-12">
-          <h2 className="text-5xl font-bold text-gray-900 mb-4">GR8BUX</h2>
+          <div className="flex justify-center mb-4">
+            <Image src="/gr8buxlogo.png" alt="GR8BUX" width={280} height={92} className="object-contain" />
+          </div>
           <p className="text-xl text-gray-600 mb-8">
             Track your stock and options trades with professional analytics and market insights
           </p>

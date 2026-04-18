@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -349,7 +350,9 @@ export function Layout({ children, title }: LayoutProps) {
           {/* Logo / Brand */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
             {!collapsed && (
-              <span className="text-lg font-bold text-white tracking-tight">GR8BUX</span>
+              <div className="bg-white rounded-lg px-2 py-1">
+                <Image src="/gr8buxlogo.png" alt="GR8BUX" width={110} height={36} className="object-contain" priority />
+              </div>
             )}
             <button
               onClick={() => setCollapsed(!collapsed)}
