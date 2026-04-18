@@ -1248,10 +1248,7 @@ export default function OptionsPage() {
         {/* ── Strategy Library ── */}
         <StrategyLibrary onSelect={(id) => { setStratId(id); setCalcResult(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
 
-        <p className="text-center text-xs text-gray-400 pb-4">
-          Options pricing via Black-Scholes model. For educational purposes only — not financial advice.
-          Historical volatility from Yahoo Finance daily data.
-        </p>
+
       </div>
     </Layout>
   );

@@ -246,7 +246,7 @@ function ScreenerTable({
                   onClick={() => onPick(row.symbol)}
                   className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700"
                 >
-                  Analyze ?
+                  Analyze →
                 </button>
               </td>
             </tr>
@@ -303,7 +303,7 @@ const GUIDES: Record<string, GuideData> = {
       'Set the Sector filter and drag Max IV Rank = 30. IV Rank < 30 means options are historically cheap - the best time to buy LEAPS.',
       'Wait a few seconds for rows to auto-load live price, HV20, and the best available LEAPS contract. Data loads staggered to avoid rate-limiting.',
       'Scan for a green IV Rank number and a best delta near 0.70. Green = you are buying cheap time value. High IV Rank = you are overpaying.',
-      'Click Analyze ? on any row to jump to the Chain Viewer with that symbol pre-loaded and ready to filter.',
+      'Click Analyze → on any row to jump to the Chain Viewer with that symbol pre-loaded and ready to filter.',
     ],
     tip: 'Start with SPY or QQQ to learn the workflow - index LEAPS are the most liquid and easiest to enter and exit.',
   },

@@ -1059,9 +1059,7 @@ export default function StrategiesPage() {
           </div>
         ))}
 
-        <p className="text-center text-xs text-gray-400 pb-4">
-          For educational purposes only. Always verify strategy mechanics with your broker before trading.
-        </p>
+
       </div>
 
       {/* Tooltip portal */}

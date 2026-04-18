@@ -627,16 +627,16 @@ function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV:
     <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 flex flex-wrap items-center gap-6 text-sm">
       <div>
         <span className="text-xs text-gray-400 block">Last Price</span>
-        <span className="font-bold text-gray-800 text-lg">${md.price.toFixed(2)}</span>
+        <span className="font-bold text-gray-800 dark:text-white text-lg">${md.price.toFixed(2)}</span>
       </div>
       <div>
         <span className="text-xs text-gray-400 block">HV10 / HV20 / HV30</span>
-        <span className="font-semibold text-gray-700">{md.hv10}% / {md.hv20}% / {md.hv30}%</span>
+        <span className="font-semibold text-gray-700 dark:text-zinc-200">{md.hv10}% / {md.hv20}% / {md.hv30}%</span>
       </div>
       {chainIV > 0 && (
         <div>
           <span className="text-xs text-gray-400 block">Avg ATM IV (real chain)</span>
-          <span className="font-semibold text-indigo-600">{chainIV.toFixed(1)}%</span>
+          <span className="font-semibold text-indigo-400">{chainIV.toFixed(1)}%</span>
           {ivPremium && (
             <span className={`ml-2 text-xs ${parseInt(ivPremium) > 10 ? 'text-red-500' : parseInt(ivPremium) < -10 ? 'text-green-500' : 'text-gray-500'}`}>
               {parseInt(ivPremium) > 0 ? '+' : ''}{ivPremium}% vs HV20
@@ -648,12 +648,12 @@ function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV:
         <div>
           <span className="text-xs text-gray-400 block">IV Rank (IVR)</span>
           <span className={`text-lg ${ivrColor}`}>{ivr.toFixed(0)}</span>
-          <span className="text-xs text-gray-500 block max-w-[200px]">{ivrVerdict}</span>
+          <span className="text-xs text-gray-400 dark:text-zinc-400 block max-w-[200px]">{ivrVerdict}</span>
         </div>
       )}
       <div>
         <span className="text-xs text-gray-400 block">EMA20</span>
-        <span className="font-semibold text-gray-700">
+        <span className="font-semibold text-gray-700 dark:text-zinc-200">
           ${md.ema20.toFixed(2)}
           <span className={`ml-1 text-xs ${parseFloat(pctFromEMA) > 0 ? 'text-green-600' : 'text-red-600'}`}>
             ({pctFromEMA}%)
@@ -664,14 +664,14 @@ function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV:
         <div>
           <span className="text-xs text-gray-400 block">Put/Call Ratio</span>
           <span className={`text-lg ${pcColor}`}>{pcRatio.toFixed(2)}</span>
-          <span className="text-xs text-gray-500 block max-w-[200px]">{pcVerdict}</span>
+          <span className="text-xs text-gray-400 dark:text-zinc-400 block max-w-[200px]">{pcVerdict}</span>
         </div>
       )}
       {vwap !== null && (
         <div>
           <span className="text-xs text-gray-400 block">VWAP (intraday)</span>
           <span className={`text-lg font-bold ${
-            vwap.distancePct > 0.5 ? 'text-green-600' : vwap.distancePct < -0.5 ? 'text-red-600' : 'text-gray-700'
+            vwap.distancePct > 0.5 ? 'text-green-500' : vwap.distancePct < -0.5 ? 'text-red-500' : 'text-gray-300'
           }`}>
             ${vwap.vwap.toFixed(2)}
           </span>
@@ -688,7 +688,7 @@ function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV:
       <div className="ml-auto">
         <span className="text-xs text-gray-400 block">Market Bias</span>
         <span className={`font-bold text-base ${biasColor}`}>{biasIcon}</span>
-        <span className="text-xs text-gray-500 block max-w-xs">{biasTip}</span>
+        <span className="text-xs text-gray-400 dark:text-zinc-400 block max-w-xs">{biasTip}</span>
       </div>
     </div>
   );
@@ -1524,10 +1524,7 @@ export default function ScannerPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400 pb-4">
-          Options chain via Yahoo Finance (real bid/ask · real implied volatility). PoP via Black-Scholes using contract IV.
-          For educational use only — always verify with your broker before trading.
-        </p>
+
       </div>
     </Layout>
   );

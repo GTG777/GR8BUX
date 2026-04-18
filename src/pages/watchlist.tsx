@@ -215,9 +215,9 @@ const AdvancedWatchlist: React.FC = () => {
 
   const SortIcon = ({ column }: { column: keyof WatchlistItem }) => {
     if (sortColumn !== column) {
-      return <span className="ml-1 text-gray-400">?</span>;
+      return <span className="ml-1 text-gray-400">⇅</span>;
     }
-    return <span className="ml-1">{sortOrder === 'asc' ? '?' : '?'}</span>;
+    return <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>;
   };
 
   return (
@@ -323,7 +323,7 @@ const AdvancedWatchlist: React.FC = () => {
                         <Skeleton className="h-4 w-10 mx-auto" />
                       ) : item.isCoiling === true ? (
                         <span className="inline-block px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded font-semibold text-xs">
-                          Yes ?
+                          Yes 🌀
                         </span>
                       ) : (
                         <span className="text-gray-500">No</span>
@@ -421,7 +421,7 @@ const AdvancedWatchlist: React.FC = () => {
             </p>
           </div>
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/40 rounded-lg p-4">
-            <h3 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">Coiling ?</h3>
+            <h3 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">Coiling 🌀</h3>
             <p className="text-sm text-yellow-800 dark:text-yellow-400">
               Tight consolidation with decreasing volatility. Often precedes significant breakout moves.
             </p>

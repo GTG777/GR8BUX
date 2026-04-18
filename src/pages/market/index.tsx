@@ -325,9 +325,7 @@ export default function MarketOverviewPage() {
           <HotlistsWidget />
         </div>
 
-        <p className="text-xs text-gray-400 text-center">
-          Market data provided by TradingView — for informational purposes only, not financial advice.
-        </p>
+
       </div>
     </Layout>
   );
