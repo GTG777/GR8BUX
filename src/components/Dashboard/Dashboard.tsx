@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Dashboard as TradeAnalytics } from '@/components/Dashboard';
 import { Skeleton } from '@/components/Skeleton';
@@ -22,7 +22,7 @@ function StatTile({
   label, value, sub, accent,
 }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className={`rounded-xl border bg-white shadow-sm p-4 ${accent ?? 'border-gray-200'}`}>
+    <div className={`rounded-xl border bg-white dark:bg-zinc-900 shadow-sm p-4 ${accent ?? 'border-gray-200'}`}>
       <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">{label}</p>
       <p className="text-2xl font-bold text-gray-800 leading-tight">{value}</p>
       {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
@@ -41,7 +41,7 @@ function MarketSignalCard({
   detail?: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-lg">{icon}</span>
         <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">{title}</p>
@@ -60,7 +60,7 @@ function QuickNav({ href, emoji, label }: { href: string; emoji: string; label: 
   return (
     <Link
       href={href}
-      className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm transition-all"
+      className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-300 dark:hover:border-blue-500/50 hover:shadow-sm transition-all"
     >
       <span className="text-xl">{emoji}</span>
       <span className="text-[11px] font-medium text-gray-600">{label}</span>
@@ -177,7 +177,7 @@ export default function Dashboard() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
           {['SPY', 'VIX', '10Y Yield', 'Gold', 'Oil (WTI)', 'USD Index'].map(label => (
-            <div key={label} className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+            <div key={label} className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4">
               <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">{label}</p>
               <Skeleton className="h-7 w-20 mb-1" />
               <Skeleton className="h-3 w-12" />

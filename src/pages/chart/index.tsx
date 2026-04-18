@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -222,7 +222,7 @@ function TSIChart({ data, timeframeLabel, interval }: { data: TSIPoint[]; timefr
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -387,7 +387,7 @@ function PivotPanel({ ind }: { ind: Indicators }) {
     { label: 'S3', value: ind.s3, type: 's' },
   ];
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pivot Points</h3>
       <div className="space-y-1.5">
         {rows.map((r) => (
@@ -432,7 +432,7 @@ function MomentumPanel({ ind }: { ind: Indicators }) {
   const tsiLabel = ind.tsi > 25 ? 'Bullish' : ind.tsi < -25 ? 'Bearish' : 'Neutral';
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Momentum</h3>
       <div className="space-y-4">
         <div>
@@ -464,7 +464,7 @@ function EMAPanel({ ind }: { ind: Indicators }) {
     { label: 'EMA 200', value: ind.ema200 },
   ];
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">EMA Stack</h3>
       <div className="space-y-2">
         {emas.map(({ label, value }) => {
@@ -534,7 +534,7 @@ function SignalsPanel({ ind }: { ind: Indicators }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Signals</h3>
       <div className="space-y-2">
         {signals.map((s, i) => (
@@ -632,7 +632,7 @@ export default function ChartPage() {
     <Layout>
       <div className="space-y-4">
         {/* ── Header ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
           {/* Row 1: title + input + intervals */}
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <h1 className="text-xl font-bold text-gray-900 shrink-0">Chart</h1>
@@ -661,7 +661,7 @@ export default function ChartPage() {
               <button
                 key={iv.value}
                 onClick={() => { setInterval(iv.value); fetchCandles(symbol, iv.value); }}
-                className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${interval === iv.value ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-600'}`}
+                className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${interval === iv.value ? 'bg-gray-900 text-white border-gray-900' : 'bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-300 dark:border-zinc-700 hover:border-gray-600 dark:hover:border-zinc-500'}`}
               >
                 {iv.label}
               </button>
@@ -692,7 +692,7 @@ export default function ChartPage() {
         {indicators && <StatusBar symbol={symbol} ind={indicators} />}
 
         {/* ── TradingView chart ── */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
           {/* key forces full remount when symbol/interval changes */}
           <AdvancedChart key={`${symbol}-${interval}`} symbol={symbol} interval={interval} />
         </div>
@@ -700,7 +700,7 @@ export default function ChartPage() {
         {/* ── TSI Chart ── */}
         {tsiSeries.length > 0 && <TSIChart data={tsiSeries} interval={interval} timeframeLabel={INTERVALS.find((iv) => iv.value === interval)?.label} />}
         {loading && tsiSeries.length === 0 && (
-          <div className="bg-white rounded-lg shadow p-4 animate-pulse">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4 animate-pulse">
             <div className="h-3 bg-gray-200 rounded w-48 mb-4" />
             <div className="h-[180px] bg-gray-100 rounded" />
           </div>
@@ -717,7 +717,7 @@ export default function ChartPage() {
         ) : loading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[0,1,2,3].map((i) => (
-              <div key={i} className="bg-white rounded-lg shadow p-4 animate-pulse">
+              <div key={i} className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4 animate-pulse">
                 <div className="h-3 bg-gray-200 rounded w-1/2 mb-3" />
                 {[0,1,2,3,4].map((j) => <div key={j} className="h-2 bg-gray-100 rounded mb-2" />)}
               </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 
@@ -55,7 +55,7 @@ function IndicatorList({ items }: { items: { label: string; desc: string }[] }) 
   return (
     <div className="grid sm:grid-cols-2 gap-3">
       {items.map((it) => (
-        <div key={it.label} className="flex gap-2 text-sm bg-white rounded border border-gray-200 p-3">
+        <div key={it.label} className="flex gap-2 text-sm bg-white dark:bg-zinc-900 rounded border border-gray-200 dark:border-zinc-800 p-3">
           <span className="text-indigo-500 font-bold shrink-0">⊛</span>
           <div>
             <span className="font-semibold text-gray-800 block">{it.label}</span>
@@ -380,7 +380,7 @@ const sections: Section[] = [
               { g: 'Theta (Θ)', d: 'Daily time decay — how much premium is lost each day.' },
               { g: 'Vega (V)', d: 'Sensitivity to a 1% change in implied volatility.' },
             ].map(x => (
-              <div key={x.g} className="bg-white border border-gray-200 rounded p-2 text-xs">
+              <div key={x.g} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded p-2 text-xs dark:text-zinc-300">
                 <div className="font-bold text-gray-800">{x.g}</div>
                 <div className="text-gray-500 mt-0.5">{x.d}</div>
               </div>
@@ -583,7 +583,7 @@ const sections: Section[] = [
               { name: '📉 Bear Trend Short', cond: 'All 3 EMAs aligned bearish, TSI −50 to 0, MACD histogram negative.' },
               { name: '🔻 Overbought Reversion Short', cond: 'TSI above +50, price at or above upper Bollinger Band, weak trend.' },
             ].map(s => (
-              <div key={s.name} className="text-xs bg-white border border-gray-200 rounded p-2">
+              <div key={s.name} className="text-xs bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded p-2">
                 <div className="font-bold text-gray-800 mb-1">{s.name}</div>
                 <div className="text-gray-500">{s.cond}</div>
               </div>
@@ -861,7 +861,7 @@ const sections: Section[] = [
               { perm: 'Manage Team Members', roles: 'Manager + Admin' },
               { perm: 'Admin Panel & User Management', roles: 'Admin only' },
             ].map(p => (
-              <div key={p.perm} className="bg-white border border-gray-200 rounded p-2">
+              <div key={p.perm} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded p-2">
                 <div className="font-semibold text-gray-800">{p.perm}</div>
                 <div className="text-gray-500">{p.roles}</div>
               </div>
@@ -910,7 +910,7 @@ export default function HelpPage() {
         <div className="flex gap-6">
           {/* ── Left nav ── */}
           <aside className="w-52 shrink-0">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden sticky top-4">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm overflow-hidden sticky top-4">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pages</p>
               </div>
@@ -936,7 +936,7 @@ export default function HelpPage() {
           {/* ── Content area ── */}
           <main className="flex-1 min-w-0">
             {/* Section header */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-4">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-5 mb-4">
               <div className="flex items-center gap-3 mb-1">
                 <span className="text-2xl">{current.icon}</span>
                 <div>
@@ -955,7 +955,7 @@ export default function HelpPage() {
             </div>
 
             {/* Section body */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-5">
               {current.body}
             </div>
 

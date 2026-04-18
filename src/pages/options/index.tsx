@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -445,7 +445,7 @@ function OptionsAnalyticsMini({ oa, spot }: { oa: OptionsAnalytics; spot: number
   const gexDominantStrike = oa.gex[0];
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
       <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
         Options Analytics
         <span className="text-xs font-normal text-gray-400">· nearest expiry: {oa.nearestExpiry}</span>
@@ -553,7 +553,7 @@ function HVPanel({ hvData, userIV, loading }: { hvData: HVData | null; userIV: s
     : [];
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-gray-700 mb-4">Historical Volatility</h3>
       {loading && <p className="text-xs text-gray-400">Loading…</p>}
       {!loading && !hvData && <p className="text-xs text-gray-400">Enter a symbol to load HV data.</p>}
@@ -601,7 +601,7 @@ const fmt$ = (v: number) => v >= 0 ? `+$${v.toFixed(0)}` : `-$${Math.abs(v).toFi
 function PnLDiagram({ data, spot, breakevenPrices }: { data: PnLPoint[]; spot: number; breakevenPrices: number[] }) {
   if (!data.length) return null;
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-gray-700">P&amp;L at Expiration</h3>
         <div className="flex gap-4 text-xs text-gray-500">
@@ -668,7 +668,7 @@ function TradeSummary({ result, stratId }: { result: CalcResult; stratId: Strate
     items.push({ label: 'Reward / Risk', value: `${rr.toFixed(2)}:1`, color: rr >= 1 ? 'text-green-600' : 'text-amber-600' });
   }
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm h-full">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm h-full">
       <h3 className="text-sm font-semibold text-gray-700 mb-4">Trade Summary</h3>
       <div className="space-y-3">
         {items.map((item) => (
@@ -695,7 +695,7 @@ function GreeksTable({ legs }: { legs: Leg[] }) {
   }, { delta: 0, gamma: 0, theta: 0, vega: 0 });
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm h-full overflow-x-auto">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm h-full overflow-x-auto">
       <h3 className="text-sm font-semibold text-gray-700 mb-4">Position Greeks</h3>
       <table className="w-full text-xs">
         <thead>
@@ -916,7 +916,7 @@ function StrategyLibrary({ onSelect }: { onSelect: (id: StrategyId) => void }) {
     ['Volatility / Event', ['straddle', 'strangle', 'butterfly']],
   ];
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-gray-700 mb-5">Strategy Library</h3>
       <div className="space-y-6">
         {groups.map(([groupName, ids]) => (
@@ -1067,7 +1067,7 @@ export default function OptionsPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
         {/* ── Symbol bar ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
           {/* Row 1: title + search */}
           <div className="flex items-center gap-3 mb-3">
             <h1 className="text-xl font-bold text-gray-800 shrink-0">Options Analysis</h1>
@@ -1096,7 +1096,7 @@ export default function OptionsPage() {
         </div>
 
         {/* ── TradingView chart ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
           <TVWidget key={symbol} symbol={symbol} />
         </div>
 
@@ -1111,7 +1111,7 @@ export default function OptionsPage() {
           {/* HV Panel */}
           <div>
             <HVPanel hvData={hvData} userIV={userIV} loading={hvLoading} />
-            <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mt-3 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm">
               <label className="text-xs font-medium text-gray-500 block mb-1.5">Your IV (from broker) %</label>
               <input
                 value={userIV}
@@ -1124,7 +1124,7 @@ export default function OptionsPage() {
           </div>
 
           {/* Strategy Builder */}
-          <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="lg:col-span-2 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Strategy Builder</h3>
 
             {/* Strategy selector */}

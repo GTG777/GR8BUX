@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRouter } from 'next/router';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
@@ -224,7 +224,7 @@ const AdvancedWatchlist: React.FC = () => {
     <Layout title="Advanced Watchlist">
       <div className="space-y-6">
         {/* Add Symbol */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Symbol</h2>
           <div className="flex gap-2">
             <input
@@ -252,7 +252,7 @@ const AdvancedWatchlist: React.FC = () => {
         </div>
 
         {/* Watchlist Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-100 border-b border-gray-300">

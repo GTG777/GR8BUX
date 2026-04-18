@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import {
   ResponsiveContainer,
@@ -444,7 +444,7 @@ function TSIChart({ data }: { data: TSIPoint[] }) {
   const isBull  = lastTSI > lastSig;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <h3 className="text-sm font-semibold text-gray-900">True Strength Index (25, 13, 7)</h3>
@@ -555,7 +555,7 @@ function TechBar({ ind }: { ind: Indicators }) {
   const volColor    = ind.volumeRatio >= 1.3 ? 'text-green-600' : ind.volumeRatio < 0.7 ? 'text-gray-400' : 'text-gray-700';
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4 flex flex-wrap items-start gap-6 text-sm">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 flex flex-wrap items-start gap-6 text-sm">
       <div>
         <p className="text-xs text-gray-400 mb-0.5">Last Price</p>
         <p className="text-2xl font-bold text-gray-800">${ind.price.toFixed(2)}</p>
@@ -633,7 +633,7 @@ function SetupCard({ setup }: { setup: StockSetup }) {
       </div>
 
       {/* Hero block: Entry / Stop / Targets */}
-      <div className="bg-white bg-opacity-80 rounded-xl p-4 mb-4">
+      <div className="bg-white dark:bg-zinc-900 bg-opacity-80 dark:bg-opacity-100 rounded-xl p-4 mb-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center mb-4">
           <div>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Entry</p>
@@ -1037,7 +1037,7 @@ function SetupProjectionChart({
   });
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4">
       <div className="mb-3">
         <h3 className="text-sm font-semibold text-gray-900">Setup Projection Map — {symbol}</h3>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -1253,7 +1253,7 @@ export default function StockScannerPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
         {/* ── Header ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <h1 className="text-xl font-bold text-gray-800 shrink-0">Stock Scanner</h1>
             <p className="text-xs text-gray-400">
@@ -1295,7 +1295,7 @@ export default function StockScannerPage() {
         </div>
 
         {/* ── TV Chart ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
           <TVMini key={symbol} symbol={symbol} />
         </div>
 
@@ -1359,7 +1359,7 @@ export default function StockScannerPage() {
                   {!loading && allCandles.length > 0 && (
                     <CandlePatternsPanel candles={allCandles} symbol={symbol} />
                   )}
-                  <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+                  <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Indicator Glossary</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                       {[
@@ -1427,7 +1427,7 @@ export default function StockScannerPage() {
                       Check back when price action develops clearer structure.
                     </div>
                   )}
-                  <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+                  <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">How Setups Are Scored</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                       {[

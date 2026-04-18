@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import type { InsiderData, InsiderFiling, InsiderTransaction } from '@/pages/api/insider/filings';
 
 /* ── Sentiment badge ─────────────────────────────────────────────── */
@@ -100,7 +100,7 @@ function FilingCard({ filing }: { filing: InsiderFiling }) {
   const cardBorder = hasBuy && !hasSell ? 'border-green-200' : hasSell && !hasBuy ? 'border-red-100' : 'border-gray-200';
 
   return (
-    <div className={`rounded-lg border bg-white shadow-sm overflow-hidden ${cardBorder}`}>
+    <div className={`rounded-lg border bg-white dark:bg-zinc-900 shadow-sm overflow-hidden ${cardBorder}`}>
       {/* Header */}
       <button
         onClick={() => setOpen(!open)}
@@ -133,7 +133,7 @@ function FilingCard({ filing }: { filing: InsiderFiling }) {
 
       {/* Expanded detail */}
       {open && (
-        <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+        <div className="border-t border-gray-100 dark:border-zinc-800 px-4 py-3 bg-gray-50 dark:bg-zinc-800/50">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-gray-400 text-left border-b border-gray-200">
@@ -190,7 +190,7 @@ export default function InsiderActivityPanel({
   const hasTxActivity = summary.openMarketBuys > 0 || summary.openMarketSells > 0;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { detectCandlePatterns, type Candle, type CandlePattern, type PatternSignal } from '@/lib/candlePatterns';
 
 /* ── Tooltip (fixed-position to escape overflow clips) ───────────── */
@@ -134,7 +134,7 @@ export default function CandlePatternsPanel({ candles, symbol, compact = false }
   if (!lastCandle) return null;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <h3 className="text-sm font-bold text-gray-700">
@@ -169,7 +169,7 @@ export default function CandlePatternsPanel({ candles, symbol, compact = false }
           {/* Detail table for strongest patterns */}
           <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden mt-2">
             {patterns.slice(0, 4).map((p) => (
-              <div key={p.name} className="flex items-start gap-3 px-3 py-2.5 bg-white hover:bg-gray-50">
+              <div key={p.name} className="flex items-start gap-3 px-3 py-2.5 bg-white dark:bg-zinc-900 hover:bg-gray-50 dark:hover:bg-zinc-800/50">
                 <span className="text-base mt-0.5">{p.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

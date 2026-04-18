@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { TalkOfTown } from '@/components/TalkOfTown';
 
@@ -22,7 +22,7 @@ const CommunityPage: React.FC = () => {
   return (
     <Layout title="Community Sentiment">
       {/* Controls */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 mb-6">
         <div className="grid md:grid-cols-2 gap-6">
           <div>
             <h2 className="text-base font-semibold text-gray-900 mb-3">Symbols</h2>
@@ -61,7 +61,7 @@ const CommunityPage: React.FC = () => {
       </div>
 
       {/* Sentiment */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
         <TalkOfTown symbols={selectedSymbols} source={sourceFilter} />
       </div>
     </Layout>

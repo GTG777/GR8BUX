@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AI Advisor Panel Component
  * Displays multi-agent AI analysis (Technical, Greeks, Sentiment, Risk, Strategy)
  */
@@ -501,7 +501,7 @@ export const AIAdvisorPanel: React.FC<AIAdvisorPanelProps> = ({
   ];
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
+    <div className="rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
       {/* Header with toggle */}
       <div
         className="flex items-center justify-between cursor-pointer"

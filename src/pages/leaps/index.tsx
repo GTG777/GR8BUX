@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 import { LeapsAdvisorChat } from '@/components/LeapsAdvisorChat';
@@ -725,7 +725,7 @@ export default function LeapsPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
         {/* ── Page Header ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-5">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-6 py-5">
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
               <h1 className="text-xl font-bold text-gray-900">LEAPS Options</h1>
@@ -748,14 +748,14 @@ export default function LeapsPage() {
         </div>
 
         {/* ── Tab Bar ── */}
-        <div className="flex border-b border-gray-200 bg-white rounded-t-xl overflow-hidden shadow-sm">
+        <div className="flex border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-t-xl overflow-hidden shadow-sm">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-5 py-3 text-sm font-semibold transition-colors whitespace-nowrap ${
                 tab === t.id
-                  ? 'border-b-2 border-indigo-600 text-indigo-700 bg-white'
+                  ? 'border-b-2 border-indigo-600 text-indigo-700 bg-white dark:bg-zinc-800 dark:text-indigo-400'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -782,7 +782,7 @@ export default function LeapsPage() {
           <div className="space-y-4">
             {!guideClosed['screener'] && <GuideBox data={GUIDES.screener} onClose={() => toggleGuide('screener')} />}
             {/* Filters */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-wrap gap-4 items-end">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4 flex flex-wrap gap-4 items-end">
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Sector</label>
                 <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)} className="border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:outline-none">
@@ -825,7 +825,7 @@ export default function LeapsPage() {
             {/* Screener + AI Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Screener Table (left side) */}
-              <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="lg:col-span-2 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
                 <ScreenerTable
                   rows={sortScreenerRows(
                     screenerData.filter((r) =>
@@ -870,7 +870,7 @@ export default function LeapsPage() {
           <div className="space-y-4">
             {!guideClosed['chain'] && <GuideBox data={GUIDES.chain} onClose={() => toggleGuide('chain')} />}
             {/* Search bar */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-wrap gap-3 items-end">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4 flex flex-wrap gap-3 items-end">
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Symbol</label>
                 <form onSubmit={(e) => { e.preventDefault(); setChainSymbol(chainInput.toUpperCase()); fetchChain(chainInput.toUpperCase()); }}
@@ -933,7 +933,7 @@ export default function LeapsPage() {
 
             {/* Chain table */}
             {chainData && !chainLoading && (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs min-w-[900px]">
                     <thead className="bg-gray-50">
@@ -1059,7 +1059,7 @@ export default function LeapsPage() {
           <div className="space-y-4">
             {!guideClosed['builder'] && <GuideBox data={GUIDES.builder} onClose={() => toggleGuide('builder')} />}
             {/* Strategy selector */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
               <h3 className="text-sm font-bold text-gray-700 mb-3">LEAPS Strategy</h3>
               <div className="flex flex-wrap gap-2 mb-4">
                 {([
@@ -1143,7 +1143,7 @@ export default function LeapsPage() {
 
             {/* P&L Chart */}
             {bldPnL && (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
                 <h3 className="text-sm font-semibold text-gray-700 mb-4">P&L Analysis — {bldSymbol} {bldType.toUpperCase()} ${bldStrike}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   {(() => {
@@ -1208,7 +1208,7 @@ export default function LeapsPage() {
                     { label: 'Total income (est.)',   value: `$${bldPmcc.totalIncome.toFixed(0)}` },
                     { label: 'Net cost after income', value: `$${bldPmcc.netCost.toFixed(0)}` },
                   ].map(({ label, value }) => (
-                    <div key={label} className="rounded-lg bg-white border border-blue-100 p-3">
+                    <div key={label} className="rounded-lg bg-white dark:bg-zinc-900 border border-blue-100 dark:border-blue-900/40 p-3">
                       <p className="text-[10px] text-blue-400 mb-0.5">{label}</p>
                       <p className="text-base font-extrabold text-blue-800">{value}</p>
                     </div>
@@ -1222,7 +1222,7 @@ export default function LeapsPage() {
             )}
 
             {/* Management rules */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
               <h3 className="text-sm font-bold text-gray-700 mb-3">📋 Management Playbook</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {[
@@ -1305,7 +1305,7 @@ export default function LeapsPage() {
                   <button onClick={addPosition}
                     className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700">Save Position</button>
                   <button onClick={() => setAddOpen(false)}
-                    className="bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                    className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-400 px-5 py-2 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-zinc-800">Cancel</button>
                 </div>
               </div>
             )}
@@ -1318,7 +1318,7 @@ export default function LeapsPage() {
               </div>
             )}
             {portfolio.length > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs min-w-[800px]">
                     <thead className="bg-gray-50 border-b border-gray-100">
@@ -1385,7 +1385,7 @@ export default function LeapsPage() {
             )}
 
             {/* Cheat sheet */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
               <h3 className="text-sm font-bold text-gray-700 mb-3">📌 LEAPS Management Cheat Sheet</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-gray-600">
                 <div className="space-y-2">
@@ -1419,7 +1419,7 @@ export default function LeapsPage() {
             {!guideClosed['rules'] && <GuideBox data={GUIDES.rules} onClose={() => toggleGuide('rules')} />}
 
             {/* ── 1. Stock Selection ── */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
               <div className="px-5 py-3 bg-indigo-600 flex items-center gap-2">
                 <span className="text-lg">📈</span>
                 <h2 className="text-sm font-bold text-white">1. Stock Selection</h2>
@@ -1442,7 +1442,7 @@ export default function LeapsPage() {
             </div>
 
             {/* ── 2. Entry Rules ── */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
               <div className="px-5 py-3 bg-emerald-600 flex items-center gap-2">
                 <span className="text-lg">🎯</span>
                 <h2 className="text-sm font-bold text-white">2. Entry Rules</h2>
@@ -1488,7 +1488,7 @@ export default function LeapsPage() {
             </div>
 
             {/* ── 3. Exit Rules ── */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
               <div className="px-5 py-3 bg-amber-500 flex items-center gap-2">
                 <span className="text-lg">🚪</span>
                 <h2 className="text-sm font-bold text-white">3. Exit Rules</h2>
@@ -1538,7 +1538,7 @@ export default function LeapsPage() {
             </div>
 
             {/* ── 4. Strike & Expiry Selection ── */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
               <div className="px-5 py-3 bg-violet-600 flex items-center gap-2">
                 <span className="text-lg">🎲</span>
                 <h2 className="text-sm font-bold text-white">4. Strike & Expiry Selection Guide</h2>
@@ -1576,7 +1576,7 @@ export default function LeapsPage() {
             </div>
 
             {/* ── 5. Common Mistakes ── */}
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
               <div className="px-5 py-3 bg-red-500 flex items-center gap-2">
                 <span className="text-lg">⚠️</span>
                 <h2 className="text-sm font-bold text-white">5. Common Mistakes to Avoid</h2>
@@ -1620,7 +1620,7 @@ export default function LeapsPage() {
                   { label: 'Roll at DTE',      value: '< 180 days' },
                   { label: 'Hard stop',        value: '-40 to -50%' },
                 ].map(({ label, value }) => (
-                  <div key={label} className="rounded-lg bg-white border border-indigo-100 p-3">
+                  <div key={label} className="rounded-lg bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900/40 p-3">
                     <p className="text-[10px] text-indigo-400 font-medium mb-0.5">{label}</p>
                     <p className="text-sm font-extrabold text-indigo-800">{value}</p>
                   </div>

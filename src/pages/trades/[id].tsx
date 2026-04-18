@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
@@ -196,7 +196,7 @@ export default function TradeDetailPage() {
         </div>
 
         {/* Header Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6">
           <div className="flex flex-wrap items-start gap-4 justify-between">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-1">
@@ -299,7 +299,7 @@ export default function TradeDetailPage() {
 
         {/* Option Legs */}
         {trade.type === 'option' && trade.optionData && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6">
             <div className="flex items-center gap-3 mb-4">
               <h2 className="text-base font-bold text-gray-800">Option Legs</h2>
               <div className="flex gap-3 text-sm text-gray-500">
@@ -344,7 +344,7 @@ export default function TradeDetailPage() {
                             : (exitPrice - leg.entryPrice) * leg.quantity * 100
                           : null;
                       return (
-                        <tr key={leg.id || i} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                        <tr key={leg.id || i} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-gray-50/40'}`}>
                           <td className="px-3 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${dirColor(leg.direction)}`}>
                               {leg.direction}
@@ -395,7 +395,7 @@ export default function TradeDetailPage() {
 
         {/* Stock Details */}
         {trade.type === 'stock' && (trade.stockData || editMode) && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6">
             <h2 className="text-base font-bold text-gray-800 mb-4">Stock Details</h2>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
@@ -429,7 +429,7 @@ export default function TradeDetailPage() {
         )}
 
         {/* Notes */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6 space-y-4">
           <div>
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">Plan Notes</h2>
             {editMode ? (
@@ -468,7 +468,7 @@ export default function TradeDetailPage() {
 
       {/* Sticky Save Bar */}
       {editMode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg px-6 py-4 flex items-center justify-between z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 shadow-lg px-6 py-4 flex items-center justify-between z-50">
           <p className="text-sm text-gray-500">Editing <strong>{trade.symbol}</strong> — unsaved changes</p>
           <div className="flex gap-3">
             <button

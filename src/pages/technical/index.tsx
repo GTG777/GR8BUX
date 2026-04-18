@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { TechnicalSetups } from '@/components/TechnicalSetups';
 
@@ -53,7 +53,7 @@ const TechnicalPage: React.FC = () => {
   return (
     <Layout title="Technical Analysis">
       {/* Symbol Selection */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 mb-6">
         <h2 className="text-base font-semibold text-gray-900 mb-3">Select Symbol</h2>
         <div className="flex gap-2">
           <input
@@ -86,7 +86,7 @@ const TechnicalPage: React.FC = () => {
       )}
 
       {!loading && priceData.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 mb-6">
           <TechnicalSetups symbol={symbol} priceData={priceData} />
         </div>
       )}

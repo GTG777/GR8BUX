@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useTradeStore } from '@/store/tradeStore';
@@ -72,7 +72,7 @@ export function TradeList() {
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
@@ -143,7 +143,7 @@ export function TradeList() {
 
       {/* Trades Table */}
       {!isLoading && sortedTrades.length > 0 && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>

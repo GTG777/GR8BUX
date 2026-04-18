@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
@@ -151,7 +151,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow">
           {/* Users Table */}
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -218,7 +218,7 @@ export default function AdminPage() {
         {/* Role Change Modal */}
         {selectedUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg max-w-md w-full p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Change User Role</h2>
               <p className="text-gray-600 mb-4">{selectedUser.email}</p>
 

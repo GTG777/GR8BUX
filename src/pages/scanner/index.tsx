@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
@@ -624,7 +624,7 @@ function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV:
     : 'Heavy call buying · Euphoric — caution';
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4 flex flex-wrap items-center gap-6 text-sm">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 flex flex-wrap items-center gap-6 text-sm">
       <div>
         <span className="text-xs text-gray-400 block">Last Price</span>
         <span className="font-bold text-gray-800 text-lg">${md.price.toFixed(2)}</span>
@@ -717,7 +717,7 @@ function OptionsAnalyticsPanel({ oa, spot, symbol }: { oa: OptionsAnalytics; spo
   const maxAbsGex = Math.max(...absGex, 1);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
       <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
         Options Analytics
         <span className="text-xs font-normal text-gray-400">· {symbol} · nearest expiry: {oa.nearestExpiry}</span>
@@ -1008,7 +1008,7 @@ function TopCard({ result, symbol, rank, ivr, confluence }: { result: Spread; sy
       </div>
 
       {/* ── Expiry · Strikes · Probability — hero block ── */}
-      <div className="bg-white bg-opacity-75 rounded-xl px-4 py-3 mb-3 flex flex-wrap gap-5 items-start">
+      <div className="bg-white dark:bg-zinc-900 bg-opacity-75 dark:bg-opacity-100 rounded-xl px-4 py-3 mb-3 flex flex-wrap gap-5 items-start">
         {/* Expiry */}
         <div>
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Expiry Date</p>
@@ -1049,7 +1049,7 @@ function TopCard({ result, symbol, rank, ivr, confluence }: { result: Spread; sy
           { label: 'Exp. Value',    value: `$${result.ev.toFixed(0)}` },
           { label: 'Θ / day',       value: `$${result.thetaPerDay.toFixed(2)}` },
         ].map(({ label, value }) => (
-          <div key={label} className="bg-white bg-opacity-60 rounded-lg p-2">
+          <div key={label} className="bg-white dark:bg-zinc-900 bg-opacity-60 dark:bg-opacity-100 rounded-lg p-2">
             <p className="text-xs text-gray-500">{label}</p>
             <p className="text-sm font-bold text-gray-800">{value}</p>
           </div>
@@ -1135,13 +1135,13 @@ function ScanTable({
   const tdCls = 'py-2 px-3 text-sm';
 
   if (!displayed.length) return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-10 text-center text-gray-400 text-sm">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-10 text-center text-gray-400 text-sm">
       No results match your filters. Try lowering Min PoP or adjusting spread width.
     </div>
   );
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto">
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-x-auto">
       <table className="w-full min-w-[900px]">
         <thead className="border-b border-gray-100 bg-gray-50">
           <tr>
@@ -1163,7 +1163,7 @@ function ScanTable({
         </thead>
         <tbody>
           {displayed.slice(0, 60).map((r, i) => (
-            <tr key={r.id} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'} hover:bg-indigo-50/40 transition-colors`}>
+            <tr key={r.id} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-gray-50/40'} hover:bg-indigo-50/40 transition-colors`}>
               <td className="py-2 px-2 text-center"><RowTooltip text={buildNarrative(r, symbol)} /></td>
               <td className={tdCls + ' font-mono text-gray-700'}>{r.dte}d</td>
               <td className={tdCls + ' font-mono text-xs text-gray-500'}>{r.expirationStr}</td>
@@ -1369,7 +1369,7 @@ export default function ScannerPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
         {/* ── Header ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-4">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <h1 className="text-xl font-bold text-gray-800 shrink-0">Options Screener</h1>
             <p className="text-xs text-gray-400">Real options chain · Credit spreads ranked by Expected Value</p>
@@ -1397,7 +1397,7 @@ export default function ScannerPage() {
         </div>
 
         {/* ── TV Chart ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
           <TVMini key={symbol} symbol={symbol} />
         </div>
 
@@ -1415,7 +1415,7 @@ export default function ScannerPage() {
         )}
 
         {/* ── Screener Controls ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-5 py-5">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Screener Controls</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
@@ -1498,7 +1498,7 @@ export default function ScannerPage() {
               <div className="flex gap-1.5">
                 {(['all', 'bull-put', 'bear-call', 'iron-condor'] as const).map((t) => (
                   <button key={t} onClick={() => setActiveType(t)}
-                    className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${activeType === t ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+                    className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${activeType === t ? 'bg-gray-800 text-white border-gray-800' : 'bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-200 dark:border-zinc-700 hover:border-gray-400 dark:hover:border-zinc-500'}`}>
                     {t === 'all' ? 'All' : t === 'bull-put' ? 'Bull Put' : t === 'bear-call' ? 'Bear Call' : 'Iron Condor'}
                   </button>
                 ))}
@@ -1509,7 +1509,7 @@ export default function ScannerPage() {
         )}
 
         {/* ── Glossary ── */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Column Guide</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <GlossaryRow term="Credit (real)" def="Bid/ask midpoint from the live Yahoo Finance options chain — what you&apos;d realistically collect." />
