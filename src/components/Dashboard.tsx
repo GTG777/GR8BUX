@@ -77,60 +77,60 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* Total Trades */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <p className="text-gray-600 text-sm font-medium">Total Trades</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{data.totalTrades || 0}</p>
-          <p className="text-xs text-gray-500 mt-2">All-time</p>
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Total Trades</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{data.totalTrades || 0}</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-2">All-time</p>
         </div>
 
         {/* Win Rate */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <p className="text-gray-600 text-sm font-medium">Win Rate</p>
-          <p className="text-3xl font-bold text-green-600 mt-2">{(data.winRate || 0).toFixed(1)}%</p>
-          <p className="text-xs text-gray-500 mt-2">{data.totalTrades ? `${Math.round((data.winRate || 0) * data.totalTrades / 100)} wins` : '-'}</p>
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Win Rate</p>
+          <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-2">{(data.winRate || 0).toFixed(1)}%</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-2">{data.totalTrades ? `${Math.round((data.winRate || 0) * data.totalTrades / 100)} wins` : '-'}</p>
         </div>
 
         {/* Total P&L */}
         <div className={`bg-white dark:bg-zinc-900 rounded-lg shadow p-6 ${(data.totalPnL || 0) >= 0 ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500'}`}>
-          <p className="text-gray-600 text-sm font-medium">Total P&L</p>
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Total P&L</p>
           <p className={`text-3xl font-bold mt-2 ${(data.totalPnL || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             ${(data.totalPnL || 0).toFixed(2)}
           </p>
-          <p className="text-xs text-gray-500 mt-2">Net profit/loss</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-2">Net profit/loss</p>
         </div>
 
         {/* Profit Factor */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <p className="text-gray-600 text-sm font-medium">Profit Factor</p>
-          <p className="text-3xl font-bold text-blue-600 mt-2">{(data.profitFactor || 0).toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-2">{(data.profitFactor || 0) > 1 ? '✓ Profitable' : '✗ Unprofitable'}</p>
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Profit Factor</p>
+          <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{(data.profitFactor || 0).toFixed(2)}</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-2">{(data.profitFactor || 0) > 1 ? '✓ Profitable' : '✗ Unprofitable'}</p>
         </div>
 
         {/* Risk/Reward */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <p className="text-gray-600 text-sm font-medium">Risk/Reward</p>
-          <p className="text-3xl font-bold text-purple-600 mt-2">{(data.riskRewardRatio || 0).toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-2">Avg win / Avg loss</p>
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Risk/Reward</p>
+          <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">{(data.riskRewardRatio || 0).toFixed(2)}</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-2">Avg win / Avg loss</p>
         </div>
       </div>
 
       {/* Secondary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Largest Win */}
-        <div className="bg-green-50 rounded-lg shadow p-6 border border-green-200">
-          <p className="text-gray-600 text-sm font-medium">Largest Win</p>
-          <p className="text-2xl font-bold text-green-600 mt-2">${(data.largestWin || 0).toFixed(2)}</p>
+        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg shadow p-6 border border-green-200 dark:border-green-700/40">
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Largest Win</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-2">${(data.largestWin || 0).toFixed(2)}</p>
         </div>
 
         {/* Largest Loss */}
-        <div className="bg-red-50 rounded-lg shadow p-6 border border-red-200">
-          <p className="text-gray-600 text-sm font-medium">Largest Loss</p>
-          <p className="text-2xl font-bold text-red-600 mt-2">${(data.largestLoss || 0).toFixed(2)}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg shadow p-6 border border-red-200 dark:border-red-700/40">
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Largest Loss</p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-2">${(data.largestLoss || 0).toFixed(2)}</p>
         </div>
 
         {/* Max Drawdown */}
-        <div className="bg-orange-50 rounded-lg shadow p-6 border border-orange-200">
-          <p className="text-gray-600 text-sm font-medium">Max Drawdown</p>
-          <p className="text-2xl font-bold text-orange-600 mt-2">${(data.maxDrawdown || 0).toFixed(2)}</p>
+        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg shadow p-6 border border-orange-200 dark:border-orange-700/40">
+          <p className="text-gray-600 dark:text-zinc-400 text-sm font-medium">Max Drawdown</p>
+          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-2">${(data.maxDrawdown || 0).toFixed(2)}</p>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export function Dashboard() {
         {/* P&L Over Time */}
         {periodData.length > 0 && (
           <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">P&L Over Time</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">P&L Over Time</h3>
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={periodData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -154,7 +154,7 @@ export function Dashboard() {
 
         {/* Win Rate Distribution */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Win/Loss Distribution</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Win/Loss Distribution</h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie
@@ -182,7 +182,7 @@ export function Dashboard() {
       {/* By Strategy */}
       {strategyData.length > 0 && (
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance by Strategy</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Performance by Strategy</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={strategyData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -199,13 +199,13 @@ export function Dashboard() {
       {/* By Symbol - Top 5 */}
       {symbolData.length > 0 && (
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Traded Symbols</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Traded Symbols</h3>
           <div className="space-y-3">
             {symbolData.slice(0, 5).map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+              <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-lg">
                 <div>
-                  <p className="font-semibold text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.trades} trades</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{item.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-500">{item.trades} trades</p>
                 </div>
                 <p className={`font-bold ${item.value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   ${item.value.toFixed(2)}
