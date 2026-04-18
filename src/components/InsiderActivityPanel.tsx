@@ -4,9 +4,9 @@ import type { InsiderData, InsiderFiling, InsiderTransaction } from '@/pages/api
 /* ── Sentiment badge ─────────────────────────────────────────────── */
 function SentimentBadge({ sentiment }: { sentiment: InsiderData['summary']['sentiment'] }) {
   const cls =
-    sentiment === 'bullish' ? 'bg-green-100 text-green-800 border-green-200' :
-    sentiment === 'bearish' ? 'bg-red-100   text-red-700   border-red-200'   :
-                              'bg-gray-100  text-gray-600 dark:text-gray-400  border-gray-200';
+    sentiment === 'bullish' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800' :
+    sentiment === 'bearish' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'   :
+                              'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-zinc-700';
   const icon = sentiment === 'bullish' ? '▲' : sentiment === 'bearish' ? '▼' : '◆';
   const label = sentiment === 'bullish' ? 'Insider Buying' : sentiment === 'bearish' ? 'Insider Selling' : 'Neutral';
   return (
@@ -19,10 +19,10 @@ function SentimentBadge({ sentiment }: { sentiment: InsiderData['summary']['sent
 /* ── Transaction type pill ───────────────────────────────────────── */
 function TypePill({ type, code }: { type: InsiderTransaction['type']; code: string }) {
   const cls =
-    type === 'buy'   ? 'bg-green-100 text-green-800' :
-    type === 'sell'  ? 'bg-red-100   text-red-700'   :
-    type === 'grant' ? 'bg-indigo-100 text-indigo-700' :
-                      'bg-gray-100   text-gray-500 dark:text-gray-400';
+    type === 'buy'   ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' :
+    type === 'sell'  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'   :
+    type === 'grant' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' :
+                      'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400';
 
   const label =
     code === 'P' ? 'BUY'   :
@@ -41,7 +41,7 @@ function RoleBadge({ role }: { role: string }) {
   const isExec = /CEO|CFO|CTO|COO|President|Director|Officer/i.test(role);
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-      isExec ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500 dark:text-gray-400'
+      isExec ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400'
     }`}>
       {role || 'Insider'}
     </span>
@@ -210,17 +210,17 @@ export default function InsiderActivityPanel({
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <div className="rounded-lg bg-green-50 border border-green-100 p-3">
-          <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wide mb-1">Open-Market Buys</p>
-          <p className="text-2xl font-bold text-green-700">{summary.openMarketBuys}</p>
-          <p className="text-xs text-green-600">{fmtShares(summary.totalBuyShares)} shares</p>
-          <p className="text-xs text-green-500">{fmtValue(summary.totalBuyValue)}</p>
+        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 p-3">
+          <p className="text-[10px] text-green-600 dark:text-green-400 font-semibold uppercase tracking-wide mb-1">Open-Market Buys</p>
+          <p className="text-2xl font-bold text-green-700 dark:text-green-400">{summary.openMarketBuys}</p>
+          <p className="text-xs text-green-600 dark:text-green-500">{fmtShares(summary.totalBuyShares)} shares</p>
+          <p className="text-xs text-green-500 dark:text-green-600">{fmtValue(summary.totalBuyValue)}</p>
         </div>
-        <div className="rounded-lg bg-red-50 border border-red-100 p-3">
-          <p className="text-[10px] text-red-500 font-semibold uppercase tracking-wide mb-1">Open-Market Sells</p>
-          <p className="text-2xl font-bold text-red-600">{summary.openMarketSells}</p>
-          <p className="text-xs text-red-500">{fmtShares(summary.totalSellShares)} shares</p>
-          <p className="text-xs text-red-400">{fmtValue(summary.totalSellValue)}</p>
+        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 p-3">
+          <p className="text-[10px] text-red-500 dark:text-red-400 font-semibold uppercase tracking-wide mb-1">Open-Market Sells</p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.openMarketSells}</p>
+          <p className="text-xs text-red-500 dark:text-red-400">{fmtShares(summary.totalSellShares)} shares</p>
+          <p className="text-xs text-red-400 dark:text-red-500">{fmtValue(summary.totalSellValue)}</p>
         </div>
         <div className="col-span-2">
           {hasTxActivity ? (
