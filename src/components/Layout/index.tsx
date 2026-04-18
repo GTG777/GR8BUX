@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -348,11 +347,11 @@ export function Layout({ children, title }: LayoutProps) {
           `}
         >
           {/* Logo / Brand */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
-            {!collapsed && (
-              <div className="bg-white rounded-lg px-2 py-1">
-                <Image src="/gr8buxlogo.png" alt="GR8BUX" width={220} height={72} className="object-contain" priority />
-              </div>
+          <div className={`flex items-center h-16 px-4 border-b border-gray-700 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+            {!collapsed ? (
+              <img src="/logo-full.svg" alt="GR8BUX" className="h-9 w-auto" />
+            ) : (
+              <img src="/logo-icon.svg" alt="GR8BUX" className="h-8 w-8" />
             )}
             <button
               onClick={() => setCollapsed(!collapsed)}

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuthStore } from '@/store/authStore';
 
 export default function SignInPage() {
@@ -82,7 +81,7 @@ export default function SignInPage() {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <Image src="/gr8buxlogo.png" alt="GR8BUX" width={320} height={104} className="object-contain" priority />
+            <img src="/logo-full.svg" alt="GR8BUX" className="h-14 w-auto" />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900">Welcome Back</h2>
           <p className="mt-2 text-sm text-gray-600">Sign in to your GR8BUX account</p>
