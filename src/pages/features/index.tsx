@@ -46,7 +46,7 @@ const FEATURES = [
     category: 'journal',
     icon: '📈',
     title: 'Performance Analytics',
-    tagline: 'Know exactly what's working.',
+    tagline: 'Know exactly what\'s working.',
     description: 'Visualize your trading performance with an equity curve, monthly P&L bar chart, win rate tracker, streak counter, and strategy-level breakdowns.',
     bullets: [
       'Equity curve (area chart)',
