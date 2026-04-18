@@ -367,7 +367,7 @@ export default function FeaturesPage() {
       {/* ── Bottom CTA ── */}
       <section className="py-20 px-6 bg-gradient-to-br from-blue-900/30 to-indigo-900/20 border-t border-white/10">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl font-extrabold text-white mb-4">Start free. Upgrade when you're ready.</h2>
+          <h2 className="text-3xl font-extrabold text-white mb-4">Start free. Upgrade when you&apos;re ready.</h2>
           <p className="text-zinc-400 mb-8">All core journaling tools are free. Pro and Elite unlock the full suite.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/auth/signup" className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-lg transition">

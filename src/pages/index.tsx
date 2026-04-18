@@ -178,7 +178,7 @@ export default function Home() {
       <section className="py-24 px-6 bg-white/5 border-y border-white/10">
         <div className="max-w-6xl mx-auto text-center mb-12">
           <h2 className="text-4xl font-extrabold text-white mb-3">Simple, transparent pricing</h2>
-          <p className="text-zinc-400">Start free. Upgrade when you're ready.</p>
+          <p className="text-zinc-400">Start free. Upgrade when you&apos;re ready.</p>
         </div>
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
