@@ -62,7 +62,7 @@ const sentimentBorder: Record<string, string> = {
 const sentimentBadge: Record<string, string> = {
   positive: 'bg-green-100 text-green-800',
   negative: 'bg-red-100 text-red-800',
-  neutral:  'bg-gray-100 text-gray-600',
+  neutral:  'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400',
 };
 const sentimentLabel: Record<string, string> = {
   positive: '📈 Bullish',
@@ -104,14 +104,14 @@ const SectorCard: React.FC<SectorCardProps> = ({ sector }) => {
   const rest = articles.slice(2);
 
   return (
-    <div className={`bg-white rounded-lg shadow ${sentimentBorder[sentiment]} flex flex-col`}>
+    <div className={`bg-white dark:bg-zinc-900 rounded-lg shadow ${sentimentBorder[sentiment]} flex flex-col`}>
       {/* Header */}
       <div className="p-4 pb-2">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <span className="text-xl">{sector.icon}</span>
             <div>
-              <p className="font-semibold text-gray-900 text-sm leading-tight">{sector.name}</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">{sector.name}</p>
               <p className="text-xs text-gray-400">{sector.etf}</p>
             </div>
           </div>
@@ -139,7 +139,7 @@ const SectorCard: React.FC<SectorCardProps> = ({ sector }) => {
                 rel="noopener noreferrer"
                 className="block group"
               >
-                <p className="text-xs font-medium text-gray-800 group-hover:text-blue-600 leading-snug line-clamp-2">
+                <p className="text-xs font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600 leading-snug line-clamp-2">
                   {article.title}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -155,9 +155,9 @@ const SectorCard: React.FC<SectorCardProps> = ({ sector }) => {
                 href={article.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block group border-t border-gray-100 pt-2"
+                className="block group border-t border-gray-100 dark:border-zinc-800 pt-2"
               >
-                <p className="text-xs font-medium text-gray-800 group-hover:text-blue-600 leading-snug line-clamp-2">
+                <p className="text-xs font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600 leading-snug line-clamp-2">
                   {article.title}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -171,7 +171,7 @@ const SectorCard: React.FC<SectorCardProps> = ({ sector }) => {
 
       {/* Footer */}
       {articles.length > 2 && (
-        <div className="px-4 pb-3 border-t border-gray-100 pt-2">
+        <div className="px-4 pb-3 border-t border-gray-100 dark:border-zinc-800 pt-2">
           <button
             onClick={() => setExpanded(!expanded)}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium"
@@ -237,17 +237,17 @@ const AllSectorsFeed: React.FC = () => {
             href={article.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-start gap-3 p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow group"
+            className="flex items-start gap-3 p-3 bg-white dark:bg-zinc-900 rounded-lg shadow hover:shadow-md transition-shadow group"
           >
             <span className="text-2xl flex-shrink-0 mt-0.5">{sector.icon}</span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{sector.name}</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide">{sector.name}</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${sentimentBadge[s]}`}>
                   {s === 'positive' ? '📈' : s === 'negative' ? '📉' : '➡️'}
                 </span>
               </div>
-              <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 line-clamp-2 leading-snug">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 line-clamp-2 leading-snug">
                 {article.title}
               </p>
               <p className="text-xs text-gray-400 mt-0.5">{article.source} · {timeAgo(article.publishedAt)}</p>
@@ -269,13 +269,13 @@ const SectorNewsGrid: React.FC = () => {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setView('grid')}
-          className={`px-3 py-1.5 rounded text-sm font-medium ${view === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded text-sm font-medium ${view === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'}`}
         >
           ⊞ Sector Grid
         </button>
         <button
           onClick={() => setView('feed')}
-          className={`px-3 py-1.5 rounded text-sm font-medium ${view === 'feed' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded text-sm font-medium ${view === 'feed' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'}`}
         >
           ☰ Top Headlines
         </button>

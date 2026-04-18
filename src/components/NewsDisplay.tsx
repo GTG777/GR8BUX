@@ -76,7 +76,7 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
       case 'negative':
         return 'bg-red-100 text-red-800 border-red-300';
       case 'neutral':
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+        return 'bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-gray-200 border-gray-300';
       default:
         return 'bg-blue-100 text-blue-800 border-blue-300';
     }
@@ -99,8 +99,8 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
   if (!symbols || symbols.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-        <p className="text-gray-700 font-medium">📰 No symbols selected</p>
-        <p className="text-gray-500 text-sm mt-1">Add stock symbols above to see related news articles</p>
+        <p className="text-gray-700 dark:text-gray-300 font-medium">📰 No symbols selected</p>
+        <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">Add stock symbols above to see related news articles</p>
       </div>
     );
   }
@@ -115,7 +115,7 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Market News</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Market News</h2>
         <button
           onClick={fetchNews}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -135,7 +135,7 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
         <button
           onClick={() => setFilter('all')}
           className={`px-3 py-1 rounded text-sm ${
-            filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+            filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
           }`}
         >
           All ({articles.length})
@@ -143,7 +143,7 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
         <button
           onClick={() => setFilter('positive')}
           className={`px-3 py-1 rounded text-sm ${
-            filter === 'positive' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'
+            filter === 'positive' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
           }`}
         >
           Positive ({articles.filter((a) => a.sentiment === 'positive').length})
@@ -151,7 +151,7 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
         <button
           onClick={() => setFilter('negative')}
           className={`px-3 py-1 rounded text-sm ${
-            filter === 'negative' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'
+            filter === 'negative' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
           }`}
         >
           Negative ({articles.filter((a) => a.sentiment === 'negative').length})
@@ -159,7 +159,7 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
         <button
           onClick={() => setFilter('neutral')}
           className={`px-3 py-1 rounded text-sm ${
-            filter === 'neutral' ? 'bg-gray-500 text-white' : 'bg-gray-200 text-gray-700'
+            filter === 'neutral' ? 'bg-gray-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
           }`}
         >
           Neutral ({articles.filter((a) => a.sentiment === 'neutral').length})
@@ -169,12 +169,12 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
       {/* Articles List */}
       <div className="space-y-4">
         {filteredArticles.length === 0 ? (
-          <p className="text-gray-500">No articles found</p>
+          <p className="text-gray-500 dark:text-gray-500">No articles found</p>
         ) : (
           filteredArticles.map((article) => (
             <div
               key={article.id}
-              className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow"
+              className="border border-gray-200 dark:border-zinc-700 rounded-lg p-4 hover:shadow-lg transition-shadow"
             >
               <div className="flex gap-4">
                 {article.imageUrl && (
@@ -187,8 +187,8 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
                 <div className="flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">{article.title}</h3>
-                      <p className="text-sm text-gray-600 mb-2">{article.summary}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{article.title}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{article.summary}</p>
                     </div>
                     <span className={`px-2 py-1 rounded text-xs font-semibold border whitespace-nowrap ${sentimentColor(article.sentiment)}`}>
                       {sentimentIcon(article.sentiment)} {article.sentiment}
@@ -203,14 +203,14 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
                       </span>
                     ))}
                     {article.symbols.length > 3 && (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                      <span className="px-2 py-1 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 text-xs rounded">
                         +{article.symbols.length - 3}
                       </span>
                     )}
                   </div>
 
                   {/* Footer */}
-                  <div className="flex justify-between items-center text-xs text-gray-500">
+                  <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-500">
                     <span>{article.source}</span>
                     <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
                   </div>

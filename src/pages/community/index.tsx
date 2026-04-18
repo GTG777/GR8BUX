@@ -25,7 +25,7 @@ const CommunityPage: React.FC = () => {
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 mb-6">
         <div className="grid md:grid-cols-2 gap-6">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-3">Symbols</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Symbols</h2>
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
@@ -47,12 +47,12 @@ const CommunityPage: React.FC = () => {
             </div>
           </div>
           <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-3">Source</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Source</h2>
             <div className="space-y-2">
               {(['all', 'reddit', 'stocktwits'] as const).map((src) => (
                 <label key={src} className="flex items-center gap-3 cursor-pointer">
                   <input type="radio" name="source" value={src} checked={sourceFilter === src} onChange={() => setSourceFilter(src)} className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm text-gray-700">{src === 'all' ? 'All Sources' : src === 'reddit' ? '🔴 Reddit' : '💬 StockTwits'}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{src === 'all' ? 'All Sources' : src === 'reddit' ? '🔴 Reddit' : '💬 StockTwits'}</span>
                 </label>
               ))}
             </div>

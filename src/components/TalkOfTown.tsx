@@ -86,7 +86,7 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
         return 'text-red-600 bg-red-50';
       case 'NEUTRAL':
       case 'neutral':
-        return 'text-gray-600 bg-gray-50';
+        return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-zinc-800/50';
       default:
         return 'text-blue-600 bg-blue-50';
     }
@@ -118,8 +118,8 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
   if (!symbols || symbols.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-600 mb-2">No symbols selected</p>
-        <p className="text-sm text-gray-500">Add symbols above to view community sentiment</p>
+        <p className="text-gray-600 dark:text-gray-400 mb-2">No symbols selected</p>
+        <p className="text-sm text-gray-500 dark:text-gray-500">Add symbols above to view community sentiment</p>
       </div>
     );
   }
@@ -127,7 +127,7 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Talk of the Town</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Talk of the Town</h2>
         <button
           onClick={fetchSentiment}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -143,13 +143,13 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
       )}
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-zinc-700">
         <button
           onClick={() => setActiveTab('sentiment')}
           className={`px-4 py-2 font-medium ${
             activeTab === 'sentiment'
               ? 'border-b-2 border-blue-500 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100'
           }`}
         >
           Sentiment Summary
@@ -159,7 +159,7 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
           className={`px-4 py-2 font-medium ${
             activeTab === 'posts'
               ? 'border-b-2 border-blue-500 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100'
           }`}
         >
           Community Posts ({posts.length})
@@ -170,27 +170,27 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
       {activeTab === 'sentiment' && (
         <div className="space-y-4">
           {summary.length === 0 ? (
-            <p className="text-gray-500">No sentiment data available</p>
+            <p className="text-gray-500 dark:text-gray-500">No sentiment data available</p>
           ) : (
             summary.map((item) => (
-              <div key={item.symbol} className="border border-gray-200 rounded-lg p-4">
+              <div key={item.symbol} className="border border-gray-200 dark:border-zinc-700 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{item.symbol}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{item.symbol}</h3>
                     <div className={`flex items-center gap-2 text-2xl font-bold ${sentimentColor(item.overallSentiment)}`}>
                       {sentimentIcon(item.overallSentiment)}
                       {item.overallSentiment}
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-600">Engagement Score</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Engagement Score</p>
                     <p className="text-2xl font-bold text-blue-600">{(item.engagementScore ?? 0).toFixed(1)}</p>
                   </div>
                 </div>
 
                 {/* Sentiment Breakdown */}
                 <div className="mb-3">
-                  <div className="flex h-8 rounded-full overflow-hidden border border-gray-300 bg-gray-100">
+                  <div className="flex h-8 rounded-full overflow-hidden border border-gray-300 bg-gray-100 dark:bg-zinc-800">
                     {item.positive > 0 && (
                       <div
                         className="bg-green-500 flex items-center justify-center text-white text-xs font-bold"
@@ -221,15 +221,15 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-2 text-sm">
                   <div className="bg-green-50 p-2 rounded border border-green-200">
-                    <p className="text-gray-600">Positive</p>
+                    <p className="text-gray-600 dark:text-gray-400">Positive</p>
                     <p className="text-lg font-bold text-green-600">{item.positive}%</p>
                   </div>
-                  <div className="bg-gray-50 p-2 rounded border border-gray-200">
-                    <p className="text-gray-600">Neutral</p>
-                    <p className="text-lg font-bold text-gray-600">{item.neutral}%</p>
+                  <div className="bg-gray-50 dark:bg-zinc-800/50 p-2 rounded border border-gray-200 dark:border-zinc-700">
+                    <p className="text-gray-600 dark:text-gray-400">Neutral</p>
+                    <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{item.neutral}%</p>
                   </div>
                   <div className="bg-red-50 p-2 rounded border border-red-200">
-                    <p className="text-gray-600">Negative</p>
+                    <p className="text-gray-600 dark:text-gray-400">Negative</p>
                     <p className="text-lg font-bold text-red-600">{item.negative}%</p>
                   </div>
                 </div>
@@ -243,12 +243,12 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
       {activeTab === 'posts' && (
         <div className="space-y-4">
           {posts.length === 0 ? (
-            <p className="text-gray-500">No posts available</p>
+            <p className="text-gray-500 dark:text-gray-500">No posts available</p>
           ) : (
             posts.map((post) => (
               <div
                 key={post.id}
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow"
+                className="border border-gray-200 dark:border-zinc-700 rounded-lg p-4 hover:shadow-lg transition-shadow"
               >
                 <div className="flex justify-between items-start gap-3 mb-2">
                   <div className="flex-1">
@@ -260,16 +260,16 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
                         {post.symbol}
                       </span>
                     </div>
-                    <h4 className="font-semibold text-gray-900 mb-1">{post.title}</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{post.title}</h4>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${sentimentColor(post.sentiment)}`}>
                     {sentimentIcon(post.sentiment)} {post.sentiment}
                   </span>
                 </div>
 
-                <p className="text-gray-700 text-sm mb-2 line-clamp-2">{post.text}</p>
+                <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 line-clamp-2">{post.text}</p>
 
-                <div className="flex justify-between items-center text-xs text-gray-500">
+                <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-500">
                   <div className="flex gap-3">
                     <span>👤 {post.author}</span>
                     <span>❤️ {post.engagement}</span>

@@ -43,13 +43,13 @@ const NewsPage: React.FC = () => {
   return (
     <Layout title="Market News">
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-zinc-800 p-1 rounded-lg w-fit">
         <button
           onClick={() => setActiveTab('symbols')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'symbols'
-              ? 'bg-white text-gray-900 shadow'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow'
+              : 'text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300'
           }`}
         >
           📰 By Symbol
@@ -58,8 +58,8 @@ const NewsPage: React.FC = () => {
           onClick={() => setActiveTab('sectors')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'sectors'
-              ? 'bg-white text-gray-900 shadow'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow'
+              : 'text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300'
           }`}
         >
           🏛️ All 11 Sectors
@@ -69,9 +69,9 @@ const NewsPage: React.FC = () => {
       {activeTab === 'symbols' ? (
         <>
           {/* Symbol Selection */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold text-gray-900">Symbols</h2>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Symbols</h2>
               <button
                 onClick={loadFromWatchlist}
                 className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
@@ -106,15 +106,15 @@ const NewsPage: React.FC = () => {
           </div>
 
           {/* News Display */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
             <NewsDisplay symbols={selectedSymbols} maxArticles={50} />
           </div>
         </>
       ) : (
-        <div className="bg-gray-50 rounded-lg p-6">
+        <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-lg p-6">
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Sector News Dashboard</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Sector News Dashboard</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
               Latest news and sentiment across all 11 GICS sectors, tracked via sector ETFs.
             </p>
           </div>
