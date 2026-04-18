@@ -18,7 +18,7 @@ const TODAY = new Date();
 const fmt$ = (v: number) => v >= 0 ? `+$${v.toFixed(2)}` : `-$${Math.abs(v).toFixed(2)}`;
 const fmtPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
 
-// Screener watchlist — popular LEAPS candidates
+// Screener watchlist - popular LEAPS candidates
 const LEAPS_UNIVERSE = [
   { symbol: 'SPY',  name: 'S&P 500 ETF',     sector: 'Index' },
   { symbol: 'QQQ',  name: 'Nasdaq 100 ETF',   sector: 'Index' },
@@ -224,22 +224,22 @@ function ScreenerTable({
               </td>
               <td className="py-2 px-3 text-gray-500 dark:text-zinc-400">{row.sector}</td>
               <td className="py-2 px-3 text-right font-semibold text-gray-800 dark:text-white">
-                {row.loading ? '…' : row.price ? `$${row.price.toFixed(2)}` : '—'}
+                {row.loading ? '-' : row.price ? `$${row.price.toFixed(2)}` : '-'}
               </td>
               <td className="py-2 px-3 text-right text-gray-600 dark:text-zinc-400">
-                {row.loading ? '…' : row.hv20 !== null ? `${row.hv20}%` : '—'}
+                {row.loading ? '-' : row.hv20 !== null ? `${row.hv20}%` : '-'}
               </td>
               <td className={`py-2 px-3 text-right ${ivrColor(row.ivr)}`}>
-                {row.loading ? '…' : row.ivr !== null ? `${row.ivr.toFixed(0)}` : '—'}
+                {row.loading ? '-' : row.ivr !== null ? `${row.ivr.toFixed(0)}` : '-'}
               </td>
-              <td className="py-2 px-3 text-right text-indigo-600 text-[10px]">{row.bestExpiry ?? '—'}</td>
+              <td className="py-2 px-3 text-right text-indigo-600 text-[10px]">{row.bestExpiry ?? '-'}</td>
               <td className="py-2 px-3 text-right">
                 {row.bestDelta !== null
                   ? <Badge cls={deltaLabel(row.bestDelta, 'call').cls}>{row.bestDelta.toFixed(2)}</Badge>
-                  : '—'}
+                  : '-'}
               </td>
               <td className="py-2 px-3 text-right font-semibold text-gray-700 dark:text-zinc-300">
-                {row.bestPremium !== null ? `$${(row.bestPremium * 100).toFixed(0)}` : '—'}
+                {row.bestPremium !== null ? `$${(row.bestPremium * 100).toFixed(0)}` : '-'}
               </td>
               <td className="py-2 px-3 text-center">
                 <button
@@ -275,7 +275,7 @@ function GuideBox({ data, onClose }: { data: GuideData; onClose: () => void }) {
         aria-label="Dismiss guide"
         className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200 hover:bg-white/70 dark:hover:bg-zinc-800 text-lg leading-none shrink-0"
       >
-        ×
+        -
       </button>
       <p className={`text-xs font-bold ${data.accent} mb-3 flex items-center gap-1.5 pr-8`}>
         <span className="text-base">?</span> {data.headline}
@@ -297,59 +297,59 @@ function GuideBox({ data, onClose }: { data: GuideData; onClose: () => void }) {
 
 const GUIDES: Record<string, GuideData> = {
   screener: {
-    headline: 'How to use the Screener — find the right LEAPS candidate in 4 steps',
+    headline: 'How to use the Screener - find the right LEAPS candidate in 4 steps',
     bg: 'bg-indigo-50', border: 'border-indigo-200', accent: 'text-indigo-700', badge: 'bg-indigo-600 text-white',
     steps: [
-      'Set the Sector filter and drag Max IV Rank = 30. IV Rank < 30 means options are historically cheap — the best time to buy LEAPS.',
+      'Set the Sector filter and drag Max IV Rank = 30. IV Rank < 30 means options are historically cheap - the best time to buy LEAPS.',
       'Wait a few seconds for rows to auto-load live price, HV20, and the best available LEAPS contract. Data loads staggered to avoid rate-limiting.',
       'Scan for a green IV Rank number and a best delta near 0.70. Green = you are buying cheap time value. High IV Rank = you are overpaying.',
       'Click Analyze ? on any row to jump to the Chain Viewer with that symbol pre-loaded and ready to filter.',
     ],
-    tip: 'Start with SPY or QQQ to learn the workflow — index LEAPS are the most liquid and easiest to enter and exit.',
+    tip: 'Start with SPY or QQQ to learn the workflow - index LEAPS are the most liquid and easiest to enter and exit.',
   },
   chain: {
-    headline: 'How to use the Chain Viewer — read the LEAPS chain and pick the right contract',
+    headline: 'How to use the Chain Viewer - read the LEAPS chain and pick the right contract',
     bg: 'bg-teal-50', border: 'border-teal-200', accent: 'text-teal-700', badge: 'bg-teal-600 text-white',
     steps: [
       'Type a ticker and click Load. Only expirations = 12 months appear. Toggle Calls or Puts based on your directional view (bullish ? calls).',
-      'Use the Expiry dropdown — 12–18 months is the sweet spot. 18–24 months is ideal for a PMCC base leg or stock replacement.',
+      'Use the Expiry dropdown - 12-18 months is the sweet spot. 18-24 months is ideal for a PMCC base leg or stock replacement.',
       'Drag the Min Delta slider: 0.70+ for deep ITM (moves like stock), 0.50 for balanced cost/leverage, 0.30 for speculative plays.',
-      'Before trading, confirm OI > 500 and bid/ask spread < $0.50 — a wide spread destroys edge on both entry and exit.',
+      'Before trading, confirm OI > 500 and bid/ask spread < $0.50 - a wide spread destroys edge on both entry and exit.',
       'Click Build ? on any row to send that contract to the Builder tab with all fields pre-filled automatically.',
     ],
-    tip: 'The “vs. Shares %” column shows your committed capital vs. buying 100 shares outright. 10–20% is the typical LEAPS leverage sweet spot.',
+    tip: 'The -vs. Shares %- column shows your committed capital vs. buying 100 shares outright. 10-20% is the typical LEAPS leverage sweet spot.',
   },
   builder: {
-    headline: 'How to use the Builder — model P&L before risking real money',
+    headline: 'How to use the Builder - model P&L before risking real money',
     bg: 'bg-violet-50', border: 'border-violet-200', accent: 'text-violet-700', badge: 'bg-violet-600 text-white',
     steps: [
       'Choose a strategy: Pure LEAPS (directional hold), PMCC / Poor Man\'s Covered Call (sell monthly calls for income), or Bull Call Spread (capped profit, lower cost).',
       'If you came from the Chain Viewer, all fields pre-fill automatically. Otherwise enter: Symbol, Spot, Strike, Expiry, IV %, premium paid per share, and contracts.',
       'Click Analyze LEAPS to generate the P&L chart. The solid indigo line = profit at expiration. The dashed amber line = current estimated value with time remaining.',
-      'Drag the Days Held slider to simulate time decay — watch how the dashed amber line shifts downward as theta erodes your premium gradually.',
+      'Drag the Days Held slider to simulate time decay - watch how the dashed amber line shifts downward as theta erodes your premium gradually.',
       'For PMCC: check the Income Projection card below the chart to see how many 45-day short call cycles reduce your net cost basis toward zero.',
     ],
-    tip: 'If the dashed amber line stays close to the solid line even at 180 days held, your LEAPS has excellent time-decay resistance — a good entry.',
+    tip: 'If the dashed amber line stays close to the solid line even at 180 days held, your LEAPS has excellent time-decay resistance - a good entry.',
   },
   portfolio: {
-    headline: 'How to use the Portfolio — track positions and never miss a roll',
+    headline: 'How to use the Portfolio - track positions and never miss a roll',
     bg: 'bg-emerald-50', border: 'border-emerald-200', accent: 'text-emerald-700', badge: 'bg-emerald-600 text-white',
     steps: [
       'Click Add Position and fill in symbol, option type, strike, expiry date, premium paid per share (e.g. $12.50), and number of contracts.',
       'Each row automatically calculates DTE. Roll Status updates on every visit: ? > 270d (holding fine), ?? = 270d (plan your roll), ?? = 180d (act now).',
-      'At the red alert: go to Chain Viewer, find the same strike at a +12 month expiry, and execute a roll — sell current + buy new in one order.',
+      'At the red alert: go to Chain Viewer, find the same strike at a +12 month expiry, and execute a roll - sell current + buy new in one order.',
       'When you close a trade (profit target, stop-loss, or roll completed), click Remove to clear it from the tracker.',
     ],
     tip: 'Positions are saved in your browser (localStorage) and persist between visits on this device. They do not sync across browsers or devices.',
   },
   rules: {
-    headline: 'How to use Rules & Tips — your LEAPS reference guide before every trade',
+    headline: 'How to use Rules & Tips - your LEAPS reference guide before every trade',
     bg: 'bg-amber-50', border: 'border-amber-200', accent: 'text-amber-700', badge: 'bg-amber-500 text-white',
     steps: [
       'Before entering any LEAPS: run through the Entry Checklist in Section 2. All 8 items should pass. If 2+ are red flags, skip the trade.',
       'Use the Strike & Expiry Selection table (Section 4) to match your goal to the right delta and expiry for your risk tolerance.',
       'After any losing position: re-read Common Mistakes (Section 5). Understanding why a trade failed is more valuable than the next entry.',
-      'Memorize the 8 numbers in the Quick-Reference Card at the bottom — these cover every key decision in the LEAPS lifecycle.',
+      'Memorize the 8 numbers in the Quick-Reference Card at the bottom - these cover every key decision in the LEAPS lifecycle.',
     ],
     tip: 'Screenshot or print the Quick-Reference Card. The most common LEAPS mistake is holding past 90 DTE without rolling forward.',
   },
@@ -422,7 +422,7 @@ export default function LeapsPage() {
         return;
       }
 
-      // Find the best ATM call (delta closest to 0.70, expiry 12–18mo)
+      // Find the best ATM call (delta closest to 0.70, expiry 12-18mo)
       const targetMs = Date.now() + 18 * 30 * 24 * 60 * 60 * 1000;
       const best = data.contracts
         .filter((c) => c.type === 'call' && c.delta > 0 && c.openInterest >= 10)
@@ -494,7 +494,7 @@ export default function LeapsPage() {
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data: LeapsChainResponse = await res.json();
       if (data.upstreamError) {
-        setChainError('Options data unavailable — market data provider is temporarily unreachable. Try again in a few minutes.');
+        setChainError('Options data unavailable - market data provider is temporarily unreachable. Try again in a few minutes.');
         setChainData(data);
         return;
       }
@@ -702,7 +702,7 @@ export default function LeapsPage() {
   const rollMsg = (dte: number) =>
     dte <= 60  ? '?? Roll immediately' :
     dte <= 180 ? '?? Consider rolling (< 6mo)' :
-    dte <= 270 ? '?? Roll in ~3–4 months' :
+    dte <= 270 ? '?? Roll in ~3-4 months' :
     '? Holding comfortably';
 
   /* -- shared input class --------------------------------------- */
@@ -730,13 +730,13 @@ export default function LeapsPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">LEAPS Options</h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                Long-term Equity Anticipation Securities — expirations = 12 months
+                Long-term Equity Anticipation Securities - expirations = 12 months
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               {[
                 { emoji: '??', label: 'Min 12 months to expiry' },
-                { emoji: '??', label: 'Target 0.60–0.80 Delta' },
+                { emoji: '??', label: 'Target 0.60-0.80 Delta' },
                 { emoji: '??', label: 'Enter when IV Rank < 30' },
               ].map(({ emoji, label }) => (
                 <span key={label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 font-medium">
@@ -816,9 +816,9 @@ export default function LeapsPage() {
             <div className="rounded-xl border border-indigo-100 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4 text-xs text-indigo-700 dark:text-indigo-400 space-y-1">
               <p className="font-bold mb-1">?? Screener Guide</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <p><strong>IV Rank &lt; 30</strong> — options are cheap. Buy now, don&apos;t sell.</p>
-                <p><strong>Delta 0.70–0.80</strong> — moves like stock at a fraction of capital (deep ITM LEAPS).</p>
-                <p><strong>Premium</strong> shown per contract (×100 shares). Compare to owning 100 shares outright.</p>
+                <p><strong>IV Rank &lt; 30</strong> - options are cheap. Buy now, don&apos;t sell.</p>
+                <p><strong>Delta 0.70-0.80</strong> - moves like stock at a fraction of capital (deep ITM LEAPS).</p>
+                <p><strong>Premium</strong> shown per contract (-100 shares). Compare to owning 100 shares outright.</p>
               </div>
             </div>
 
@@ -1040,12 +1040,12 @@ export default function LeapsPage() {
               <div className="rounded-xl border border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800/50 p-5 text-xs text-gray-500 dark:text-zinc-400 space-y-2">
                 <p className="font-semibold text-gray-700">?? What to look for in the LEAPS chain:</p>
                 <ul className="space-y-1 list-disc list-inside">
-                  <li><strong>Delta 0.70–0.80</strong> — deep ITM, moves like stock, slowest theta decay</li>
-                  <li><strong>Delta 0.50–0.60</strong> — ATM, best balance of cost and leverage</li>
-                  <li><strong>Delta 0.30–0.40</strong> — OTM, cheapest but needs a large move to profit</li>
-                  <li><strong>Theta/day</strong> — how much the option loses per day from time decay alone</li>
-                  <li><strong>vs. Shares</strong> — the option costs this % of buying 100 shares outright</li>
-                  <li><strong>Breakeven</strong> — the stock price where you break even <em>at expiration</em></li>
+                  <li><strong>Delta 0.70-0.80</strong> - deep ITM, moves like stock, slowest theta decay</li>
+                  <li><strong>Delta 0.50-0.60</strong> - ATM, best balance of cost and leverage</li>
+                  <li><strong>Delta 0.30-0.40</strong> - OTM, cheapest but needs a large move to profit</li>
+                  <li><strong>Theta/day</strong> - how much the option loses per day from time decay alone</li>
+                  <li><strong>vs. Shares</strong> - the option costs this % of buying 100 shares outright</li>
+                  <li><strong>Breakeven</strong> - the stock price where you break even <em>at expiration</em></li>
                 </ul>
               </div>
             )}
@@ -1144,7 +1144,7 @@ export default function LeapsPage() {
             {/* P&L Chart */}
             {bldPnL && (
               <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5">
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">P&L Analysis — {bldSymbol} {bldType.toUpperCase()} ${bldStrike}</h3>
+                <h3 className="text-sm font-semibold text-gray-700 mb-4">P&L Analysis - {bldSymbol} {bldType.toUpperCase()} ${bldStrike}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   {(() => {
                     const premium = parseFloat(bldPremium);
@@ -1226,12 +1226,12 @@ export default function LeapsPage() {
               <h3 className="text-sm font-bold text-gray-700 mb-3">?? Management Playbook</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {[
-                  { trigger: '?? Profit hits +50–100%',     action: 'Sell or roll strike closer to stock; bank partial gains' },
-                  { trigger: '?? Loss hits -40–50%',        action: 'Hard stop — exit. Thesis is broken or IV imploded.' },
+                  { trigger: '?? Profit hits +50-100%',     action: 'Sell or roll strike closer to stock; bank partial gains' },
+                  { trigger: '?? Loss hits -40-50%',        action: 'Hard stop - exit. Thesis is broken or IV imploded.' },
                   { trigger: '?? DTE crosses 180 days',      action: 'Prepare to roll forward to a later expiry, same strike' },
                   { trigger: '?? Delta > 0.95 (deep ITM)',   action: 'Roll down to a lower strike; recapture extrinsic value' },
                   { trigger: '?? IV spikes before event',    action: 'Sell a short call against LEAPS to capture premium (PMCC)' },
-                  { trigger: '?? Target price reached',      action: 'Sell to close — almost never exercise (lose extrinsic)' },
+                  { trigger: '?? Target price reached',      action: 'Sell to close - almost never exercise (lose extrinsic)' },
                 ].map(({ trigger, action }) => (
                   <div key={trigger} className="flex gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
                     <span className="font-semibold text-gray-700 w-48 shrink-0">{trigger}</span>
@@ -1346,9 +1346,9 @@ export default function LeapsPage() {
                             </td>
                             <td className="py-3 px-3">
                               <span className={`font-semibold ${pos.type === 'call' ? 'text-green-700' : 'text-red-600'}`}>
-                                {pos.qty}× {pos.type.toUpperCase()}
+                                {pos.qty}- {pos.type.toUpperCase()}
                               </span>
-                              <span className="block text-gray-500 dark:text-zinc-400">${pos.strike} · {pos.expiryStr}</span>
+                              <span className="block text-gray-500 dark:text-zinc-400">${pos.strike} - {pos.expiryStr}</span>
                             </td>
                             <td className="py-3 px-3 text-right font-semibold text-gray-700 dark:text-zinc-300">
                               ${pos.entryPremium.toFixed(2)}/sh
@@ -1362,7 +1362,7 @@ export default function LeapsPage() {
                                 {rollMsg(dte)}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-gray-500 dark:text-zinc-400 max-w-[200px] truncate">{pos.notes || '—'}</td>
+                            <td className="py-3 px-3 text-gray-500 dark:text-zinc-400 max-w-[200px] truncate">{pos.notes || '-'}</td>
                             <td className="py-3 px-3 text-center">
                               <button onClick={() => removePosition(pos.id)}
                                 className="text-red-400 hover:text-red-600 text-[11px] font-semibold px-2 py-1 rounded hover:bg-red-50">
@@ -1378,7 +1378,7 @@ export default function LeapsPage() {
                 {/* Roll alerts summary */}
                 {portfolio.some((p) => daysToExpiry(p.expiryStr) <= 180) && (
                   <div className="px-5 py-3 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-100 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400 font-medium">
-                    ?? {portfolio.filter((p) => daysToExpiry(p.expiryStr) <= 180).length} position(s) within 180 days — review roll timing.
+                    ?? {portfolio.filter((p) => daysToExpiry(p.expiryStr) <= 180).length} position(s) within 180 days - review roll timing.
                   </div>
                 )}
               </div>
@@ -1391,20 +1391,20 @@ export default function LeapsPage() {
                 <div className="space-y-2">
                   <p className="font-bold text-gray-700">? When to Roll</p>
                   <p>DTE &lt; 180: begin looking for a roll date.</p>
-                  <p>DTE &lt; 90: aggressive roll — theta decay accelerates below 90 days.</p>
+                  <p>DTE &lt; 90: aggressive roll - theta decay accelerates below 90 days.</p>
                   <p>Roll to same strike, 12+ months farther. Cost = debit/credit of the roll.</p>
                 </div>
                 <div className="space-y-2">
                   <p className="font-bold text-gray-700">?? Profit Targets</p>
-                  <p>+50% of premium paid: excellent — take it.</p>
-                  <p>+100% of premium paid: exceptional — exit fully.</p>
-                  <p>If the stock hits your thesis target early, sell — don&apos;t wait for expiry.</p>
+                  <p>+50% of premium paid: excellent - take it.</p>
+                  <p>+100% of premium paid: exceptional - exit fully.</p>
+                  <p>If the stock hits your thesis target early, sell - don&apos;t wait for expiry.</p>
                 </div>
                 <div className="space-y-2">
                   <p className="font-bold text-gray-700">?? Stop Loss Rules</p>
                   <p>-40 to -50% of premium paid: hard stop. No averaging down on LEAPS.</p>
-                  <p>If IV collapses dramatically, that can cause losses even if the stock is flat — reassess.</p>
-                  <p>Never exercise early — you lose all remaining extrinsic value.</p>
+                  <p>If IV collapses dramatically, that can cause losses even if the stock is flat - reassess.</p>
+                  <p>Never exercise early - you lose all remaining extrinsic value.</p>
                 </div>
               </div>
             </div>
@@ -1426,9 +1426,9 @@ export default function LeapsPage() {
               </div>
               <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
-                  { icon: '??', title: 'Upward-trending stock',   body: 'Only buy LEAPS on stocks with strong fundamentals and a clear bullish trend. Avoid sideways or downtrending names — theta works against you every day.' },
+                  { icon: '??', title: 'Upward-trending stock',   body: 'Only buy LEAPS on stocks with strong fundamentals and a clear bullish trend. Avoid sideways or downtrending names - theta works against you every day.' },
                   { icon: '??', title: 'P/E ratio below 100',      body: 'High P/E stocks have more valuation compression risk. Ideally target P/E < 100 so you\u2019re not paying two premiums: an expensive stock AND expensive options.' },
-                  { icon: '??', title: '1–1.5 year chart uptrend', body: 'Look for a consistent series of higher highs and higher lows on the weekly chart. A stock that has been trending up for 12–18 months is far more likely to continue.' },
+                  { icon: '??', title: '1-1.5 year chart uptrend', body: 'Look for a consistent series of higher highs and higher lows on the weekly chart. A stock that has been trending up for 12-18 months is far more likely to continue.' },
                 ].map(({ icon, title, body }) => (
                   <div key={title} className="rounded-lg border border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800/50 p-4 space-y-2">
                     <div className="flex items-center gap-2">
@@ -1452,15 +1452,15 @@ export default function LeapsPage() {
                   <div className="rounded-lg border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/20 p-4">
                     <p className="text-sm font-bold text-emerald-800 mb-1">?? Enter at / near lower Bollinger Band</p>
                     <p className="text-xs text-emerald-700 leading-relaxed">
-                      The lower BB is a mean-reversion zone on an uptrending stock — statistically cheap. Buying LEAPS here captures both the
+                      The lower BB is a mean-reversion zone on an uptrending stock - statistically cheap. Buying LEAPS here captures both the
                       bounce AND gives you time to be right. IV is often elevated during dips, so consider waiting a day or two for IV to cool before entering.
                     </p>
                   </div>
                   <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-900/20 p-4">
-                    <p className="text-sm font-bold text-blue-800 mb-1">? High-beta exception (ß &gt; 2.0)</p>
+                    <p className="text-sm font-bold text-blue-800 mb-1">? High-beta exception (- &gt; 2.0)</p>
                     <p className="text-xs text-blue-700 leading-relaxed">
                       High-beta stocks (TSLA, NVDA, PLTR) rarely touch the lower BB before reversing. For these,
-                      entering <strong>below the mid-band</strong> is acceptable — waiting for the lower band risks missing the whole move.
+                      entering <strong>below the mid-band</strong> is acceptable - waiting for the lower band risks missing the whole move.
                     </p>
                   </div>
                 </div>
@@ -1469,13 +1469,13 @@ export default function LeapsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       'Stock is in a confirmed uptrend (weekly chart)',
-                      'Price is at or below lower Bollinger Band (or mid-band for ß > 2)',
-                      'IV Rank is ideally below 30% — options are cheap',
+                      'Price is at or below lower Bollinger Band (or mid-band for - > 2)',
+                      'IV Rank is ideally below 30% - options are cheap',
                       'No earnings within 2 weeks (IV crush risk)',
                       'Market indices (SPY/QQQ) are not in a downtrend',
-                      'Choose expiry = 12 months — never less than 9 months',
-                      'Select strike with delta 0.70–0.80 for deep ITM LEAPS',
-                      'Position size: risk = 2–5% of total portfolio per LEAPS',
+                      'Choose expiry = 12 months - never less than 9 months',
+                      'Select strike with delta 0.70-0.80 for deep ITM LEAPS',
+                      'Position size: risk = 2-5% of total portfolio per LEAPS',
                     ].map((item) => (
                       <div key={item} className="flex items-start gap-2 text-xs text-gray-600 dark:text-zinc-400">
                         <span className="text-emerald-500 mt-0.5 shrink-0">?</span>
@@ -1498,21 +1498,21 @@ export default function LeapsPage() {
                   {[
                     {
                       icon: '?', title: 'Quick Profit Target',
-                      tag: '10–20% gain', tagCls: 'bg-green-100 text-green-700',
+                      tag: '10-20% gain', tagCls: 'bg-green-100 text-green-700',
                       time: 'Within 7 days',
-                      body: 'If you enter near the lower BB and the stock bounces sharply, take the quick win. 10–20% on a LEAPS in under a week compounds beautifully over a year.',
+                      body: 'If you enter near the lower BB and the stock bounces sharply, take the quick win. 10-20% on a LEAPS in under a week compounds beautifully over a year.',
                     },
                     {
                       icon: '???', title: 'Swing Profit Target',
-                      tag: '20–40% gain', tagCls: 'bg-blue-100 text-blue-700',
+                      tag: '20-40% gain', tagCls: 'bg-blue-100 text-blue-700',
                       time: 'Within 4 weeks',
-                      body: 'For swing holds, aim for 20–40% premium gain. At this point your delta has expanded (ITM) and theta is starting to eat faster. Lock in the win.',
+                      body: 'For swing holds, aim for 20-40% premium gain. At this point your delta has expanded (ITM) and theta is starting to eat faster. Lock in the win.',
                     },
                     {
                       icon: '??', title: 'Long-hold Exit',
                       tag: 'DTE < 90 days', tagCls: 'bg-red-100 text-red-700',
                       time: 'Close or roll',
-                      body: 'Never hold a LEAPS inside 90 DTE. Theta decay accelerates sharply. Either sell-to-close, or roll forward to a new 12–18 month expiry to preserve your position.',
+                      body: 'Never hold a LEAPS inside 90 DTE. Theta decay accelerates sharply. Either sell-to-close, or roll forward to a new 12-18 month expiry to preserve your position.',
                     },
                   ].map(({ icon, title, tag, tagCls, time, body }) => (
                     <div key={title} className="rounded-lg border border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800/50 p-4 space-y-2">
@@ -1530,8 +1530,8 @@ export default function LeapsPage() {
                   <p className="text-sm font-bold text-red-700 mb-2">??? Black Swan Protection Rule</p>
                   <p className="text-xs text-red-600 leading-relaxed">
                     If the broad market (SPY) drops more than <strong>10% in a single week</strong> or breaks a major support on the weekly chart,
-                    close all open LEAPS immediately — regardless of P&amp;L. LEAPS bleed fast in a crash: IV spikes, delta collapses, and premium can
-                    fall 50–70% even if you are directionally right. Capital preservation is the priority.
+                    close all open LEAPS immediately - regardless of P&amp;L. LEAPS bleed fast in a crash: IV spikes, delta collapses, and premium can
+                    fall 50-70% even if you are directionally right. Capital preservation is the priority.
                   </p>
                 </div>
               </div>
@@ -1556,11 +1556,11 @@ export default function LeapsPage() {
                   </thead>
                   <tbody>
                     {[
-                      { goal: 'Stock Replacement',  delta: '0.75–0.90',  expiry: '12–24 months', risk: '?? Low',    best: 'Long-term investors wanting leverage without margin' },
-                      { goal: 'Directional Swing',  delta: '0.55–0.75',  expiry: '12–18 months', risk: '?? Medium', best: 'Swing traders with 1–3 month thesis' },
-                      { goal: 'Speculative Move',   delta: '0.35–0.55',  expiry: '12–15 months', risk: '?? High',   best: 'Catalyst plays, earnings recovery, sector rotation' },
-                      { goal: 'PMCC Base Leg',       delta: '0.80–0.90',  expiry: '18–24 months', risk: '?? Low',    best: 'Selling monthly calls against it to reduce cost basis' },
-                      { goal: 'Bull Call Spread',    delta: '0.50 long',  expiry: '12–18 months', risk: '?? Medium', best: 'Capped upside, lower cost, defined max loss' },
+                      { goal: 'Stock Replacement',  delta: '0.75-0.90',  expiry: '12-24 months', risk: '?? Low',    best: 'Long-term investors wanting leverage without margin' },
+                      { goal: 'Directional Swing',  delta: '0.55-0.75',  expiry: '12-18 months', risk: '?? Medium', best: 'Swing traders with 1-3 month thesis' },
+                      { goal: 'Speculative Move',   delta: '0.35-0.55',  expiry: '12-15 months', risk: '?? High',   best: 'Catalyst plays, earnings recovery, sector rotation' },
+                      { goal: 'PMCC Base Leg',       delta: '0.80-0.90',  expiry: '18-24 months', risk: '?? Low',    best: 'Selling monthly calls against it to reduce cost basis' },
+                      { goal: 'Bull Call Spread',    delta: '0.50 long',  expiry: '12-18 months', risk: '?? Medium', best: 'Capped upside, lower cost, defined max loss' },
                     ].map((row) => (
                       <tr key={row.goal} className="border-b border-gray-50 dark:border-zinc-800 hover:bg-violet-50/30 dark:hover:bg-violet-900/10">
                         <td className="py-2.5 px-3 font-semibold text-gray-700 dark:text-zinc-300">{row.goal}</td>
@@ -1584,11 +1584,11 @@ export default function LeapsPage() {
               <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { bad: 'Buying LEAPS on downtrending stocks',        fix: 'Even cheap IV doesn\'t help if the stock keeps falling. Only buy LEAPS on stocks above their 200-day MA.' },
-                  { bad: 'Choosing expiry too close (< 9 months)',      fix: 'Below 9 months, you no longer have a LEAPS — you have a short-dated option with fast theta decay. Always stay = 12 months.' },
+                  { bad: 'Choosing expiry too close (< 9 months)',      fix: 'Below 9 months, you no longer have a LEAPS - you have a short-dated option with fast theta decay. Always stay = 12 months.' },
                   { bad: 'Buying during IV spikes (earnings, events)',  fix: 'IV crush after an event can wipe out gains even if you are right on the direction. Buy in low-IV environments (IV Rank < 30).' },
                   { bad: 'Exercising the option early',                 fix: 'Never exercise a LEAPS early. You forfeit all remaining extrinsic/time value. Always sell-to-close instead.' },
                   { bad: 'Holding past 90 DTE without a plan',         fix: 'Theta decay accelerates sharply below 90 DTE. Either have a clear exit or roll to a new expiry at least 12 months out.' },
-                  { bad: 'Sizing too large (> 5% of portfolio)',        fix: 'LEAPS can drop 50–70% in a correction. Keep each position small. Total LEAPS exposure should be < 20% of portfolio.' },
+                  { bad: 'Sizing too large (> 5% of portfolio)',        fix: 'LEAPS can drop 50-70% in a correction. Keep each position small. Total LEAPS exposure should be < 20% of portfolio.' },
                   { bad: 'Ignoring liquidity / bid-ask spread',        fix: 'Wide spreads (> $0.50) destroy your edge on entry and exit. Only trade LEAPS with open interest > 500 and volume > 50/day.' },
                   { bad: 'Averaging down on losing LEAPS',             fix: 'If the thesis is broken, exit. Adding to a losing position doubles your loss when the stock continues against you.' },
                 ].map(({ bad, fix }) => (
@@ -1612,11 +1612,11 @@ export default function LeapsPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 {[
                   { label: 'Min expiry',       value: '= 12 months' },
-                  { label: 'Delta target',     value: '0.70 – 0.80' },
+                  { label: 'Delta target',     value: '0.70 - 0.80' },
                   { label: 'Max IV Rank',      value: '< 30 to buy' },
                   { label: 'Entry signal',     value: 'Near lower BB' },
-                  { label: 'Quick target',     value: '+10–20% / 7d' },
-                  { label: 'Swing target',     value: '+20–40% / 4wk' },
+                  { label: 'Quick target',     value: '+10-20% / 7d' },
+                  { label: 'Swing target',     value: '+20-40% / 4wk' },
                   { label: 'Roll at DTE',      value: '< 180 days' },
                   { label: 'Hard stop',        value: '-40 to -50%' },
                 ].map(({ label, value }) => (
@@ -1637,7 +1637,7 @@ export default function LeapsPage() {
         {tab === 'advisor' && <LeapsAdvisorChat />}
 
         <p className="text-center text-xs text-gray-400 pb-4">
-          LEAPS data via Yahoo Finance. Black-Scholes greeks computed server-side. For educational purposes — not financial advice.
+          LEAPS data via Yahoo Finance. Black-Scholes greeks computed server-side. For educational purposes - not financial advice.
         </p>
       </div>
     </Layout>
