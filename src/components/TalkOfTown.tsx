@@ -80,10 +80,10 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
     switch (sentiment) {
       case 'BULLISH':
       case 'positive':
-        return 'text-green-600 bg-green-50';
+        return 'text-green-400 bg-green-900/30';
       case 'BEARISH':
       case 'negative':
-        return 'text-red-600 bg-red-50';
+        return 'text-red-400 bg-red-900/30';
       case 'NEUTRAL':
       case 'neutral':
         return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-zinc-800/50';
@@ -220,17 +220,17 @@ export const TalkOfTown: React.FC<TalkOfTownProps> = ({
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-2 text-sm">
-                  <div className="bg-green-50 p-2 rounded border border-green-200">
-                    <p className="text-gray-600 dark:text-gray-400">Positive</p>
-                    <p className="text-lg font-bold text-green-600">{item.positive}%</p>
+                  <div className="bg-green-900/20 p-2 rounded border border-green-800">
+                    <p className="text-zinc-400">Positive</p>
+                    <p className="text-lg font-bold text-green-400">{item.positive}%</p>
                   </div>
                   <div className="bg-gray-50 dark:bg-zinc-800/50 p-2 rounded border border-gray-200 dark:border-zinc-700">
                     <p className="text-gray-600 dark:text-gray-400">Neutral</p>
                     <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{item.neutral}%</p>
                   </div>
-                  <div className="bg-red-50 p-2 rounded border border-red-200">
-                    <p className="text-gray-600 dark:text-gray-400">Negative</p>
-                    <p className="text-lg font-bold text-red-600">{item.negative}%</p>
+                  <div className="bg-red-900/20 p-2 rounded border border-red-800">
+                    <p className="text-zinc-400">Negative</p>
+                    <p className="text-lg font-bold text-red-400">{item.negative}%</p>
                   </div>
                 </div>
               </div>

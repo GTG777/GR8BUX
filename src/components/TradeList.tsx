@@ -248,7 +248,7 @@ export function TradeList() {
 
       {/* Empty State */}
       {!isLoading && sortedTrades.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
+        <div className="text-center py-12 bg-zinc-900 rounded-lg shadow">
           <p className="text-gray-600 mb-4">No trades found</p>
           <Link href="/trades?add=true" className="text-blue-600 hover:text-blue-800 font-medium">
             Create your first trade

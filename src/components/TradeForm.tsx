@@ -128,93 +128,93 @@ export function TradeForm() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Add New Trade</h2>
+    <div className="bg-zinc-900 rounded-lg shadow-lg p-6 max-w-2xl mx-auto">
+      <h2 className="text-2xl font-bold text-white mb-6">Add New Trade</h2>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800">{error}</p>
+        <div className="mb-4 p-4 bg-red-900/30 border border-red-700 rounded-lg">
+          <p className="text-red-300">{error}</p>
         </div>
       )}
 
       {successMessage && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-green-800">{successMessage}</p>
+        <div className="mb-4 p-4 bg-green-900/30 border border-green-700 rounded-lg">
+          <p className="text-green-300">{successMessage}</p>
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Trade Type Selection */}
         <div className="grid grid-cols-2 gap-4">
-          <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-400"
+          <label className="flex items-center p-4 border-2 border-zinc-700 rounded-lg cursor-pointer hover:border-blue-400"
                  style={{ borderColor: tradeType === 'stock' ? '#3b82f6' : undefined }}>
             <input type="radio" {...register('type')} value="stock" className="mr-3" />
-            <span className="font-medium text-gray-700">Stock Trade</span>
+            <span className="font-medium text-zinc-200">Stock Trade</span>
           </label>
-          <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-400"
+          <label className="flex items-center p-4 border-2 border-zinc-700 rounded-lg cursor-pointer hover:border-blue-400"
                  style={{ borderColor: tradeType === 'option' ? '#3b82f6' : undefined }}>
             <input type="radio" {...register('type')} value="option" className="mr-3" />
-            <span className="font-medium text-gray-700">Option Trade</span>
+            <span className="font-medium text-zinc-200">Option Trade</span>
           </label>
         </div>
 
         {/* Common Fields */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Symbol *</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1">Symbol *</label>
             <input
               type="text"
               {...register('symbol', { required: 'Symbol is required' })}
               placeholder="AAPL"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
+              className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
             />
-            {errors.symbol && <p className="text-red-500 text-xs mt-1">{errors.symbol.message}</p>}
+            {errors.symbol && <p className="text-red-400 text-xs mt-1">{errors.symbol.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Entry Date *</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1">Entry Date *</label>
             <input
               type="datetime-local"
               {...register('entryDate', { required: 'Entry date is required' })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            {errors.entryDate && <p className="text-red-500 text-xs mt-1">{errors.entryDate.message}</p>}
+            {errors.entryDate && <p className="text-red-400 text-xs mt-1">{errors.entryDate.message}</p>}
           </div>
         </div>
 
         {/* Stock-Specific Fields */}
         {tradeType === 'stock' && (
-          <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="font-semibold text-gray-900 mb-3">Stock Details</h3>
+          <div className="space-y-4 p-4 bg-blue-900/20 rounded-lg border border-blue-800">
+            <h3 className="font-semibold text-white mb-3">Stock Details</h3>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Quantity *</label>
                 <input
                   type="number"
                   step="0.01"
                   {...register('quantity', { required: 'Quantity is required' })}
                   placeholder="100"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Entry Price *</label>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Entry Price *</label>
                 <input
                   type="number"
                   step="0.01"
                   {...register('entryPrice', { required: 'Entry price is required' })}
                   placeholder="150.00"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Exit Price</label>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Exit Price</label>
                 <input
                   type="number"
                   step="0.01"
                   {...register('exitPrice')}
                   placeholder="151.50"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -223,9 +223,9 @@ export function TradeForm() {
 
         {/* Option-Specific Fields - Multi-Leg */}
         {tradeType === 'option' && (
-          <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+          <div className="space-y-4 p-4 bg-purple-900/20 rounded-lg border border-purple-800">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Option Legs</h3>
+              <h3 className="font-semibold text-white">Option Legs</h3>
               <button
                 type="button"
                 onClick={addLeg}
@@ -236,19 +236,19 @@ export function TradeForm() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Strategy</label>
               <input
                 type="text"
                 {...register('strategy')}
                 placeholder="Call Debit Spread, Bull Put Spread, Iron Condor…"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             {legs.map((leg, index) => (
-              <div key={index} className="p-3 bg-white rounded-lg border border-purple-200">
+              <div key={index} className="p-3 bg-zinc-800 rounded-lg border border-purple-800">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-gray-700">Leg {index + 1}</span>
+                  <span className="text-sm font-semibold text-zinc-200">Leg {index + 1}</span>
                   {legs.length > 1 && (
                     <button
                       type="button"
@@ -262,7 +262,7 @@ export function TradeForm() {
 
                 {/* Direction + Call/Put toggles */}
                 <div className="flex gap-3 mb-3">
-                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                  <div className="flex rounded-lg overflow-hidden border border-zinc-700">
                     {(['long', 'short'] as const).map((dir) => (
                       <button
                         key={dir}
@@ -273,14 +273,14 @@ export function TradeForm() {
                             ? dir === 'long'
                               ? 'bg-green-500 text-white'
                               : 'bg-red-500 text-white'
-                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                            : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
                         }`}
                       >
                         {dir}
                       </button>
                     ))}
                   </div>
-                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                  <div className="flex rounded-lg overflow-hidden border border-zinc-700">
                     {(['call', 'put'] as const).map((t) => (
                       <button
                         key={t}
@@ -289,7 +289,7 @@ export function TradeForm() {
                         className={`px-4 py-1.5 text-sm font-medium capitalize transition ${
                           leg.type === t
                             ? 'bg-blue-500 text-white'
-                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                            : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
                         }`}
                       >
                         {t}
@@ -300,27 +300,27 @@ export function TradeForm() {
 
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Strike *</label>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Strike *</label>
                     <input
                       type="number"
                       step="0.5"
                       value={leg.strikePrice}
                       onChange={(e) => updateLeg(index, 'strikePrice', e.target.value)}
                       placeholder="150"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-900 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Expiration *</label>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Expiration *</label>
                     <input
                       type="date"
                       value={leg.expirationDate}
                       onChange={(e) => updateLeg(index, 'expirationDate', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-900 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Qty (contracts) *</label>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Qty (contracts) *</label>
                     <input
                       type="number"
                       step="1"
@@ -328,32 +328,32 @@ export function TradeForm() {
                       value={leg.quantity}
                       onChange={(e) => updateLeg(index, 'quantity', e.target.value)}
                       placeholder="1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-900 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Entry Premium (per share) *</label>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Entry Premium (per share) *</label>
                     <input
                       type="number"
                       step="0.01"
                       value={leg.entryPrice}
                       onChange={(e) => updateLeg(index, 'entryPrice', e.target.value)}
                       placeholder="3.50"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-900 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Exit Premium (per share)</label>
+                    <label className="block text-xs font-medium text-zinc-400 mb-1">Exit Premium (per share)</label>
                     <input
                       type="number"
                       step="0.01"
                       value={leg.exitPrice}
                       onChange={(e) => updateLeg(index, 'exitPrice', e.target.value)}
                       placeholder="5.00"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-900 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -365,43 +365,43 @@ export function TradeForm() {
         {/* Common Additional Fields */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Commission</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1">Commission</label>
             <input
               type="number"
               step="0.01"
               {...register('commission')}
               placeholder="0.00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tags (comma-separated)</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1">Tags (comma-separated)</label>
             <input
               type="text"
               {...register('tags')}
               placeholder="breakout, earnings, technicals"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Plan Notes</label>
+          <label className="block text-sm font-medium text-zinc-300 mb-1">Plan Notes</label>
           <textarea
             {...register('planNotes')}
             placeholder="What was your trading plan?"
             rows={2}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Trade Notes</label>
+          <label className="block text-sm font-medium text-zinc-300 mb-1">Trade Notes</label>
           <textarea
             {...register('notes')}
             placeholder="How did the trade go? What did you learn?"
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
