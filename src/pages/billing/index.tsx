@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 import { useAuthStore } from '@/store/authStore';
 
@@ -162,7 +163,7 @@ export default function BillingPage() {
           </div>
           <p className="text-xs text-gray-400 dark:text-zinc-600 px-5 pb-4 text-center">
             Upgrades take effect immediately. Downgrades apply at next billing cycle. See full feature comparison on the{' '}
-            <a href="/pricing" className="text-indigo-500 hover:underline">Pricing page</a>.
+            <Link href="/pricing" className="text-indigo-500 hover:underline">Pricing page</Link>.
           </p>
         </div>
 

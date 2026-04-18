@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 import { useAuthStore } from '@/store/authStore';
 
@@ -290,18 +291,18 @@ export default function SettingsPage() {
               <p className="text-sm font-medium text-gray-800 dark:text-zinc-100">Email</p>
               <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">{user?.email ?? '—'}</p>
             </div>
-            <a href="/profile" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+            <Link href="/profile" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
               Manage account →
-            </a>
+            </Link>
           </div>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-800 dark:text-zinc-100">Subscription</p>
               <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">View plan &amp; invoices</p>
             </div>
-            <a href="/billing" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+            <Link href="/billing" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
               Billing →
-            </a>
+            </Link>
           </div>
         </Section>
 
