@@ -154,7 +154,7 @@ export default function PricingPage() {
 
   return (
     <Layout title="Pricing">
-      <div className="max-w-6xl mx-auto pb-16 space-y-16">
+      <div className="max-w-7xl mx-auto pb-16 space-y-16">
 
         {/* ── Hero ─────────────────────────────────────────────── */}
         <div className="text-center pt-4">
