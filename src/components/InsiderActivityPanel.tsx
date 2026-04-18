@@ -6,7 +6,7 @@ function SentimentBadge({ sentiment }: { sentiment: InsiderData['summary']['sent
   const cls =
     sentiment === 'bullish' ? 'bg-green-100 text-green-800 border-green-200' :
     sentiment === 'bearish' ? 'bg-red-100   text-red-700   border-red-200'   :
-                              'bg-gray-100  text-gray-600  border-gray-200';
+                              'bg-gray-100  text-gray-600 dark:text-gray-400  border-gray-200';
   const icon = sentiment === 'bullish' ? '▲' : sentiment === 'bearish' ? '▼' : '◆';
   const label = sentiment === 'bullish' ? 'Insider Buying' : sentiment === 'bearish' ? 'Insider Selling' : 'Neutral';
   return (
@@ -22,7 +22,7 @@ function TypePill({ type, code }: { type: InsiderTransaction['type']; code: stri
     type === 'buy'   ? 'bg-green-100 text-green-800' :
     type === 'sell'  ? 'bg-red-100   text-red-700'   :
     type === 'grant' ? 'bg-indigo-100 text-indigo-700' :
-                      'bg-gray-100   text-gray-500';
+                      'bg-gray-100   text-gray-500 dark:text-gray-400';
 
   const label =
     code === 'P' ? 'BUY'   :
@@ -41,7 +41,7 @@ function RoleBadge({ role }: { role: string }) {
   const isExec = /CEO|CFO|CTO|COO|President|Director|Officer/i.test(role);
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-      isExec ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500'
+      isExec ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500 dark:text-gray-400'
     }`}>
       {role || 'Insider'}
     </span>
@@ -104,16 +104,16 @@ function FilingCard({ filing }: { filing: InsiderFiling }) {
       {/* Header */}
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span className="font-semibold text-sm text-gray-800">{filing.reporterName}</span>
+            <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">{filing.reporterName}</span>
             <RoleBadge role={filing.role} />
           </div>
           <div className="flex flex-wrap gap-2 items-center">
             {filing.transactions.slice(0, 4).map((tx, i) => (
-              <span key={i} className="flex items-center gap-1 text-xs text-gray-600">
+              <span key={i} className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                 <TypePill type={tx.type} code={tx.code} />
                 <span>{fmtShares(tx.shares)} sh</span>
                 {tx.pricePerShare > 0 && <span className="text-gray-400">@ ${tx.pricePerShare.toFixed(2)}</span>}
@@ -126,7 +126,7 @@ function FilingCard({ filing }: { filing: InsiderFiling }) {
         </div>
         <div className="text-right shrink-0">
           <p className="text-xs text-gray-400">Filed</p>
-          <p className="text-xs font-medium text-gray-600">{fmtDate(filing.fileDate)}</p>
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">{fmtDate(filing.fileDate)}</p>
         </div>
         <span className="text-gray-400 text-xs ml-1">{open ? '▲' : '▼'}</span>
       </button>
@@ -148,20 +148,20 @@ function FilingCard({ filing }: { filing: InsiderFiling }) {
             <tbody>
               {filing.transactions.map((tx, i) => (
                 <tr key={i} className="border-b border-gray-100 last:border-0">
-                  <td className="py-1.5 pr-3 text-gray-700">{tx.security}</td>
-                  <td className="py-1.5 pr-3 text-gray-500">{fmtDate(tx.date)}</td>
+                  <td className="py-1.5 pr-3 text-gray-700 dark:text-gray-200">{tx.security}</td>
+                  <td className="py-1.5 pr-3 text-gray-500 dark:text-gray-400">{fmtDate(tx.date)}</td>
                   <td className="py-1.5 pr-3">
                     <TypePill type={tx.type} code={tx.code} />
-                    <span className="ml-1 text-gray-500">{tx.label}</span>
+                    <span className="ml-1 text-gray-500 dark:text-gray-400">{tx.label}</span>
                   </td>
                   <td className={`py-1.5 pr-3 font-mono text-right ${
-                    tx.type === 'buy' ? 'text-green-700' : tx.type === 'sell' ? 'text-red-600' : 'text-gray-600'
+                    tx.type === 'buy' ? 'text-green-700' : tx.type === 'sell' ? 'text-red-600' : 'text-gray-600 dark:text-gray-400'
                   }`}>{fmtShares(tx.shares)}</td>
-                  <td className="py-1.5 pr-3 text-right text-gray-600 font-mono">
+                  <td className="py-1.5 pr-3 text-right text-gray-600 dark:text-gray-400 font-mono">
                     {tx.pricePerShare > 0 ? `$${tx.pricePerShare.toFixed(2)}` : '—'}
                   </td>
                   <td className={`py-1.5 text-right font-mono ${
-                    tx.type === 'buy' ? 'text-green-700' : tx.type === 'sell' ? 'text-red-600' : 'text-gray-500'
+                    tx.type === 'buy' ? 'text-green-700' : tx.type === 'sell' ? 'text-red-600' : 'text-gray-500 dark:text-gray-400'
                   }`}>{fmtValue(tx.totalValue)}</td>
                 </tr>
               ))}
@@ -194,7 +194,7 @@ export default function InsiderActivityPanel({
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-800">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
             Insider Activity — {sym}
             <span className="text-gray-400 font-normal ml-1.5">(SEC EDGAR Form 4 · {summary.period})</span>
           </h3>
@@ -229,13 +229,13 @@ export default function InsiderActivityPanel({
                 buyValue={summary.totalBuyValue}
                 sellValue={summary.totalSellValue}
               />
-              <p className="mt-2 text-xs text-gray-500">{summary.verdict}</p>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{summary.verdict}</p>
             </div>
           ) : (
-            <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 h-full">
-              <p className="text-xs font-semibold text-gray-600">RSU / Option Grants</p>
+            <div className="rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 p-3 h-full">
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">RSU / Option Grants</p>
               <p className="text-2xl font-bold text-indigo-600 my-1">{summary.grants}</p>
-              <p className="text-xs text-gray-500">{summary.verdict}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{summary.verdict}</p>
             </div>
           )}
         </div>

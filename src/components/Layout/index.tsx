@@ -499,8 +499,13 @@ export function Layout({ children, title }: LayoutProps) {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950 dark:text-gray-100">
-            {children}
+          <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950 dark:text-gray-100 flex flex-col">
+            <div className="flex-1">
+              {children}
+            </div>
+            <footer className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500 pb-2">
+              For educational use only — We are not a financial advisor, always verify with your broker before trading.
+            </footer>
           </main>
         </div>
       </div>

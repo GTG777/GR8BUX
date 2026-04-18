@@ -524,7 +524,7 @@ function TVMini({ symbol }: { symbol: string }) {
     sc.async = true;
     sc.innerHTML = JSON.stringify({
       width: '100%', height: 320, symbol,
-      interval: 'D', timezone: 'America/Chicago', theme: 'light',
+      interval: 'D', timezone: 'America/Chicago', theme: 'dark',
       style: '1', locale: 'en',
       enable_publishing: false, allow_symbol_change: false,
       hide_side_toolbar: true, withdateranges: false, save_image: false,
@@ -616,8 +616,8 @@ function GradeBadge({ grade }: { grade: 'A' | 'B' | 'C' }) {
 /* ── Setup Card ─────────────────────────────────────────────────── */
 function SetupCard({ setup }: { setup: StockSetup }) {
   const isLong   = setup.direction === 'long';
-  const cardBg   = isLong ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50';
-  const checkClr = isLong ? 'text-green-600' : 'text-red-600';
+  const cardBg   = 'border-indigo-200 dark:border-indigo-700/40 bg-indigo-50/60 dark:bg-indigo-950/20';
+  const checkClr = isLong ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
   const t1Gain   = Math.abs(setup.target1 - setup.entry).toFixed(2);
   const t2Gain   = Math.abs(setup.target2 - setup.entry).toFixed(2);
 
@@ -626,14 +626,14 @@ function SetupCard({ setup }: { setup: StockSetup }) {
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <span className="text-xl">{setup.icon}</span>
-        <span className="font-bold text-gray-800 text-base">{setup.name}</span>
+        <span className="font-bold text-gray-800 dark:text-white text-base">{setup.name}</span>
         <DirectionBadge dir={setup.direction} />
         <GradeBadge grade={setup.grade} />
-        <span className="ml-auto text-xs text-gray-400 hidden sm:inline">{setup.description}</span>
+        <span className="ml-auto text-xs text-gray-400 dark:text-zinc-500 hidden sm:inline">{setup.description}</span>
       </div>
 
       {/* Hero block: Entry / Stop / Targets */}
-      <div className="bg-white dark:bg-zinc-900 bg-opacity-80 dark:bg-opacity-100 rounded-xl p-4 mb-4">
+      <div className="bg-white dark:bg-zinc-900/80 bg-opacity-80 rounded-xl p-4 mb-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center mb-4">
           <div>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Entry</p>
