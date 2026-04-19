@@ -24,28 +24,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const snap = await getStockSnapshot(symbol);
-    if (!snap?.day?.c) {
+
+    // day.c can be 0 (falsy) on weekends/after-hours when no trades have occurred today.
+    // Fall back to prevDay.c so we always return the last known price.
+    const price = snap?.day?.c || snap?.prevDay?.c;
+    if (!snap || !price) {
       return res.status(404).json({ error: `No quote data found for ${symbol}` });
     }
 
-    const price = snap.day.c;
     const prevClose = snap.prevDay?.c ?? 0;
-    const change = snap.todaysChange ?? (price - prevClose);
+    const change = snap.todaysChange ?? (prevClose !== 0 ? price - prevClose : 0);
     const changePct = snap.todaysChangePerc ?? (prevClose !== 0 ? (change / prevClose) * 100 : 0);
     // updated is nanoseconds → convert to ms
     const updatedMs = snap.updated ? Math.floor(snap.updated / 1_000_000) : Date.now();
+    const isMarketHours = !!(snap?.day?.c);
 
     const data = {
       symbol: snap.ticker ?? symbol,
       price,
-      open: snap.day.o ?? 0,
-      high: snap.day.h ?? 0,
-      low: snap.day.l ?? 0,
-      volume: snap.day.v ?? 0,
+      open: snap.day?.o ?? snap.prevDay?.o ?? 0,
+      high: snap.day?.h ?? snap.prevDay?.h ?? 0,
+      low: snap.day?.l ?? snap.prevDay?.l ?? 0,
+      volume: snap.day?.v ?? snap.prevDay?.v ?? 0,
       latestTradingDay: new Date(updatedMs).toISOString().slice(0, 10),
       previousClose: prevClose,
       change: parseFloat(change.toFixed(4)),
       changePercent: changePct.toFixed(2) + '%',
+      marketOpen: isMarketHours,
     };
 
     cache.set(cacheKey, { data, timestamp: Date.now() });
