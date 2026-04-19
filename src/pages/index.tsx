@@ -86,7 +86,7 @@ export default function Home() {
       {/* ── Navbar ── */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
-          <img src="/logo-full.png" alt="GR8BUX" className="h-[94px] w-auto" />
+          <img src="/logo-full.png" alt="GR8BUX" className="w-[189px] h-auto" />
           <nav className="hidden md:flex items-center gap-8">
             {NAV_LINKS.map(l => (
               <Link key={l.href} href={l.href} className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">{l.label}</Link>
@@ -270,7 +270,7 @@ export default function Home() {
       {/* ── Footer ── */}
       <footer className="border-t border-white/10 py-10 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <img src="/logo-full.png" alt="GR8BUX" className="h-10 w-auto opacity-80" />
+          <img src="/logo-full.png" alt="GR8BUX" className="w-[189px] h-auto opacity-80" />
           <div className="flex gap-6 text-sm text-zinc-500">
             <Link href="/features" className="hover:text-zinc-300 transition">Features</Link>
             <Link href="/pricing" className="hover:text-zinc-300 transition">Pricing</Link>
