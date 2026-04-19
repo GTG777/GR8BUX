@@ -160,13 +160,18 @@ async function handleCreateTrade(
 
     // 2. Insert type-specific data
     if (trade.type === 'stock') {
+      const entryPrice = trade.entryPrice || 0;
+      const exitPrice = trade.exitPrice ? parseFloat(trade.exitPrice) : null;
+      const quantity = trade.quantity || 0;
+      const commission = trade.commission || 0;
+
       const { error: stockError } = await supabase
         .from('stock_trades')
         .insert([{
           trade_id: tradeId,
-          quantity: trade.quantity || null,
-          entry_price: trade.entryPrice || null,
-          exit_price: trade.exitPrice || null,
+          quantity,
+          entry_price: entryPrice,
+          exit_price: exitPrice,
         }]);
 
       if (stockError) {
@@ -175,6 +180,12 @@ async function handleCreateTrade(
           success: false,
           error: stockError.message,
         });
+      }
+
+      // Calculate and persist P&L for closed trades
+      if (exitPrice !== null) {
+        const pnl = (exitPrice - entryPrice) * quantity - commission;
+        await supabase.from('trades').update({ pnl, status: 'closed' }).eq('id', tradeId);
       }
     } else if (trade.type === 'option') {
       const { data: optionTradeData, error: optionError } = await supabase
@@ -217,6 +228,18 @@ async function handleCreateTrade(
         if (legsError) {
           console.error('[Create Option Legs Error]', legsError);
           // Non-fatal: base trade is saved; log and continue
+        }
+
+        // Calculate option P&L if all legs have exit prices
+        const allLegsExited = trade.legs.every((l: any) => l.exitPrice != null);
+        if (allLegsExited) {
+          const optPnl = trade.legs.reduce((sum: number, l: any) => {
+            const diff = l.direction === 'long'
+              ? (l.exitPrice - l.entryPrice) * l.quantity * 100
+              : (l.entryPrice - l.exitPrice) * l.quantity * 100;
+            return sum + diff;
+          }, 0) - (trade.commission || 0);
+          await supabase.from('trades').update({ pnl: optPnl, status: 'closed' }).eq('id', tradeId);
         }
       }
     }

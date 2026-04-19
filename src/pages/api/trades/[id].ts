@@ -125,32 +125,7 @@ async function handleUpdateTrade(
     return res.status(400).json({ success: false, error: error.message });
   }
 
-  // Update stock_trades if stockData provided
-  if (stockData) {
-    await supabase
-      .from('stock_trades')
-      .update({
-        quantity: stockData.quantity,
-        entry_price: stockData.entryPrice,
-        exit_price: stockData.exitPrice ?? null,
-      })
-      .eq('trade_id', id);
-  }
-
-  // Update individual option legs if provided
-  if (Array.isArray(legUpdates)) {
-    for (const leg of legUpdates) {
-      if (!leg.id) continue;
-      await supabase
-        .from('option_legs')
-        .update({
-          exit_price: leg.exitPrice ?? null,
-          quantity: leg.quantity,
-          entry_price: leg.entryPrice,
-        })
-        .eq('id', leg.id);
-    }
-  }
+  // Update stock_trades if stockData provided, then recalculate P&L\n  if (stockData) {\n    await supabase\n      .from('stock_trades')\n      .update({\n        quantity: stockData.quantity,\n        entry_price: stockData.entryPrice,\n        exit_price: stockData.exitPrice ?? null,\n      })\n      .eq('trade_id', id);\n\n    // Recalculate P&L for closed stock trades\n    if (stockData.exitPrice != null) {\n      const qty = stockData.quantity || 0;\n      const commission = data.commission || 0;\n      const pnl = (stockData.exitPrice - stockData.entryPrice) * qty - commission;\n      await supabase.from('trades').update({ pnl, status: 'closed' }).eq('id', id);\n    }\n  }\n\n  // Update individual option legs if provided, then recalculate P&L\n  if (Array.isArray(legUpdates)) {\n    for (const leg of legUpdates) {\n      if (!leg.id) continue;\n      await supabase\n        .from('option_legs')\n        .update({\n          exit_price: leg.exitPrice ?? null,\n          quantity: leg.quantity,\n          entry_price: leg.entryPrice,\n        })\n        .eq('id', leg.id);\n    }\n\n    // Recalculate option P&L if all legs now have exit prices\n    const allExited = legUpdates.every((l: any) => l.exitPrice != null);\n    if (allExited && legUpdates.length > 0) {\n      const optPnl = legUpdates.reduce((sum: number, l: any) => {\n        const diff = l.direction === 'long'\n          ? (l.exitPrice - l.entryPrice) * l.quantity * 100\n          : (l.entryPrice - l.exitPrice) * l.quantity * 100;\n        return sum + diff;\n      }, 0) - (data.commission || 0);\n      await supabase.from('trades').update({ pnl: optPnl, status: 'closed' }).eq('id', id);\n    }\n  }
 
   // Re-fetch with all related data so caller gets fresh optionData/stockData
   return handleGetTrade(id, userId, res);
