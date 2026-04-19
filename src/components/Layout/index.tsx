@@ -6,7 +6,7 @@ import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-interface NavItem  { href: string; label: string; icon: React.FC }
+interface NavItem  { href: string; label: string; icon: React.FC; adminOnly?: boolean }
 interface NavGroup { id: string; label: string; emoji: string; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -67,7 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/settings', label: 'Settings',  icon: SettingsIcon },
       { href: '/billing',  label: 'Billing',   icon: BillingIcon  },
       { href: '/pricing', label: 'Pricing',  icon: PricingIcon },
-      { href: '/help',    label: 'Help',      icon: HelpIcon    },
+      { href: '/help',    label: 'Help',      icon: HelpIcon,   adminOnly: true },
     ],
   },
 ];
@@ -293,7 +293,7 @@ interface LayoutProps {
 
 export function Layout({ children, title }: LayoutProps) {
   const router = useRouter();
-  const { user, handleSignOut } = useAuthStore();
+  const { user, handleSignOut, isAdmin } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -395,7 +395,7 @@ export function Layout({ children, title }: LayoutProps) {
                   {/* Items — always show when collapsed (icon-only mode) */}
                   {(!isClosed || collapsed) && (
                     <div className={`space-y-0.5 ${!collapsed ? 'mt-0.5 mb-1' : 'mb-2'}`}>
-                      {group.items.map(({ href, label, icon: Icon }) => {
+                      {group.items.filter((item) => !('adminOnly' in item) || isAdmin()).map(({ href, label, icon: Icon }) => {
                         const active = router.pathname.startsWith(href);
                         return (
                           <Link
