@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 interface Section {
@@ -890,7 +891,7 @@ const sections: Section[] = [
 ];
 
 /* ─── Main Help Page ──────────────────────────────────────────────── */
-export default function HelpPage() {
+function HelpPageContent() {
   const [active, setActive] = useState(sections[0].id);
 
   const current = sections.find((s) => s.id === active) ?? sections[0];
@@ -989,5 +990,13 @@ export default function HelpPage() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+export default function HelpPage() {
+  return (
+    <ProtectedRoute requiredRoles={['admin']}>
+      <HelpPageContent />
+    </ProtectedRoute>
   );
 }
