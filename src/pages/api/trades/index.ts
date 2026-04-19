@@ -52,7 +52,7 @@ async function handleGetTrades(
 
   let query = supabase
     .from('trades')
-    .select('*, option_trades(strategy, option_legs(expiration_date))')
+    .select('*, stock_trades(quantity, entry_price, exit_price), option_trades(strategy, total_premium, total_cost, option_legs(id, symbol, type, strike_price, expiration_date, direction, quantity, entry_price, exit_price))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -84,12 +84,18 @@ async function handleGetTrades(
     success: true,
     data: (data as any[])?.map((row) => {
       // Supabase returns one-to-many joins as arrays even with unique FK
+      const stRow = Array.isArray(row.stock_trades) ? row.stock_trades[0] : row.stock_trades;
       const optTrade = Array.isArray(row.option_trades) ? row.option_trades[0] : row.option_trades;
       const legs: any[] = optTrade?.option_legs ?? [];
       const expiryDate = legs.length
         ? legs.map((l: any) => l.expiration_date).sort()[0]
         : undefined;
-      return convertTradeFromDatabase({ ...row, expiryDate });
+      return convertTradeFromDatabase({
+        ...row,
+        stockData: stRow ?? undefined,
+        optionData: optTrade ?? undefined,
+        expiryDate,
+      });
     }) || [],
   });
 }
@@ -244,10 +250,10 @@ async function handleCreateTrade(
       }
     }
 
-    // 3. Fetch complete trade record
+    // 3. Fetch complete trade record with type-specific data
     const { data: completeTradeData, error: fetchError } = await supabase
       .from('trades')
-      .select('*')
+      .select('*, stock_trades(quantity, entry_price, exit_price), option_trades(strategy, total_premium, total_cost, option_legs(id, symbol, type, strike_price, expiration_date, direction, quantity, entry_price, exit_price))')
       .eq('id', tradeId)
       .single();
 
@@ -259,9 +265,12 @@ async function handleCreateTrade(
       });
     }
 
+    const row = completeTradeData as any;
+    const stRow = Array.isArray(row.stock_trades) ? row.stock_trades[0] : row.stock_trades;
+    const optRow = Array.isArray(row.option_trades) ? row.option_trades[0] : row.option_trades;
     return res.status(201).json({
       success: true,
-      data: convertTradeFromDatabase(completeTradeData),
+      data: convertTradeFromDatabase({ ...row, stockData: stRow ?? undefined, optionData: optRow ?? undefined }),
     });
   } catch (error: any) {
     console.error('[Trade Creation Exception]', error);
