@@ -258,10 +258,18 @@ const INDEX_CHARTS = [
 ];
 
 export default function DashboardPage() {
+  const [today, setToday] = React.useState('');
+  React.useEffect(() => {
+    setToday(new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+  }, []);
+
   return (
     <Layout title="Dashboard">
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Market Overview</h1>
+          {today && <p className="text-sm text-gray-400 dark:text-zinc-500 mt-0.5">{today}</p>}
+        </div>
 
         <MacroBar />
         <SectorRotationPanel />
