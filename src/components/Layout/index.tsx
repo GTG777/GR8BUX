@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/store/authStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { Logo } from '@/components/Logo';
 
 interface NavItem  { href: string; label: string; icon: React.FC; adminOnly?: boolean }
 interface NavGroup { id: string; label: string; emoji: string; items: NavItem[] }
@@ -328,7 +329,7 @@ export function Layout({ children, title }: LayoutProps) {
 
   return (
     <ProtectedRoute>
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden">
+      <div className="flex h-screen bg-background overflow-hidden">
         {/* Mobile overlay backdrop */}
         {mobileOpen && (
           <div
@@ -339,7 +340,7 @@ export function Layout({ children, title }: LayoutProps) {
 
         {/* Sidebar */}
         <aside
-          className={`flex flex-col bg-gray-900 text-white transition-all duration-300 shrink-0
+          className={`flex flex-col bg-brand-navy text-white transition-all duration-300 shrink-0
             fixed inset-y-0 left-0 z-30 md:relative md:z-auto
             ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
             md:translate-x-0
@@ -347,15 +348,15 @@ export function Layout({ children, title }: LayoutProps) {
           `}
         >
           {/* Logo / Brand */}
-          <div className={`flex items-center h-16 px-4 border-b border-gray-700 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+          <div className={`flex items-center h-16 px-4 border-b border-white/10 ${collapsed ? 'justify-center' : 'justify-between'}`}>
             {!collapsed ? (
-              <a href="https://gr8bux.com"><img src="/logo-full.png" alt="GR8BUX" className="h-9 w-auto" /></a>
+              <a href="https://gr8bux.com" aria-label="GR8BUX home"><Logo size={30} className="text-white" /></a>
             ) : (
-              <a href="https://gr8bux.com"><img src="/logo-icon.svg" alt="GR8BUX" className="h-8 w-8" /></a>
+              <a href="https://gr8bux.com" aria-label="GR8BUX home"><Logo size={28} iconOnly className="text-white" /></a>
             )}
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors ml-auto"
+              className="p-1.5 rounded-lg text-white/50 hover:bg-white/10 hover:text-white transition-colors ml-auto"
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
@@ -374,7 +375,7 @@ export function Layout({ children, title }: LayoutProps) {
                     <button
                       onClick={() => toggleGroup(group.id)}
                       className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors ${
-                        anyActive ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
+                        anyActive ? 'text-brand-green' : 'text-white/40 hover:text-white/70'
                       }`}
                     >
                       <span className="flex items-center gap-1.5">
@@ -404,8 +405,8 @@ export function Layout({ children, title }: LayoutProps) {
                             onClick={() => setMobileOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium transition-colors ${
                               active
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                                ? 'bg-gradient-brand text-white'
+                                : 'text-white/60 hover:bg-white/10 hover:text-white'
                             }`}
                             title={collapsed ? label : undefined}
                           >
@@ -418,18 +419,18 @@ export function Layout({ children, title }: LayoutProps) {
                   )}
 
                   {/* Divider between groups (expanded sidebar only) */}
-                  {!collapsed && <div className="border-t border-gray-700/50 mx-1 mt-1" />}
+                  {!collapsed && <div className="border-t border-white/10 mx-1 mt-1" />}
                 </div>
               );
             })}
           </nav>
 
           {/* Profile / User section at bottom */}
-          <div className="border-t border-gray-700 p-2">
+          <div className="border-t border-white/10 p-2">
             <Link
               href="/profile"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors ${
-                router.pathname === '/profile' ? 'bg-gray-700 text-white' : ''
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors ${
+                router.pathname === '/profile' ? 'bg-white/15 text-white' : ''
               }`}
               title={collapsed ? 'Profile' : undefined}
             >
@@ -455,7 +456,7 @@ export function Layout({ children, title }: LayoutProps) {
             <button
               onClick={onSignOut}
               disabled={signingOut}
-              className="mt-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-red-700 hover:text-white transition-colors"
+              className="mt-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:bg-red-500/30 hover:text-white transition-colors"
               title={collapsed ? 'Sign Out' : undefined}
             >
               <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -469,10 +470,10 @@ export function Layout({ children, title }: LayoutProps) {
         {/* Main content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top bar */}
-          <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center px-6 shrink-0 gap-4">
+          <header className="h-16 glass border-b border-border/60 flex items-center px-6 shrink-0 gap-4">
             {/* Hamburger — mobile only */}
             <button
-              className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              className="md:hidden p-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation menu"
             >
@@ -480,11 +481,11 @@ export function Layout({ children, title }: LayoutProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <h1 className="flex-1 text-xl font-semibold text-gray-900 dark:text-white">{title || 'GR8BUX'}</h1>
+            <h1 className="flex-1 text-xl font-semibold font-display text-foreground">{title || 'GR8BUX'}</h1>
             {/* Dark mode toggle */}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-lg text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
               aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               title={darkMode ? 'Light mode' : 'Dark mode'}
             >
@@ -501,11 +502,24 @@ export function Layout({ children, title }: LayoutProps) {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950 dark:text-gray-100 flex flex-col">
+          <main className="flex-1 overflow-y-auto p-6 bg-background text-foreground flex flex-col">
             <div className="flex-1">
               {children}
             </div>
 
+            {/* Footer */}
+            <footer className="mt-10 pt-4 border-t border-border/50">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-4">
+                  <a href="https://gr8bux.com" className="hover:text-foreground transition-colors">Home</a>
+                  <a href="https://gr8bux.com/features" className="hover:text-foreground transition-colors">Features</a>
+                  <a href="https://gr8bux.com/pricing" className="hover:text-foreground transition-colors">Pricing</a>
+                  <a href="https://gr8bux.com/about" className="hover:text-foreground transition-colors">About</a>
+                  <a href="https://gr8bux.com/contact" className="hover:text-foreground transition-colors">Contact</a>
+                </div>
+                <p>© {new Date().getFullYear()} GR8BUX. Not financial advice.</p>
+              </div>
+            </footer>
           </main>
         </div>
       </div>
