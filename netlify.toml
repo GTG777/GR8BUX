@@ -5,7 +5,7 @@
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "18.17.0"
+  NODE_VERSION = "20.19.0"
   # All secrets and API keys must be set via the Netlify dashboard:
   # Site settings → Environment variables
   # DO NOT hardcode secrets here — this file is committed to source control.
