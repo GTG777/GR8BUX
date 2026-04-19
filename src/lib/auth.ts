@@ -45,32 +45,10 @@ export async function signUp(input: SignUpInput): Promise<AuthResponse> {
       };
     }
 
-    // Insert user profile with default 'user' role
-    const { data: userData, error: userError } = await client
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: input.email,
-        display_name: input.displayName,
-        role: 'user', // Default role
-        email_verified: false,
-      })
-      .select()
-      .single();
-
-    if (userError) {
-      // Clean up auth user if profile creation fails
-      await client.auth.admin.deleteUser(authData.user.id);
-      return {
-        success: false,
-        error: userError.message || 'Failed to create user profile',
-      };
-    }
-
-    return {
-      success: true,
-      user: mapDatabaseUserToAuthUser(userData),
-    };
+    // Profile row is created automatically by the database trigger (handle_new_user).
+    // If email confirmation is required, the user is not yet active — return success
+    // so the UI can show the "check your email" state.
+    return { success: true };
   } catch (error) {
     return {
       success: false,
@@ -98,39 +76,18 @@ export async function signIn(input: SignInInput): Promise<AuthResponse> {
       };
     }
 
-    // Fetch user profile with role — upsert if missing (handles orphaned auth users)
-    const selectResult = await client
+    // Fetch user profile (created automatically by DB trigger on signup)
+    const { data: userData, error: userError } = await client
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
       .single();
-    const userError = selectResult.error;
-    let userData = selectResult.data;
 
     if (userError || !userData) {
-      // Profile row doesn't exist yet — create it now from auth metadata
-      const { data: created, error: createError } = await client
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: authData.user.email,
-          display_name:
-            authData.user.user_metadata?.display_name ||
-            authData.user.email?.split('@')[0] ||
-            'Trader',
-          role: 'user',
-          email_verified: authData.user.email_confirmed_at != null,
-        })
-        .select()
-        .single();
-
-      if (createError || !created) {
-        return {
-          success: false,
-          error: 'Failed to load user profile',
-        };
-      }
-      userData = created;
+      return {
+        success: false,
+        error: 'Account setup is still processing — please try again in a moment.',
+      };
     }
 
     // Log sign-in event
