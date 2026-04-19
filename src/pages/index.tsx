@@ -17,13 +17,13 @@ export default function Home() {
 
   useEffect(() => {
     if (mounted && !isLoading && !isAuthenticated) {
-      window.location.replace('https://gr8bux.com');
+      router.replace('/auth/signin');
     }
-  }, [mounted, isLoading, isAuthenticated]);
+  }, [mounted, isLoading, isAuthenticated, router]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-950">
-      <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
     </div>
   );
 }
