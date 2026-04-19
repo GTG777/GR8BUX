@@ -356,7 +356,7 @@ export function Layout({ children, title }: LayoutProps) {
             )}
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 rounded-lg text-white/50 hover:bg-white/10 hover:text-white transition-colors ml-auto"
+              className={`p-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors ml-auto`}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
@@ -375,7 +375,7 @@ export function Layout({ children, title }: LayoutProps) {
                     <button
                       onClick={() => toggleGroup(group.id)}
                       className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors ${
-                        anyActive ? 'text-brand-green' : 'text-white/40 hover:text-white/70'
+                        anyActive ? 'text-brand-green' : 'text-white/60 hover:text-white/90'
                       }`}
                     >
                       <span className="flex items-center gap-1.5">
@@ -406,7 +406,7 @@ export function Layout({ children, title }: LayoutProps) {
                             className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium transition-colors ${
                               active
                                 ? 'bg-gradient-brand text-white'
-                                : 'text-white/60 hover:bg-white/10 hover:text-white'
+                                : 'text-white/80 hover:bg-white/10 hover:text-white'
                             }`}
                             title={collapsed ? label : undefined}
                           >
@@ -429,7 +429,7 @@ export function Layout({ children, title }: LayoutProps) {
           <div className="border-t border-white/10 p-2">
             <Link
               href="/profile"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/80 hover:bg-white/10 hover:text-white transition-colors ${
                 router.pathname === '/profile' ? 'bg-white/15 text-white' : ''
               }`}
               title={collapsed ? 'Profile' : undefined}
@@ -456,7 +456,7 @@ export function Layout({ children, title }: LayoutProps) {
             <button
               onClick={onSignOut}
               disabled={signingOut}
-              className="mt-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:bg-red-500/30 hover:text-white transition-colors"
+              className="mt-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/80 hover:bg-red-500/30 hover:text-white transition-colors"
               title={collapsed ? 'Sign Out' : undefined}
             >
               <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
