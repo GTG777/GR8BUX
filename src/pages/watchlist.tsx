@@ -135,8 +135,10 @@ const WatchlistPage: React.FC = () => {
   const { user, isAuthenticated } = useAuthStore();
 
   const [watchlists, setWatchlists] = useState<WatchlistDef[]>([]);
+  const watchlistsRef = useRef<WatchlistDef[]>([]);
   const [listsLoading, setListsLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const expandedRef = useRef<Set<string>>(new Set());
   const [symbolData, setSymbolData] = useState<Record<string, SymbolData>>({});
   const symbolDataRef = useRef<Record<string, SymbolData>>({});
 
@@ -148,6 +150,17 @@ const WatchlistPage: React.FC = () => {
   const [sortState, setSortState] = useState<Record<string, { col: SortCol; dir: 'asc' | 'desc' }>>({});
 
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Keep refs in sync with state so interval always sees latest values
+  const setWatchlistsSynced = useCallback((lists: WatchlistDef[]) => {
+    watchlistsRef.current = lists;
+    setWatchlists(lists);
+  }, []);
+
+  const setExpandedSynced = useCallback((next: Set<string>) => {
+    expandedRef.current = next;
+    setExpanded(next);
+  }, []);
 
   // ── Symbol data helpers ────────────────────────────────────────────────────
 
@@ -227,18 +240,19 @@ const WatchlistPage: React.FC = () => {
       }
 
       if (cancelled) return;
-      setWatchlists(lists);
+      setWatchlistsSynced(lists);
       setListsLoading(false);
 
       const firstExpanded = new Set<string>(lists.slice(0, 1).map(l => l.id));
-      setExpanded(firstExpanded);
+      setExpandedSynced(firstExpanded);
       fetchForLists(lists, firstExpanded);
     }
 
     init();
 
+    // Use refs directly — no nested setState, no risk of refreshing collapsed lists
     refreshTimerRef.current = setInterval(() => {
-      setExpanded(cur => { setWatchlists(curLists => { fetchForLists(curLists, cur); return curLists; }); return cur; });
+      fetchForLists(watchlistsRef.current, expandedRef.current);
     }, 60_000);
 
     return () => {
@@ -258,24 +272,23 @@ const WatchlistPage: React.FC = () => {
   // ── Expand/collapse ────────────────────────────────────────────────────────
 
   const toggleExpand = (id: string) => {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); }
-      else {
-        next.add(id);
-        const list = watchlists.find(l => l.id === id);
-        list?.symbols.forEach(sym => {
-          if (!symbolDataRef.current[sym] || symbolDataRef.current[sym].error) fetchSymbol(sym);
-        });
-      }
-      return next;
-    });
+    const next = new Set(expandedRef.current);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+      const list = watchlistsRef.current.find(l => l.id === id);
+      list?.symbols.forEach(sym => {
+        if (!symbolDataRef.current[sym] || symbolDataRef.current[sym].error) fetchSymbol(sym);
+      });
+    }
+    setExpandedSynced(next);
   };
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   const createWatchlist = async () => {
-    const name = newListName.trim() || `Watchlist ${watchlists.length + 1}`;
+    const name = newListName.trim() || `Watchlist ${watchlistsRef.current.length + 1}`;
     let newList: WatchlistDef;
 
     if (isAuthenticated && user?.id) {
@@ -286,20 +299,21 @@ const WatchlistPage: React.FC = () => {
       newList = { id: crypto.randomUUID(), name, symbols: [] };
     }
 
-    const next = [...watchlists, newList];
-    setWatchlists(next);
+    const next = [...watchlistsRef.current, newList];
+    setWatchlistsSynced(next);
     persist(next);
-    setExpanded(prev => new Set([...prev, newList.id]));
+    setExpandedSynced(new Set([...expandedRef.current, newList.id]));
     setNewListName('');
     setShowNewListInput(false);
   };
 
   const deleteWatchlist = async (id: string) => {
     if (isAuthenticated) await dbDelete(id);
-    const next = watchlists.filter(l => l.id !== id);
-    setWatchlists(next);
+    const next = watchlistsRef.current.filter(l => l.id !== id);
+    setWatchlistsSynced(next);
     persist(next);
-    setExpanded(prev => { const s = new Set(prev); s.delete(id); return s; });
+    const s = new Set(expandedRef.current); s.delete(id);
+    setExpandedSynced(s);
   };
 
   const startRename = (list: WatchlistDef) => { setRenamingId(list.id); setRenameValue(list.name); };
@@ -308,8 +322,8 @@ const WatchlistPage: React.FC = () => {
     const name = renameValue.trim();
     if (!name) { setRenamingId(null); return; }
     if (isAuthenticated) await dbUpdate(renamingId, { name });
-    const next = watchlists.map(l => l.id === renamingId ? { ...l, name } : l);
-    setWatchlists(next);
+    const next = watchlistsRef.current.map(l => l.id === renamingId ? { ...l, name } : l);
+    setWatchlistsSynced(next);
     persist(next);
     setRenamingId(null);
   };
@@ -317,29 +331,29 @@ const WatchlistPage: React.FC = () => {
   const addSymbol = async (listId: string) => {
     const sym = (addInputs[listId] ?? '').toUpperCase().trim();
     if (!sym || !/^[A-Z]{1,10}$/.test(sym)) return;
-    const list = watchlists.find(l => l.id === listId);
+    const list = watchlistsRef.current.find(l => l.id === listId);
     if (!list || list.symbols.includes(sym)) return;
     const symbols = [...list.symbols, sym];
     if (isAuthenticated) await dbUpdate(listId, { symbols });
-    const next = watchlists.map(l => l.id === listId ? { ...l, symbols } : l);
-    setWatchlists(next);
+    const next = watchlistsRef.current.map(l => l.id === listId ? { ...l, symbols } : l);
+    setWatchlistsSynced(next);
     persist(next);
     setAddInputs(prev => ({ ...prev, [listId]: '' }));
     fetchSymbol(sym);
   };
 
   const removeSymbol = async (listId: string, sym: string) => {
-    const list = watchlists.find(l => l.id === listId);
+    const list = watchlistsRef.current.find(l => l.id === listId);
     if (!list) return;
     const symbols = list.symbols.filter(s => s !== sym);
     if (isAuthenticated) await dbUpdate(listId, { symbols });
-    const next = watchlists.map(l => l.id === listId ? { ...l, symbols } : l);
-    setWatchlists(next);
+    const next = watchlistsRef.current.map(l => l.id === listId ? { ...l, symbols } : l);
+    setWatchlistsSynced(next);
     persist(next);
   };
 
   const refreshList = (listId: string) => {
-    watchlists.find(l => l.id === listId)?.symbols.forEach(sym => fetchSymbol(sym));
+    watchlistsRef.current.find(l => l.id === listId)?.symbols.forEach(sym => fetchSymbol(sym));
   };
 
   // ── Sorting ────────────────────────────────────────────────────────────────
