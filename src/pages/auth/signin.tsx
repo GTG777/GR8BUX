@@ -97,20 +97,22 @@ export default function SignInPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/60 glass">
+      <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <a href="https://gr8bux.com" aria-label="GR8BUX home">
-            <Logo size={32} />
+            <Logo size={36} />
           </a>
           <nav className="hidden md:flex items-center gap-1">
-            <a href="https://gr8bux.com" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors">Home</a>
-            <a href="https://gr8bux.com/features" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors">Features</a>
-            <a href="https://gr8bux.com/pricing" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors">Pricing</a>
+            <a href="https://gr8bux.com" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">Home</a>
+            <a href="https://gr8bux.com/features" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
+            <a href="https://gr8bux.com/pricing" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
+            <a href="https://gr8bux.com/about" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">About</a>
+            <a href="https://gr8bux.com/contact" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
               aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {darkMode ? (
@@ -119,6 +121,7 @@ export default function SignInPage() {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
               )}
             </button>
+            <span className="text-sm font-medium text-foreground">Sign in</span>
             <Link href="/auth/signup" className="inline-flex items-center justify-center rounded-md bg-gradient-brand px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90">
               Get started
             </Link>
@@ -231,17 +234,49 @@ export default function SignInPage() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="bg-brand-navy text-white/70 py-8 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <Logo size={28} className="text-white" />
-          <div className="flex flex-wrap justify-center gap-6 text-sm">
-            <a href="https://gr8bux.com" className="hover:text-white transition-colors">Home</a>
-            <a href="https://gr8bux.com/features" className="hover:text-white transition-colors">Features</a>
-            <a href="https://gr8bux.com/pricing" className="hover:text-white transition-colors">Pricing</a>
-            <a href="https://gr8bux.com/about" className="hover:text-white transition-colors">About</a>
-            <a href="https://gr8bux.com/contact" className="hover:text-white transition-colors">Contact</a>
+      <footer className="bg-muted/40 border-t border-border">
+        {/* Main columns */}
+        <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-10">
+          {/* Brand */}
+          <div className="space-y-4">
+            <a href="https://gr8bux.com" aria-label="GR8BUX home">
+              <Logo size={36} />
+            </a>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              The analysis platform built for serious traders and investors. Track, learn, and decide with clarity.
+            </p>
+            <p className="text-sm text-primary">Not financial advice. For educational and analytical purposes only.</p>
           </div>
-          <p className="text-xs text-white/40">© {new Date().getFullYear()} GR8BUX. Not financial advice.</p>
+
+          {/* Product */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-4">Product</h3>
+            <ul className="space-y-2">
+              <li><a href="https://gr8bux.com/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a></li>
+              <li><a href="https://gr8bux.com/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a></li>
+            </ul>
+          </div>
+
+          {/* Company */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-4">Company</h3>
+            <ul className="space-y-2">
+              <li><a href="https://gr8bux.com/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About</a></li>
+              <li><a href="https://gr8bux.com/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</a></li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="border-t border-border">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+            <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} GR8BUX. All rights reserved.</p>
+            <div className="flex items-center gap-4">
+              <a href="https://gr8bux.com/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Terms</a>
+              <a href="https://gr8bux.com/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Privacy</a>
+              <a href="https://gr8bux.com/disclaimer" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Disclaimer</a>
+            </div>
+          </div>
         </div>
       </footer>
 
