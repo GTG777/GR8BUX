@@ -81,7 +81,7 @@ export default function SignInPage() {
       {/* ── Navbar ── */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
-          <Link href="/"><img src="/logo-full.png" alt="GR8BUX" className="h-12 w-auto" /></Link>
+          <Link href="/"><img src="/logo-full.png" alt="GR8BUX" className="h-[94px] w-auto" /></Link>
           <nav className="hidden md:flex items-center gap-6">
             <Link href="/features" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">Features</Link>
             <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">Pricing</Link>

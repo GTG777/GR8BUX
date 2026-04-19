@@ -86,7 +86,7 @@ export default function Home() {
       {/* ── Navbar ── */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
-          <img src="/logo-full.png" alt="GR8BUX" className="h-[189px] w-auto" />
+          <img src="/logo-full.png" alt="GR8BUX" className="h-[94px] w-auto" />
           <nav className="hidden md:flex items-center gap-8">
             {NAV_LINKS.map(l => (
               <Link key={l.href} href={l.href} className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">{l.label}</Link>
@@ -107,7 +107,7 @@ export default function Home() {
             ✦ Free plan available — no credit card required
           </div>
           <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
-            The trading platform<br />
+            The analysis platform<br />
             <span className="bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">built for serious traders</span>
           </h1>
           <p className="text-xl text-zinc-400 mb-10 max-w-2xl mx-auto">

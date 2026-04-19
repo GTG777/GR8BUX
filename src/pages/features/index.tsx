@@ -292,7 +292,7 @@ export default function FeaturesPage() {
       {/* ── Navbar ── */}
       <header className="sticky top-0 z-50 bg-gray-950/90 backdrop-blur border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
-          <Link href="/"><img src="/logo-full.png" alt="GR8BUX" className="h-10 w-auto" /></Link>
+          <Link href="/"><img src="/logo-full.png" alt="GR8BUX" className="h-[94px] w-auto" /></Link>
           <nav className="hidden md:flex items-center gap-8">
             <Link href="/features" className="text-sm text-white font-medium">Features</Link>
             <Link href="/pricing" className="text-sm text-zinc-400 hover:text-white transition">Pricing</Link>
