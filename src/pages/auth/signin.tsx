@@ -81,10 +81,10 @@ export default function SignInPage() {
       {/* ── Navbar ── */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
-          <Link href="/"><img src="/logo-full.png" alt="GR8BUX" className="h-[94px] w-auto" /></Link>
+          <a href="https://gr8bux.com"><img src="/logo-full.png" alt="GR8BUX" className="h-[94px] w-auto" /></a>
           <nav className="hidden md:flex items-center gap-6">
-            <Link href="/features" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">Features</Link>
-            <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">Pricing</Link>
+            <a href="https://gr8bux.com/features" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">Features</a>
+            <a href="https://gr8bux.com/pricing" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition">Pricing</a>
           </nav>
           <Link href="/auth/signup" className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition">Create Account</Link>
         </div>
@@ -189,9 +189,9 @@ export default function SignInPage() {
       <footer className="border-t border-white/10 py-6 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex gap-6 text-sm text-zinc-500">
-            <Link href="/" className="hover:text-zinc-300 transition">Home</Link>
-            <Link href="/features" className="hover:text-zinc-300 transition">Features</Link>
-            <Link href="/pricing" className="hover:text-zinc-300 transition">Pricing</Link>
+            <a href="https://gr8bux.com" className="hover:text-zinc-300 transition">Home</a>
+            <a href="https://gr8bux.com/features" className="hover:text-zinc-300 transition">Features</a>
+            <a href="https://gr8bux.com/pricing" className="hover:text-zinc-300 transition">Pricing</a>
             <Link href="/auth/signup" className="hover:text-zinc-300 transition">Sign Up</Link>
           </div>
           <p className="text-xs text-zinc-700">© {new Date().getFullYear()} GR8BUX. For informational use only. Not financial advice.</p>
