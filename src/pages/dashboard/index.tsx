@@ -102,7 +102,7 @@ function SectorHeatmap() {
       <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🗺️ Sector Performance</h2>
       <TVWidget
         src={`${TV_EMBED}/embed-widget-etf-heatmap.js`}
-        height={420}
+        height={560}
         config={{
           dataSource: 'AllUSEtf',
           blockSize: 'aum',
@@ -111,85 +111,13 @@ function SectorHeatmap() {
           locale: 'en',
           symbolUrl: '',
           colorTheme: 'dark',
-          hasTopBar: false,
-          isDataSetEnabled: false,
+          hasTopBar: true,
+          isDataSetEnabled: true,
           isZoomEnabled: true,
           hasSymbolTooltip: true,
           isMonoSize: false,
           width: '100%',
-          height: 420,
-        }}
-      />
-    </div>
-  );
-}
-
-function MarketOverviewWidget() {
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">📊 Market Overview</h2>
-      <TVWidget
-        src={`${TV_EMBED}/embed-widget-market-overview.js`}
-        height={500}
-        config={{
-          colorTheme: 'dark',
-          dateRange: '12M',
-          showChart: true,
-          locale: 'en',
-          width: '100%',
-          height: 500,
-          largeChartUrl: '',
-          isTransparent: false,
-          showSymbolLogo: true,
-          showFloatingTooltip: false,
-          plotLineColorGrowing: 'rgba(41, 98, 255, 1)',
-          plotLineColorFalling: 'rgba(255, 82, 82, 1)',
-          gridLineColor: 'rgba(240, 243, 250, 0)',
-          scaleFontColor: 'rgba(120, 123, 134, 1)',
-          belowLineFillColorGrowing: 'rgba(41, 98, 255, 0.12)',
-          belowLineFillColorFalling: 'rgba(255, 82, 82, 0.12)',
-          symbolActiveColor: 'rgba(41, 98, 255, 0.12)',
-          tabs: [
-            {
-              title: 'Indices',
-              symbols: [
-                { s: 'FOREXCOM:SPXUSD', d: 'S&P 500' },
-                { s: 'FOREXCOM:NSXUSD', d: 'NASDAQ 100' },
-                { s: 'FOREXCOM:DJI',    d: 'Dow Jones' },
-                { s: 'TVC:RUT',         d: 'Russell 2000' },
-                { s: 'TVC:VIX',         d: 'Volatility VIX' },
-              ],
-              originalTitle: 'Indices',
-            },
-            {
-              title: 'Sectors',
-              symbols: [
-                { s: 'AMEX:XLK',  d: 'Technology' },
-                { s: 'AMEX:XLF',  d: 'Financials' },
-                { s: 'AMEX:XLV',  d: 'Health Care' },
-                { s: 'AMEX:XLC',  d: 'Communication' },
-                { s: 'AMEX:XLY',  d: 'Consumer Disc.' },
-                { s: 'AMEX:XLP',  d: 'Consumer Staples' },
-                { s: 'AMEX:XLI',  d: 'Industrials' },
-                { s: 'AMEX:XLE',  d: 'Energy' },
-                { s: 'AMEX:XLB',  d: 'Materials' },
-                { s: 'AMEX:XLU',  d: 'Utilities' },
-                { s: 'AMEX:XLRE', d: 'Real Estate' },
-              ],
-              originalTitle: 'Sectors',
-            },
-            {
-              title: 'Futures',
-              symbols: [
-                { s: 'CME_MINI:ES1!', d: 'S&P 500' },
-                { s: 'CME:NQ1!',      d: 'NASDAQ 100' },
-                { s: 'CME:YM1!',      d: 'Dow Jones' },
-                { s: 'NYMEX:CL1!',    d: 'Crude Oil' },
-                { s: 'COMEX:GC1!',    d: 'Gold' },
-              ],
-              originalTitle: 'Futures',
-            },
-          ],
+          height: 560,
         }}
       />
     </div>
@@ -284,10 +212,7 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <MarketOverviewWidget />
-          <SectorHeatmap />
-        </div>
+        <SectorHeatmap />
 
         <div className="space-y-4">
           <MarketScreener />
