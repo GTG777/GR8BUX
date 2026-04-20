@@ -47,9 +47,6 @@ export interface MoverRow {
   open: number;
   high: number;
   low: number;
-  open: number;
-  high: number;
-  low: number;
   volume: number;       // shares
   dollarVolume: number; // price × volume
   marketOpen: boolean;  // false = prev close data
