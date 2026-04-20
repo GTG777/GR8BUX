@@ -39,6 +39,7 @@ export interface MacroData {
   vixRegime: 'low' | 'normal' | 'elevated' | 'extreme';
   riskRegime: 'risk-on' | 'risk-off' | 'neutral';
   fetchedAt: number;
+  marketOpen: boolean; // false on weekends/after-hours (day.c === 0, using prevDay prices)
 }
 
 function vixRegime(vix: number): MacroData['vixRegime'] {
@@ -65,7 +66,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const cached = cache.get('macro');
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return res.status(200).json(cached.data);
+    // Add marketOpen flag so client can show prev-close label when market is closed
+    return res.status(200).json({ ...cached.data, marketOpen: cached.data.spy.change !== 0 || cached.data.spy.changePct !== 0 });
   }
 
   try {
@@ -77,23 +79,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const indexSnaps = indexSnapsResult;
 
     // Helper: build MacroQuote from index snapshot (Massive returns actual % for yields)
+    // On weekends snap.value may be 0 — fall back to session.close then session.previous_close
     const indexQ = (ticker: string, symbol: string, label: string): MacroQuote => {
       const snap = indexSnaps.get(ticker);
       if (!snap) return { symbol, label, ...ZERO_QUOTE };
-      const price    = snap.value ?? 0;
-      const change   = snap.session?.change ?? 0;
+      const price     = snap.value || snap.session?.close || snap.session?.previous_close || 0;
+      const change    = snap.session?.change ?? 0;
       const changePct = snap.session?.change_percent ?? 0;
       return { symbol, label, price: parseFloat(price.toFixed(4)), change: parseFloat(change.toFixed(4)), changePct: parseFloat(changePct.toFixed(2)) };
     };
 
     // Helper: build MacroQuote from stock ETF snapshot
+    // On weekends day.c === 0 (falsy) — fall back to prevDay.c
     const etfQ = (ticker: string, label: string): MacroQuote => {
       const snap = etfSnaps.get(ticker);
       if (!snap) return { symbol: ticker, label, ...ZERO_QUOTE };
-      const price    = snap.day?.c ?? 0;
-      const prevClose = snap.prevDay?.c ?? price;
-      const change   = snap.todaysChange ?? parseFloat((price - prevClose).toFixed(4));
-      const changePct = snap.todaysChangePerc ?? (prevClose !== 0 ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0);
+      const price     = snap.day?.c || snap.prevDay?.c || 0;
+      const prevClose = snap.prevDay?.c || price;
+      const change    = price && prevClose ? parseFloat((price - prevClose).toFixed(4)) : (snap.todaysChange ?? 0);
+      const changePct = price && prevClose ? parseFloat(((change / prevClose) * 100).toFixed(2)) : (snap.todaysChangePerc ?? 0);
       return { symbol: ticker, label, price: parseFloat(price.toFixed(4)), change: parseFloat(change.toFixed(4)), changePct: parseFloat(changePct.toFixed(2)) };
     };
 
@@ -129,6 +133,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       vixRegime: vixRegime(vixQ.price),
       riskRegime: riskRegime(vixQ.price, bondsQ.changePct, dollarQ.changePct),
       fetchedAt: Date.now(),
+      marketOpen: !!(spyQ.change !== 0 || spyQ.changePct !== 0),
     };
 
     cache.set('macro', { data, timestamp: Date.now() });

@@ -225,6 +225,11 @@ export default function MacroBar() {
         <VixBadge regime={data.vixRegime} />
         <YieldCurveBadge regime={data.yieldCurveRegime} spreadBps={data.yieldSpread} />
         <div className="ml-auto flex items-center gap-2">
+          {!data.marketOpen && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400">
+              prev close
+            </span>
+          )}
           {isStale && (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
