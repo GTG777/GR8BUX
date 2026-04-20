@@ -1,22 +1,67 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getMultipleStockSnapshots, getIndicesSnapshots } from '@/lib/massive';
+import { getMultipleStockSnapshots } from '@/lib/massive';
 
 // Cache for 10 minutes — macro data doesn't change by the second
 const cache = new Map<string, { data: MacroData; timestamp: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
-/* ── Symbols to fetch ──────────────────────────────────────────── */
-// I:VIX = CBOE Volatility Index
-// I:TNX = 10-year Treasury yield (actual % value, e.g. 4.35)
-// I:IRX = 13-week T-bill yield (≈2yr proxy)
-// GLD   = Gold ETF (proxy for Gold)
-// USO   = Oil ETF (proxy for crude oil)
-// UUP   = Dollar Bull ETF (proxy for DXY)
-// TLT   = 20+ yr Treasury Bond ETF (proxy for long bonds)
-// SPY   = S&P 500 ETF (market baseline)
-const INDEX_TICKERS = ['I:VIX', 'I:TNX', 'I:IRX'];
-const ETF_TICKERS   = ['GLD', 'USO', 'UUP', 'TLT', 'SPY'];
+/* ── Symbols to fetch ──────────────────────────────────────────────────────── */
+// Yahoo Finance (unofficial, free, no key needed) — v8 chart endpoint:
+//   ^VIX = CBOE Volatility Index
+//   ^TNX = 10-year Treasury yield (returns actual %, e.g. 4.35)
+//   ^IRX = 13-week T-bill yield (2Y proxy, returns actual %, e.g. 4.02)
+// Massive ETFs (paid plan, but ETF snapshots work fine):
+//   GLD = Gold ETF  |  USO = Oil ETF  |  UUP = USD Bull ETF
+//   TLT = 20yr Bond ETF  |  SPY = S&P 500 ETF
+const YAHOO_INDEX_SYMBOLS = ['^VIX', '^TNX', '^IRX'];
+const ETF_TICKERS = ['GLD', 'USO', 'UUP', 'TLT', 'SPY'];
 
+/* ── Yahoo Finance chart fetcher (no auth required) ─────────────────────────── */
+interface YahooQuoteResult {
+  symbol: string;
+  regularMarketPrice?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  regularMarketPreviousClose?: number;
+}
+
+async function fetchYahooQuotes(symbols: string[]): Promise<Map<string, YahooQuoteResult>> {
+  const map = new Map<string, YahooQuoteResult>();
+  // Fetch each symbol via the v8 chart endpoint in parallel (no cookies/crumb required)
+  await Promise.all(
+    symbols.map(async (sym) => {
+      try {
+        const encoded = encodeURIComponent(sym);
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=1d`;
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GR8BUX/1.0)' },
+        });
+        if (!res.ok) return;
+        const json = await res.json() as {
+          chart?: { result?: Array<{ meta?: { regularMarketPrice?: number; chartPreviousClose?: number } }> };
+        };
+        const meta = json?.chart?.result?.[0]?.meta;
+        if (!meta) return;
+        const price = meta.regularMarketPrice ?? 0;
+        const prevClose = meta.chartPreviousClose ?? price;
+        const change = parseFloat((price - prevClose).toFixed(4));
+        const changePct = prevClose ? parseFloat(((change / prevClose) * 100).toFixed(2)) : 0;
+        map.set(sym, {
+          symbol: sym,
+          regularMarketPrice: price,
+          regularMarketChange: change,
+          regularMarketChangePercent: changePct,
+          regularMarketPreviousClose: prevClose,
+        });
+      } catch {
+        // Non-fatal — symbol will fall back to ZERO_QUOTE
+      }
+    }),
+  );
+  return map;
+}
+
+/* ── Types ───────────────────────────────────────────────────────────────────── */
 export interface MacroQuote {
   symbol: string;
   label: string;
@@ -28,8 +73,8 @@ export interface MacroQuote {
 export interface MacroData {
   vix: MacroQuote;
   t10y: MacroQuote;   // 10-year yield %
-  t2y: MacroQuote;    // 2-year yield % (13wk proxy, IRX)
-  yieldSpread: number; // 10y - 2y in bps
+  t2y: MacroQuote;    // 2-year yield % (13wk T-bill proxy, IRX)
+  yieldSpread: number; // 10y - 2y in basis points
   yieldCurveRegime: 'normal' | 'flat' | 'inverted';
   gold: MacroQuote;
   oil: MacroQuote;
@@ -42,6 +87,8 @@ export interface MacroData {
   marketOpen: boolean; // false on weekends/after-hours (day.c === 0, using prevDay prices)
 }
 
+const ZERO_QUOTE = { price: 0, change: 0, changePct: 0 };
+
 function vixRegime(vix: number): MacroData['vixRegime'] {
   if (vix < 15) return 'low';
   if (vix < 20) return 'normal';
@@ -49,47 +96,46 @@ function vixRegime(vix: number): MacroData['vixRegime'] {
   return 'extreme';
 }
 
-function riskRegime(
-  vix: number,
-  bondChangePct: number,
-  dollarChangePct: number,
-): MacroData['riskRegime'] {
-  if (vix > 25 || bondChangePct > 0.5 || dollarChangePct > 0.5) return 'risk-off';
-  if (vix < 18 && bondChangePct < 0 && dollarChangePct < 0) return 'risk-on';
+function riskRegime(vix: number, bondChangePct: number, dollarChangePct: number): MacroData['riskRegime'] {
+  const bearish = (vix > 25 ? 1 : 0) + (bondChangePct > 0.5 ? 1 : 0) + (dollarChangePct > 0.5 ? 1 : 0);
+  const bullish  = (vix < 18 ? 1 : 0) + (bondChangePct < -0.5 ? 1 : 0) + (dollarChangePct < -0.5 ? 1 : 0);
+  if (bearish >= 2) return 'risk-off';
+  if (bullish >= 2) return 'risk-on';
   return 'neutral';
 }
 
-const ZERO_QUOTE = { price: 0, change: 0, changePct: 0 };
-
+/* ── Handler ─────────────────────────────────────────────────────────────────── */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Serve from cache if still fresh
   const cached = cache.get('macro');
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    // Add marketOpen flag so client can show prev-close label when market is closed
-    return res.status(200).json({ ...cached.data, marketOpen: cached.data.spy.change !== 0 || cached.data.spy.changePct !== 0 });
+    return res.status(200).json(cached.data);
   }
 
   try {
-    // Fetch indices and ETFs in parallel — indices may 403 if plan doesn't include them
-    const [indexSnapsResult, etfSnaps] = await Promise.all([
-      getIndicesSnapshots(INDEX_TICKERS).catch(() => new Map<string, import('@/lib/massive').MassiveIndexSnapshot>()),
+    // Fetch Yahoo indices and Massive ETFs in parallel
+    const [yahooSnaps, etfSnaps] = await Promise.all([
+      fetchYahooQuotes(YAHOO_INDEX_SYMBOLS).catch(() => new Map<string, YahooQuoteResult>()),
       getMultipleStockSnapshots(ETF_TICKERS),
     ]);
-    const indexSnaps = indexSnapsResult;
 
-    // Helper: build MacroQuote from index snapshot (Massive returns actual % for yields)
-    // On weekends snap.value may be 0 — fall back to session.close then session.previous_close
-    const indexQ = (ticker: string, symbol: string, label: string): MacroQuote => {
-      const snap = indexSnaps.get(ticker);
-      if (!snap) return { symbol, label, ...ZERO_QUOTE };
-      const price     = snap.value || snap.session?.close || snap.session?.previous_close || 0;
-      const change    = snap.session?.change ?? 0;
-      const changePct = snap.session?.change_percent ?? 0;
-      return { symbol, label, price: parseFloat(price.toFixed(4)), change: parseFloat(change.toFixed(4)), changePct: parseFloat(changePct.toFixed(2)) };
+    // Helper: build MacroQuote from Yahoo Finance result
+    // Yahoo v8 chart returns TNX/IRX as actual % values (e.g. 4.35 = 4.35%)
+    const yahooQ = (symbol: string, label: string): MacroQuote => {
+      const q = yahooSnaps.get(symbol);
+      if (!q || !q.regularMarketPrice) return { symbol, label, ...ZERO_QUOTE };
+      return {
+        symbol,
+        label,
+        price: parseFloat(q.regularMarketPrice.toFixed(4)),
+        change: parseFloat((q.regularMarketChange ?? 0).toFixed(4)),
+        changePct: parseFloat((q.regularMarketChangePercent ?? 0).toFixed(2)),
+      };
     };
 
-    // Helper: build MacroQuote from stock ETF snapshot
+    // Helper: build MacroQuote from Massive ETF snapshot
     // On weekends day.c === 0 (falsy) — fall back to prevDay.c
     const etfQ = (ticker: string, label: string): MacroQuote => {
       const snap = etfSnaps.get(ticker);
@@ -101,17 +147,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return { symbol: ticker, label, price: parseFloat(price.toFixed(4)), change: parseFloat(change.toFixed(4)), changePct: parseFloat(changePct.toFixed(2)) };
     };
 
-    const vixQ  = indexQ('I:VIX', '^VIX', 'VIX');
-    const t10y  = indexQ('I:TNX', '^TNX', '10Y Yield');
-    const t2y   = indexQ('I:IRX', '^IRX', '2Y Yield');
-    const goldQ = etfQ('GLD', 'Gold (GLD)');
-    const oilQ  = etfQ('USO', 'Oil (USO)');
+    const vixQ    = yahooQ('^VIX', 'VIX');
+    const t10y    = yahooQ('^TNX', '10Y Yield');
+    const t2y     = yahooQ('^IRX', '2Y Yield');
+    const goldQ   = etfQ('GLD', 'Gold (GLD)');
+    const oilQ    = etfQ('USO', 'Oil (USO)');
     const dollarQ = etfQ('UUP', 'Dollar (UUP)');
     const bondsQ  = etfQ('TLT', 'Bonds (TLT)');
     const spyQ    = etfQ('SPY', 'SPY');
 
-    // Massive returns I:TNX and I:IRX as actual % values (e.g. 4.35 = 4.35%)
-    // No ×10 adjustment needed (unlike Yahoo Finance)
+    // Yahoo returns TNX/IRX as actual % values (e.g. 4.246 = 4.246%) — no conversion needed
     const t10yPct = t10y.price;
     const t2yPct  = t2y.price;
 
