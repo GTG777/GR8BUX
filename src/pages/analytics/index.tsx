@@ -16,13 +16,44 @@ const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const fmtMonth = (d: string) => new Date(d + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 
+/* ── Info tooltip (ⓘ hover) ──────────────────────────────────────── */
+function InfoTip({ text }: { text: string }) {
+  const [pos, setPos] = React.useState<{ x: number; y: number } | null>(null);
+  return (
+    <span
+      className="inline-flex items-center"
+      onMouseEnter={(e) => setPos({ x: e.clientX, y: e.clientY })}
+      onMouseMove={(e)  => setPos({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={()  => setPos(null)}
+    >
+      <svg
+        className="w-3 h-3 text-gray-300 dark:text-zinc-600 hover:text-indigo-400 dark:hover:text-indigo-400 cursor-help transition-colors ml-1 shrink-0"
+        viewBox="0 0 20 20" fill="currentColor"
+      >
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-1 9a1 1 0 01-1-1v-4a1 1 0 112 0v4a1 1 0 01-1 1z" clipRule="evenodd" />
+      </svg>
+      {pos && (
+        <span
+          className="fixed z-50 max-w-xs rounded-lg bg-gray-900 text-white text-xs px-3 py-2 shadow-xl pointer-events-none whitespace-pre-wrap leading-relaxed"
+          style={{ left: pos.x + 14, top: pos.y - 8 }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /* ── Stat card ───────────────────────────────────────────────────── */
 function StatCard({
-  label, value, sub, color = 'text-gray-900 dark:text-white', bg = '',
-}: { label: string; value: string; sub?: string; color?: string; bg?: string }) {
+  label, value, sub, color = 'text-gray-900 dark:text-white', bg = '', tooltip,
+}: { label: string; value: string; sub?: string; color?: string; bg?: string; tooltip?: string }) {
   return (
     <div className={`rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm ${bg}`}>
-      <p className="text-xs font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-xs font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1 flex items-center">
+        {label}
+        {tooltip && <InfoTip text={tooltip} />}
+      </p>
       <p className={`text-2xl font-extrabold ${color}`}>{value}</p>
       {sub && <p className="text-xs text-gray-400 dark:text-zinc-600 mt-0.5">{sub}</p>}
     </div>
@@ -30,10 +61,13 @@ function StatCard({
 }
 
 /* ── Section header ──────────────────────────────────────────────── */
-function SectionHead({ title, sub }: { title: string; sub?: string }) {
+function SectionHead({ title, sub, tooltip }: { title: string; sub?: string; tooltip?: string }) {
   return (
     <div className="mb-4">
-      <h2 className="text-sm font-bold text-gray-800 dark:text-white uppercase tracking-widest">{title}</h2>
+      <h2 className="text-sm font-bold text-gray-800 dark:text-white uppercase tracking-widest flex items-center">
+        {title}
+        {tooltip && <InfoTip text={tooltip} />}
+      </h2>
       {sub && <p className="text-xs text-gray-400 dark:text-zinc-500 mt-0.5">{sub}</p>}
     </div>
   );
@@ -257,35 +291,46 @@ export default function AnalyticsPage() {
             {/* ── KPI Grid ─────────────────────────────────────────── */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <StatCard label="Total P&L" value={fmt$(totalPnL)}
-                color={totalPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} />
+                color={totalPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}
+                tooltip="Sum of all realized profits and losses across closed trades in the selected period. Open trades are excluded." />
               <StatCard label="Win Rate" value={`${winRate.toFixed(1)}%`}
                 color={winRate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}
-                sub={`${wins.length}W / ${losses.length}L`} />
+                sub={`${wins.length}W / ${losses.length}L`}
+                tooltip="Percentage of closed trades that were profitable.\n\nAbove 50% is positive, but must be read alongside R:R — a 40% win rate with a 3:1 R:R is still highly profitable." />
               <StatCard label="Profit Factor" value={profitFactor.toFixed(2)}
-                color={profitFactor >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : profitFactor >= 1 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'} />
+                color={profitFactor >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : profitFactor >= 1 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}
+                tooltip="Gross profits ÷ gross losses.\n\n>1.0 = profitable system\n>1.5 = strong edge\n>2.0 = exceptional edge\n<1.0 = losing system" />
               <StatCard label="Avg R:R" value={riskReward.toFixed(2)}
                 color={riskReward >= 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-yellow-600 dark:text-yellow-400'}
-                sub={`Avg W: ${fmt$(avgWin).replace('+', '')}`} />
+                sub={`Avg W: ${fmt$(avgWin).replace('+', '')}`}
+                tooltip="Average reward-to-risk ratio = Avg Win ÷ Avg Loss.\n\nA ratio ≥ 1.5 means your winners are at least 1.5× your losers on average. Combine with win rate to assess true edge." />
               <StatCard label="Max Drawdown" value={fmt$(maxDrawdown)}
                 color="text-red-600 dark:text-red-400"
-                sub={`Largest L: ${fmt$(largestLoss).replace('+', '')}`} />
+                sub={`Largest L: ${fmt$(largestLoss).replace('+', '')}`}
+                tooltip="Largest peak-to-trough decline in cumulative P&L across the selected period.\n\nMeasures the worst losing sequence you experienced. Smaller is better — indicates better risk management." />
               <StatCard label="Largest Win" value={fmt$(largestWin)}
                 color="text-emerald-600 dark:text-emerald-400"
-                sub={`${closed.length} total trades`} />
+                sub={`${closed.length} total trades`}
+                tooltip="The single biggest winning trade in the selected period. Compare to Avg Win to check if your overall P&L is driven by one outlier trade." />
             </div>
 
             {/* ── Secondary KPIs ───────────────────────────────────── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Avg Win" value={fmt$(avgWin)} color="text-emerald-600 dark:text-emerald-400" />
-              <StatCard label="Avg Loss" value={fmt$(avgLoss)} color="text-red-600 dark:text-red-400" />
-              <StatCard label="Best Win Streak" value={`${streaks.win} trades`} color="text-emerald-600 dark:text-emerald-400" />
-              <StatCard label="Worst Loss Streak" value={`${streaks.loss} trades`} color="text-red-600 dark:text-red-400" />
+              <StatCard label="Avg Win" value={fmt$(avgWin)} color="text-emerald-600 dark:text-emerald-400"
+                tooltip="Average dollar profit per winning trade. Compare to Avg Loss to assess your reward-to-risk ratio." />
+              <StatCard label="Avg Loss" value={fmt$(avgLoss)} color="text-red-600 dark:text-red-400"
+                tooltip="Average dollar loss per losing trade. This is your baseline cost of being wrong — keep it controlled relative to your Avg Win." />
+              <StatCard label="Best Win Streak" value={`${streaks.win} trades`} color="text-emerald-600 dark:text-emerald-400"
+                tooltip="Longest consecutive run of profitable trades in the selected period. Useful for gauging when your edge is working well." />
+              <StatCard label="Worst Loss Streak" value={`${streaks.loss} trades`} color="text-red-600 dark:text-red-400"
+                tooltip="Longest consecutive run of losing trades. Important for sizing — ensure your account can withstand this streak without being forced out of the market." />
             </div>
 
             {/* ── Equity Curve ─────────────────────────────────────── */}
             {equityCurve.length >= 2 && (
               <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                <SectionHead title="Equity Curve" sub="Cumulative P&L from closed trades in chronological order" />
+                <SectionHead title="Equity Curve" sub="Cumulative P&L from closed trades in chronological order"
+                  tooltip="Running total of realized P&L plotted over time by trade exit date.\n\nA smooth upward slope indicates consistent profitability. Steep drops are drawdown periods. Flat stretches mean no closed activity." />
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={equityCurve} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
                     <defs>
@@ -310,7 +355,8 @@ export default function AnalyticsPage() {
               {/* Monthly */}
               {monthlyData.length > 0 && (
                 <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                  <SectionHead title="Monthly P&L" />
+                  <SectionHead title="Monthly P&L"
+                    tooltip="Total realized P&L grouped by calendar month.\n\nGreen bars = profitable months, red bars = losing months. Useful for spotting seasonal patterns or periods of poor performance." />
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
@@ -329,7 +375,8 @@ export default function AnalyticsPage() {
 
               {/* Hold Time */}
               <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                <SectionHead title="Hold Time Distribution" sub="How long trades were held" />
+                <SectionHead title="Hold Time Distribution" sub="How long trades were held"
+                  tooltip="Distribution of how long you held trades before closing.\n\nReveals your trading style: day trader (1d), swing trader (2–14d), or position trader (1m+). Helps identify if your edge differs by hold duration." />
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={holdTimes} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
@@ -348,7 +395,8 @@ export default function AnalyticsPage() {
               {/* Strategy pie */}
               {strategyData.length > 0 && (
                 <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                  <SectionHead title="Trade Mix" sub="Closed trades by type / strategy" />
+                  <SectionHead title="Trade Mix" sub="Closed trades by type / strategy"
+                    tooltip="Breakdown of closed trades by instrument type or options strategy.\n\nShows where you deploy capital most. A heavily concentrated mix may indicate over-reliance on one setup." />
                   <div className="flex items-center gap-4">
                     <ResponsiveContainer width={140} height={140}>
                       <PieChart>
@@ -374,7 +422,8 @@ export default function AnalyticsPage() {
 
               {/* Win vs Loss scatter */}
               <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                <SectionHead title="Win / Loss Distribution" sub="Individual trade P&L" />
+                <SectionHead title="Win / Loss Distribution" sub="Individual trade P&L"
+                  tooltip="Bar for each of your last 30 closed trades — bar width is proportional to the P&L magnitude.\n\nLook for: are your winning bars consistently wider than losing bars? That confirms positive R:R in practice." />
                 <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
                   {closed.slice(-30).reverse().map((t) => {
                     const pnl = t.pnl ?? 0;
@@ -400,7 +449,8 @@ export default function AnalyticsPage() {
             {/* ── Top / Bottom Symbols ─────────────────────────────── */}
             {symbolData.length > 0 && (
               <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                <SectionHead title="P&L by Symbol" sub="Top 10 symbols by total realized P&L" />
+                <SectionHead title="P&L by Symbol" sub="Top 10 symbols by total realized P&L"
+                  tooltip="Total realized P&L per ticker across all closed trades, sorted best to worst.\n\nHighlights your best and worst-performing stocks. Watch for concentration risk if one symbol dominates your P&L." />
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={symbolData} layout="vertical" margin={{ top: 0, right: 60, bottom: 0, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
@@ -420,7 +470,8 @@ export default function AnalyticsPage() {
             {/* ── Strategy Performance Table ───────────────────────── */}
             {analytics?.byStrategy && Object.keys(analytics.byStrategy).length > 0 && (
               <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm">
-                <SectionHead title="Performance by Strategy" />
+                <SectionHead title="Performance by Strategy"
+                  tooltip="Aggregated stats grouped by trade type or options strategy.\n\nIdentify which strategies are generating your edge and which are drag. Focus on high profit-factor, high win-rate strategies." />
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -456,24 +507,36 @@ export default function AnalyticsPage() {
 
             {/* ── Expectancy formula ───────────────────────────────── */}
             <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50 dark:bg-indigo-950/20 p-5">
-              <p className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-widest mb-3">Mathematical Edge</p>
+              <p className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-widest mb-3 flex items-center">
+                Mathematical Edge
+                <InfoTip text={"Quantitative metrics that define whether your trading system has a statistical edge over time.\n\nExpectancy: expected $ per trade\nProfit Factor: gross wins ÷ gross losses\nKelly %: theoretically optimal position size"} />
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <p className="text-[10px] text-indigo-400 dark:text-indigo-600 uppercase mb-1">Expectancy per trade</p>
+                  <p className="text-[10px] text-indigo-400 dark:text-indigo-600 uppercase mb-1 flex items-center">
+                    Expectancy per trade
+                    <InfoTip text={"Expected dollar profit per trade.\n\nFormula: (Win% × Avg Win) + (Loss% × Avg Loss)\n\nPositive = your system makes money on average. Negative = you are losing money even if you win often."} />
+                  </p>
                   <p className={`text-2xl font-extrabold ${(winRate / 100 * avgWin + (1 - winRate / 100) * avgLoss) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {fmt$(winRate / 100 * avgWin + (1 - winRate / 100) * avgLoss)}
                   </p>
                   <p className="text-[10px] text-indigo-400 dark:text-indigo-600 mt-1">= (W% × AvgWin) + (L% × AvgLoss)</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-indigo-400 dark:text-indigo-600 uppercase mb-1">Profit Factor</p>
+                  <p className="text-[10px] text-indigo-400 dark:text-indigo-600 uppercase mb-1 flex items-center">
+                    Profit Factor
+                    <InfoTip text={"Gross profits ÷ gross losses.\n\n>2.0 = exceptional edge\n>1.5 = strong edge\n>1.0 = profitable (but fragile)\n<1.0 = losing system\n\nAim for 1.5+ for a robust trading edge."} />
+                  </p>
                   <p className={`text-2xl font-extrabold ${profitFactor >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : profitFactor >= 1 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
                     {profitFactor.toFixed(2)}
                   </p>
                   <p className="text-[10px] text-indigo-400 dark:text-indigo-600 mt-1">&gt; 1.5 = strong edge</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-indigo-400 dark:text-indigo-600 uppercase mb-1">Kelly % (sizing)</p>
+                  <p className="text-[10px] text-indigo-400 dark:text-indigo-600 uppercase mb-1 flex items-center">
+                    Kelly % (sizing)
+                    <InfoTip text={"Kelly Criterion — the theoretically optimal position size as a % of capital.\n\nFormula: Win% − (Loss% ÷ R:R)\n\nIn practice use ½ Kelly (half the value) to reduce account volatility. A high Kelly % does NOT mean you should bet that much."} />
+                  </p>
                   <p className="text-2xl font-extrabold text-indigo-700 dark:text-indigo-400">
                     {riskReward > 0 ? `${Math.max(0, ((winRate / 100) - (1 - winRate / 100) / riskReward) * 100).toFixed(1)}%` : '—'}
                   </p>
