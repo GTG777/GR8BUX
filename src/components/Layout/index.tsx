@@ -30,6 +30,15 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: 'stocks',
+    label: 'Stocks',
+    emoji: '📈',
+    items: [
+      { href: '/stocks',    label: 'Stock Scanner', icon: StockScannerIcon },
+      { href: '/market',    label: 'Market',        icon: MarketIcon       },
+    ],
+  },
+  {
     id: 'options',
     label: 'Options',
     emoji: '🎯',
@@ -38,15 +47,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/scanner',     label: 'Options Screener', icon: ScannerIcon      },
       { href: '/strategies',  label: 'Strategies',       icon: StrategiesIcon   },
       { href: '/leaps',       label: 'LEAPS',            icon: LeapsIcon        },
-    ],
-  },
-  {
-    id: 'stocks',
-    label: 'Stocks',
-    emoji: '📈',
-    items: [
-      { href: '/stocks',    label: 'Stock Scanner', icon: StockScannerIcon },
-      { href: '/market',    label: 'Market',        icon: MarketIcon       },
     ],
   },
   {
