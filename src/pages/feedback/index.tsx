@@ -26,7 +26,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
           className="text-3xl transition-transform hover:scale-110 focus:outline-none"
           aria-label={`Rate ${star} star${star !== 1 ? 's' : ''}`}
         >
-          <span className={(hovered || value) >= star ? 'text-amber-400' : 'text-gray-300'}>
+          <span className={(hovered || value) >= star ? 'text-amber-400 dark:text-amber-400' : 'text-gray-300 dark:text-gray-600'}>
             ★
           </span>
         </button>
