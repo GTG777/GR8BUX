@@ -30,8 +30,8 @@ function TVWidget({
   }, []);
 
   return (
-    <div className="tradingview-widget-container" ref={containerRef} style={{ minHeight: height }}>
-      <div className="tradingview-widget-container__widget" />
+    <div className="tradingview-widget-container" ref={containerRef} style={{ minHeight: height, borderRadius: 'inherit', overflow: 'hidden' }}>
+      <div className="tradingview-widget-container__widget" style={{ borderRadius: 'inherit' }} />
     </div>
   );
 }
@@ -59,7 +59,7 @@ function TickerTape() {
           { proName: 'NASDAQ:AMZN',     title: 'AMZN' },
         ],
         showSymbolLogo: true,
-        isTransparent: false,
+        isTransparent: true,
         displayMode: 'adaptive',
         colorTheme: 'dark',
         locale: 'en',
@@ -274,7 +274,7 @@ export default function DashboardPage() {
         <MacroBar />
         <SectorRotationPanel />
 
-        <div className="rounded-lg overflow-hidden shadow">
+        <div className="rounded-xl overflow-hidden shadow border border-zinc-700/60 bg-zinc-900">
           <TickerTape />
         </div>
 
