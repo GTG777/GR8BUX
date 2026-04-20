@@ -375,7 +375,7 @@ export function Layout({ children, title }: LayoutProps) {
                     <button
                       onClick={() => toggleGroup(group.id)}
                       className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors ${
-                        anyActive ? 'text-brand-green' : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                        darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
                       }`}
                     >
                       <span className="flex items-center gap-1.5">
