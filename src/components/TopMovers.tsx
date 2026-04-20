@@ -1,27 +1,27 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+﻿import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import type { MoversData, MoverRow } from '@/pages/api/market/movers';
 
 const REFRESH_MS = 5 * 60 * 1000;
 const STALE_MS   = 10 * 60 * 1000;
 
-type Tab = 'active' | 'gainers' | 'losers';
+type Tab     = 'active' | 'gainers' | 'losers';
+type SortCol = keyof Pick<MoverRow, 'price' | 'change' | 'changePct' | 'open' | 'high' | 'low' | 'volume' | 'dollarVolume'>;
+type SortDir = 'asc' | 'desc';
 
 const TAB_META: Record<Tab, { label: string; emoji: string; tip: string }> = {
   active:  { label: 'Most Active',  emoji: '⚡', tip: 'Ranked by dollar volume (price × shares traded). Highest liquidity names of the session.' },
-  gainers: { label: 'Top Gainers',  emoji: '🚀', tip: 'Stocks with the largest % gain today. During market hours sourced live; outside hours shows last session sorted by prev-day change.' },
-  losers:  { label: 'Top Losers',   emoji: '🔻', tip: 'Stocks with the largest % decline today. During market hours sourced live; outside hours shows last session sorted by prev-day change.' },
+  gainers: { label: 'Top Gainers',  emoji: '🚀', tip: 'Stocks with the largest % gain today. During market hours sourced live; outside hours shows last session.' },
+  losers:  { label: 'Top Losers',   emoji: '🔻', tip: 'Stocks with the largest % decline today. During market hours sourced live; outside hours shows last session.' },
 };
 
-// Grid columns: # | Ticker | Name | Price | Net $ | Chg % | Open | High | Low | Vol | $Vol
-// Last 4 columns (Open/High/Low/$Vol) hide below lg breakpoint via CSS
-const GRID = '1.5rem 4rem 1fr 5.5rem 5.5rem 5rem 5rem 5rem 5rem 5rem 6rem';
+// Fixed 11-column grid. Table wrapped in overflow-x-auto so all columns always render aligned.
+const GRID = '1.5rem 3.5rem 1fr 5.5rem 5.5rem 5rem 4.5rem 4.5rem 4.5rem 5rem 6rem';
 
 /* ── Tooltip ──────────────────────────────────────────────────── */
 function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   return (
     <span
-      className="cursor-help"
       onMouseEnter={(e) => setPos({ x: e.clientX, y: e.clientY })}
       onMouseMove={(e)  => setPos({ x: e.clientX, y: e.clientY })}
       onMouseLeave={()  => setPos(null)}
@@ -51,19 +51,36 @@ function fmtPrice(p: number): string {
   return p > 0 ? `$${p.toFixed(2)}` : '—';
 }
 
-/* ── Info icon ────────────────────────────────────────────────── */
-function InfoIcon() {
+/* ── Sort indicator ───────────────────────────────────────────── */
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol | null; sortDir: SortDir }) {
+  if (sortCol !== col) return <span className="ml-0.5 text-gray-300 dark:text-zinc-700">⇅</span>;
+  return <span className="ml-0.5 text-blue-500">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+}
+
+/* ── Sortable header cell ─────────────────────────────────────── */
+function SortHeader({
+  col, label, tip, sortCol, sortDir, onSort,
+}: {
+  col: SortCol; label: string; tip: string;
+  sortCol: SortCol | null; sortDir: SortDir; onSort: (c: SortCol) => void;
+}) {
   return (
-    <svg className="inline w-3 h-3 text-gray-400 dark:text-zinc-500 ml-0.5 -mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-1 9a1 1 0 01-1-1v-4a1 1 0 112 0v4a1 1 0 01-1 1z" clipRule="evenodd" />
-    </svg>
+    <Tooltip text={tip}>
+      <button
+        onClick={() => onSort(col)}
+        className="w-full text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-zinc-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors flex items-center justify-end gap-0.5"
+      >
+        {label}
+        <SortIcon col={col} sortCol={sortCol} sortDir={sortDir} />
+      </button>
+    </Tooltip>
   );
 }
 
 /* ── Single data row ──────────────────────────────────────────── */
 function MoverRowItem({ row }: { row: MoverRow }) {
-  const up        = row.changePct >= 0;
-  const chgColor  = up ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400';
+  const up       = row.changePct >= 0;
+  const chgColor = up ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400';
   const rankColor =
     row.rank === 1 ? 'text-yellow-500 font-bold' :
     row.rank === 2 ? 'text-gray-400 dark:text-zinc-400 font-semibold' :
@@ -75,103 +92,20 @@ function MoverRowItem({ row }: { row: MoverRow }) {
 
   return (
     <div
-      className="grid items-center gap-x-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors rounded-md"
+      className="grid items-center gap-x-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors rounded-md"
       style={{ gridTemplateColumns: GRID }}
     >
-      {/* # Rank */}
       <span className={`text-xs text-center tabular-nums ${rankColor}`}>{row.rank}</span>
-
-      {/* Ticker */}
       <span className="text-xs font-bold text-gray-800 dark:text-zinc-200 truncate">{row.symbol}</span>
-
-      {/* Name */}
       <span className="text-xs text-gray-500 dark:text-zinc-400 truncate">{row.name}</span>
-
-      {/* Price */}
-      <span className="text-xs font-mono font-medium text-gray-800 dark:text-zinc-200 text-right tabular-nums">
-        {fmtPrice(row.price)}
-      </span>
-
-      {/* Net Change $ */}
-      <span className={`text-xs font-mono font-semibold text-right tabular-nums ${chgColor}`}>
-        {row.change >= 0 ? '+' : ''}{row.change.toFixed(2)}
-      </span>
-
-      {/* Change % */}
-      <span className={`text-xs font-semibold text-right tabular-nums ${chgColor}`}>
-        {row.changePct >= 0 ? '+' : ''}{row.changePct.toFixed(2)}%
-      </span>
-
-      {/* Open — hidden below lg */}
-      <Tooltip text={rangeTip}>
-        <span className="hidden lg:block text-xs font-mono text-gray-500 dark:text-zinc-500 text-right tabular-nums">
-          {fmtPrice(row.open)}
-        </span>
-      </Tooltip>
-
-      {/* Day High */}
-      <Tooltip text={rangeTip}>
-        <span className="hidden lg:block text-xs font-mono text-green-600 dark:text-green-500 text-right tabular-nums">
-          {fmtPrice(row.high)}
-        </span>
-      </Tooltip>
-
-      {/* Day Low */}
-      <Tooltip text={rangeTip}>
-        <span className="hidden lg:block text-xs font-mono text-red-500 dark:text-red-400 text-right tabular-nums">
-          {fmtPrice(row.low)}
-        </span>
-      </Tooltip>
-
-      {/* Volume (shares) */}
-      <Tooltip text={volTip}>
-        <span className="text-xs text-gray-500 dark:text-zinc-400 text-right tabular-nums">
-          {fmtVol(row.volume)}
-        </span>
-      </Tooltip>
-
-      {/* Dollar Volume */}
-      <Tooltip text={volTip}>
-        <span className="text-xs text-gray-500 dark:text-zinc-400 text-right tabular-nums">
-          ${fmtVol(row.dollarVolume)}
-        </span>
-      </Tooltip>
-    </div>
-  );
-}
-
-/* ── Column header row ────────────────────────────────────────── */
-function ColumnHeaders() {
-  return (
-    <div
-      className="grid text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-zinc-600 px-3 gap-x-3 border-b border-gray-100 dark:border-zinc-800 pb-1.5"
-      style={{ gridTemplateColumns: GRID }}
-    >
-      <span className="text-center">#</span>
-      <span>Ticker</span>
-      <span>Name</span>
-      <span className="text-right">Price</span>
-      <Tooltip text="Net dollar change from previous close">
-        <span className="text-right cursor-help">Net $<InfoIcon /></span>
-      </Tooltip>
-      <Tooltip text="Percentage change from previous close">
-        <span className="text-right cursor-help">Chg %<InfoIcon /></span>
-      </Tooltip>
-      <Tooltip text="Opening price of the session">
-        <span className="hidden lg:block text-right cursor-help">Open<InfoIcon /></span>
-      </Tooltip>
-      <Tooltip text="Intraday high price">
-        <span className="hidden lg:block text-right cursor-help">High<InfoIcon /></span>
-      </Tooltip>
-      <Tooltip text="Intraday low price">
-        <span className="hidden lg:block text-right cursor-help">Low<InfoIcon /></span>
-      </Tooltip>
-      <Tooltip text="Number of shares traded">
-        <span className="text-right cursor-help">Volume<InfoIcon /></span>
-      </Tooltip>
-      <Tooltip text="Dollar volume = shares traded × price. Measures liquidity and conviction.">
-        <span className="text-right cursor-help">$Volume<InfoIcon /></span>
-      </Tooltip>
+      <span className="text-xs font-mono font-medium text-gray-800 dark:text-zinc-200 text-right tabular-nums">{fmtPrice(row.price)}</span>
+      <span className={`text-xs font-mono font-semibold text-right tabular-nums ${chgColor}`}>{row.change >= 0 ? '+' : ''}{row.change.toFixed(2)}</span>
+      <span className={`text-xs font-semibold text-right tabular-nums ${chgColor}`}>{row.changePct >= 0 ? '+' : ''}{row.changePct.toFixed(2)}%</span>
+      <Tooltip text={rangeTip}><span className="text-xs font-mono text-gray-500 dark:text-zinc-500 text-right tabular-nums block">{fmtPrice(row.open)}</span></Tooltip>
+      <Tooltip text={rangeTip}><span className="text-xs font-mono text-green-600 dark:text-green-500 text-right tabular-nums block">{fmtPrice(row.high)}</span></Tooltip>
+      <Tooltip text={rangeTip}><span className="text-xs font-mono text-red-500 dark:text-red-400 text-right tabular-nums block">{fmtPrice(row.low)}</span></Tooltip>
+      <Tooltip text={volTip}><span className="text-xs text-gray-500 dark:text-zinc-400 text-right tabular-nums block">{fmtVol(row.volume)}</span></Tooltip>
+      <Tooltip text={volTip}><span className="text-xs text-gray-500 dark:text-zinc-400 text-right tabular-nums block">${fmtVol(row.dollarVolume)}</span></Tooltip>
     </div>
   );
 }
@@ -182,6 +116,8 @@ export default function TopMovers() {
   const [error, setError]     = useState<string | null>(null);
   const [tab, setTab]         = useState<Tab>('active');
   const [isStale, setIsStale] = useState(false);
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const fetchedAt = useRef<number>(0);
 
   const load = useCallback(() => {
@@ -205,6 +141,29 @@ export default function TopMovers() {
     return () => clearInterval(interval);
   }, [load]);
 
+  // Reset sort when switching tabs
+  useEffect(() => { setSortCol(null); }, [tab]);
+
+  function handleSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('desc');
+    }
+  }
+
+  const baseRows: MoverRow[] = data ? data[tab] : [];
+
+  const rows = useMemo(() => {
+    if (!sortCol) return baseRows;
+    return [...baseRows].sort((a, b) => {
+      const av = a[sortCol] as number;
+      const bv = b[sortCol] as number;
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+  }, [baseRows, sortCol, sortDir]);
+
   if (error) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
@@ -213,8 +172,11 @@ export default function TopMovers() {
     );
   }
 
-  const rows: MoverRow[] = data ? data[tab] : [];
-  const ts = data ? new Date(data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const ts = data
+    ? new Date(data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  const hProps = { sortCol, sortDir, onSort: handleSort };
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-4 py-4 space-y-3">
@@ -223,7 +185,6 @@ export default function TopMovers() {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-bold text-gray-700 dark:text-zinc-300">🔥 Top Movers</h2>
 
-        {/* Tab buttons */}
         <div className="flex gap-1">
           {(Object.keys(TAB_META) as Tab[]).map((t) => {
             const m = TAB_META[t];
@@ -245,7 +206,6 @@ export default function TopMovers() {
           })}
         </div>
 
-        {/* Right: badges + refresh */}
         <div className="ml-auto flex items-center gap-2 text-xs text-gray-400 dark:text-zinc-500">
           {isStale && (
             <span className="text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 px-1.5 py-0.5 rounded text-[10px]">
@@ -257,9 +217,6 @@ export default function TopMovers() {
               prev close
             </span>
           )}
-          <span className="hidden lg:inline text-[10px] text-gray-300 dark:text-zinc-700">
-            Open/High/Low visible on wider screens
-          </span>
           {ts && (
             <button onClick={load} className="hover:text-gray-700 dark:hover:text-zinc-200 transition-colors">
               Updated {ts} · refresh
@@ -268,22 +225,44 @@ export default function TopMovers() {
         </div>
       </div>
 
-      {/* ── Column headers ── */}
-      <ColumnHeaders />
+      {/* ── Scrollable table ── */}
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: '860px' }}>
 
-      {/* ── Rows ── */}
-      <div className="space-y-0.5">
-        {!data ? (
-          Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="h-8 mx-3 bg-gray-100 dark:bg-zinc-800 rounded animate-pulse" />
-          ))
-        ) : rows.length === 0 ? (
-          <div className="text-sm text-gray-400 dark:text-zinc-500 text-center py-8">
-            Market closed — no live data for this session yet.
+          {/* Column headers */}
+          <div
+            className="grid items-center gap-x-2 px-3 pb-2 border-b border-gray-100 dark:border-zinc-800"
+            style={{ gridTemplateColumns: GRID }}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-zinc-500 text-center">#</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Ticker</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Name</span>
+            <SortHeader col="price"        label="Price"    tip="Sort by last trade price"                                     {...hProps} />
+            <SortHeader col="change"       label="Net $"    tip="Sort by net dollar change from previous close"                {...hProps} />
+            <SortHeader col="changePct"    label="Chg %"    tip="Sort by % change from previous close"                         {...hProps} />
+            <SortHeader col="open"         label="Open"     tip="Sort by session opening price"                                {...hProps} />
+            <SortHeader col="high"         label="High"     tip="Sort by intraday high"                                         {...hProps} />
+            <SortHeader col="low"          label="Low"      tip="Sort by intraday low"                                          {...hProps} />
+            <SortHeader col="volume"       label="Volume"   tip="Sort by shares traded"                                        {...hProps} />
+            <SortHeader col="dollarVolume" label="$Volume"  tip="Sort by dollar volume (price × shares). Measures liquidity."  {...hProps} />
           </div>
-        ) : (
-          rows.map((row) => <MoverRowItem key={row.symbol} row={row} />)
-        )}
+
+          {/* Rows */}
+          <div className="space-y-0">
+            {!data ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="h-8 mx-3 my-1 bg-gray-100 dark:bg-zinc-800 rounded animate-pulse" />
+              ))
+            ) : rows.length === 0 ? (
+              <div className="text-sm text-gray-400 dark:text-zinc-500 text-center py-8">
+                Market closed — no live data for this session yet.
+              </div>
+            ) : (
+              rows.map((row) => <MoverRowItem key={row.symbol} row={row} />)
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );
