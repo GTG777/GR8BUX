@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
 import MacroBar from '@/components/MacroBar';
 import SectorRotationPanel from '@/components/SectorRotationPanel';
+import TopMovers from '@/components/TopMovers';
 
 const TV_EMBED = 'https://s3.tradingview.com/external-embedding';
 
@@ -124,60 +125,6 @@ function SectorHeatmap() {
   );
 }
 
-function MarketScreener() {
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🔍 Stock Screener</h2>
-      <TVWidget
-        src={`${TV_EMBED}/embed-widget-screener.js`}
-        height={600}
-        config={{
-          width: '100%',
-          height: 600,
-          defaultColumn: 'overview',
-          defaultScreen: 'general',
-          market: 'us',
-          showToolbar: true,
-          colorTheme: 'dark',
-          locale: 'en',
-        }}
-      />
-    </div>
-  );
-}
-
-function HotlistsWidget() {
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🔥 Top Movers</h2>
-      <TVWidget
-        src={`${TV_EMBED}/embed-widget-hotlists.js`}
-        height={600}
-        config={{
-          colorTheme: 'dark',
-          dateRange: '1D',
-          exchange: 'US',
-          showChart: true,
-          locale: 'en',
-          width: '100%',
-          height: 600,
-          largeChartUrl: '',
-          isTransparent: false,
-          showSymbolLogo: false,
-          showFloatingTooltip: false,
-          plotLineColorGrowing: 'rgba(41, 98, 255, 1)',
-          plotLineColorFalling: 'rgba(255, 82, 82, 1)',
-          gridLineColor: 'rgba(240, 243, 250, 0)',
-          scaleFontColor: 'rgba(120, 123, 134, 1)',
-          belowLineFillColorGrowing: 'rgba(41, 98, 255, 0.12)',
-          belowLineFillColorFalling: 'rgba(255, 82, 82, 0.12)',
-          symbolActiveColor: 'rgba(41, 98, 255, 0.12)',
-        }}
-      />
-    </div>
-  );
-}
-
 const INDEX_CHARTS = [
   { symbol: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
   { symbol: 'FOREXCOM:NSXUSD', title: 'NASDAQ 100' },
@@ -214,10 +161,7 @@ export default function DashboardPage() {
 
         <SectorHeatmap />
 
-        <div className="space-y-4">
-          <MarketScreener />
-          <HotlistsWidget />
-        </div>
+        <TopMovers />
       </div>
     </Layout>
   );

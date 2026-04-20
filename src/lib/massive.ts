@@ -25,7 +25,7 @@ export function massiveBuildUrl(
   return url.toString();
 }
 
-async function massiveFetch<T>(
+export async function massiveFetch<T>(
   path: string,
   params: Record<string, string | number | boolean | undefined> = {},
 ): Promise<T> {
