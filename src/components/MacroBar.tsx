@@ -158,7 +158,7 @@ function SectionTooltip() {
           style={{ left: pos.x, top: pos.y }}
         >
           <p className="font-semibold mb-1 text-white">What is the Macro Dashboard?</p>
-          <p>Pulls live data from Polygon.io (VIX, SPY, Treasuries, Gold, Oil, Dollar, Bonds) and synthesises them into three regime signals — <strong>Risk Regime</strong>, <strong>VIX Level</strong>, and <strong>Yield Curve</strong> — that tell you at a glance whether market conditions favour bullish, bearish, or neutral options strategies. Data refreshes every 10 minutes.</p>
+          <p>Pulls live market data (VIX, SPY, Treasuries, Gold, Oil, Dollar, Bonds) and synthesises them into three regime signals — <strong>Risk Regime</strong>, <strong>VIX Level</strong>, and <strong>Yield Curve</strong> — that tell you at a glance whether market conditions favour bullish, bearish, or neutral options strategies. Data refreshes every 10 minutes.</p>
         </div>
       )}
     </span>

@@ -33,9 +33,11 @@ export interface SectorQuote {
   emoji: string;
   type: SectorType;
   price: number;
+  prevClose: number;        // previous close price
   changePct: number;        // daily % change
-  relStrength: number;      // changePct - SPY changePct (bps context)
+  relStrength: number;      // changePct - SPY changePct
   status: SectorStatus;     // leading / lagging / neutral vs SPY
+  rank: number;             // 1 = best relative strength (set after sort)
 }
 
 export interface SectorData {
@@ -111,11 +113,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const getQ = (sym: string) => {
       const snap = snapshots.get(sym);
-      if (!snap) return { price: 0, changePct: 0 };
-      const price = snap.day?.c ?? 0;
-      const prevClose = snap.prevDay?.c ?? price;
-      const changePct = snap.todaysChangePerc ?? (prevClose !== 0 ? parseFloat(((price - prevClose) / prevClose * 100).toFixed(2)) : 0);
-      return { price, changePct };
+      if (!snap) return { price: 0, prevClose: 0, changePct: 0 };
+      // On weekends/after-hours day.c === 0 (falsy) — fall back to prevDay.c
+      const price     = snap.day?.c || snap.prevDay?.c || 0;
+      const prevClose = snap.prevDay?.c || price;
+      const changePct = price && prevClose
+        ? parseFloat(((price - prevClose) / prevClose * 100).toFixed(2))
+        : (snap.todaysChangePerc ?? 0);
+      return { price: parseFloat(price.toFixed(2)), prevClose: parseFloat(prevClose.toFixed(2)), changePct };
     };
 
     const spyQ = getQ('SPY');
@@ -132,13 +137,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         emoji:  def.emoji,
         type:   def.type,
         price:  q.price,
+        prevClose: q.prevClose,
         changePct: q.changePct,
         relStrength,
         status,
+        rank: 0, // filled after sort
       };
     });
 
-    const sorted    = [...sectors].sort((a, b) => b.relStrength - a.relStrength);
+    const sorted = [...sectors]
+      .sort((a, b) => b.relStrength - a.relStrength)
+      .map((s, i) => ({ ...s, rank: i + 1 }));
     const leaders   = sorted.filter((s) => s.status === 'leading').map((s) => s.label);
     const laggards  = sorted.filter((s) => s.status === 'lagging').map((s) => s.label);
     const regime    = classifyRotation(sectors);
