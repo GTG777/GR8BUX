@@ -44,6 +44,12 @@ export interface MoverRow {
   price: number;
   changePct: number;
   change: number;
+  open: number;
+  high: number;
+  low: number;
+  open: number;
+  high: number;
+  low: number;
   volume: number;       // shares
   dollarVolume: number; // price × volume
   marketOpen: boolean;  // false = prev close data
@@ -73,9 +79,9 @@ interface MassiveMoversResponse {
 function snapToRow(snap: MassiveSnap, rank: number): MoverRow {
   const price     = snap.day?.c || snap.prevDay?.c || 0;
   const prevClose = snap.prevDay?.c || price;
-  const change    = price && prevClose ? parseFloat((price - prevClose).toFixed(4)) : (snap.todaysChange ?? 0);
-  const changePct = price && prevClose ? parseFloat(((change / prevClose) * 100).toFixed(2)) : (snap.todaysChangePerc ?? 0);
-  const volume    = snap.day?.v || snap.prevDay?.v || 0;
+  const open      = snap.day?.o || snap.prevDay?.o || 0;
+  const high      = snap.day?.h || snap.prevDay?.h || 0;
+  const low       = snap.day?.l || snap.prevDay?.l || 0;
   const marketOpen = (snap.day?.c ?? 0) > 0;
   return {
     rank,
@@ -84,6 +90,18 @@ function snapToRow(snap: MassiveSnap, rank: number): MoverRow {
     price: parseFloat(price.toFixed(2)),
     changePct,
     change: parseFloat(change.toFixed(2)),
+    open: parseFloat(open.toFixed(2)),
+    high: parseFloat(high.toFixed(2)),
+    low: parseFloat(low
+    rank,
+    symbol: snap.ticker,
+    name: NAMES[snap.ticker] ?? snap.ticker,
+    price: parseFloat(price.toFixed(2)),
+    changePct,
+    change: parseFloat(change.toFixed(2)),
+    open: parseFloat(open.toFixed(2)),
+    high: parseFloat(high.toFixed(2)),
+    low: parseFloat(low.toFixed(2)),
     volume,
     dollarVolume: parseFloat((price * volume).toFixed(0)),
     marketOpen,
