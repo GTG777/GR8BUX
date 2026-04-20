@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { MacroData, MacroQuote } from '@/pages/api/market/macro';
+
+const REFRESH_MS = 10 * 60 * 1000; // 10 minutes — matches server cache TTL
+const STALE_MS   = 15 * 60 * 1000; // 15 minutes — warn if data older than this
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 function changeColor(pct: number): string {
@@ -135,18 +138,60 @@ function RiskBadge({ regime }: { regime: MacroData['riskRegime'] }) {
   );
 }
 
+/* ── Section header tooltip (ⓘ) ─────────────────────────────────── */
+function SectionTooltip() {
+  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  return (
+    <span
+      className="relative inline-flex items-center cursor-help"
+      onMouseEnter={(e) => { setPos({ x: e.clientX + 12, y: e.clientY - 8 }); setShow(true); }}
+      onMouseLeave={() => setShow(false)}
+      onMouseMove={(e) => setPos({ x: e.clientX + 12, y: e.clientY - 8 })}
+    >
+      <svg className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      {show && (
+        <div
+          className="fixed z-[9999] w-72 bg-gray-900 text-white text-xs rounded-lg px-3 py-2.5 shadow-xl pointer-events-none leading-relaxed"
+          style={{ left: pos.x, top: pos.y }}
+        >
+          <p className="font-semibold mb-1 text-white">What is the Macro Dashboard?</p>
+          <p>Pulls live data from Polygon.io (VIX, SPY, Treasuries, Gold, Oil, Dollar, Bonds) and synthesises them into three regime signals — <strong>Risk Regime</strong>, <strong>VIX Level</strong>, and <strong>Yield Curve</strong> — that tell you at a glance whether market conditions favour bullish, bearish, or neutral options strategies. Data refreshes every 10 minutes.</p>
+        </div>
+      )}
+    </span>
+  );
+}
+
 /* ── Main MacroBar ───────────────────────────────────────────────── */
 export default function MacroBar() {
-  const [data, setData] = useState<MacroData | null>(null);
+  const [data, setData]       = useState<MacroData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchMacro = useCallback(async () => {
+    try {
+      const r = await fetch('/api/market/macro');
+      const d = await r.json();
+      setData(d);
+      setLastUpdated(new Date());
+      setError('');
+    } catch {
+      setError('Macro data unavailable');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch('/api/market/macro')
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); })
-      .catch(() => { setError('Macro data unavailable'); setLoading(false); });
-  }, []);
+    fetchMacro();
+    intervalRef.current = setInterval(fetchMacro, REFRESH_MS);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [fetchMacro]);
 
   if (loading) {
     return (
@@ -165,18 +210,41 @@ export default function MacroBar() {
     );
   }
 
+  const isStale = data && (Date.now() - data.fetchedAt > STALE_MS);
+
   return (
     <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4 space-y-4">
 
       {/* ── Row 1: Header + regime badges ── */}
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-bold text-gray-700 dark:text-zinc-300 shrink-0">Macro Dashboard</span>
+        <span className="flex items-center gap-1.5 text-sm font-bold text-gray-700 dark:text-zinc-300 shrink-0">
+          Macro Dashboard
+          <SectionTooltip />
+        </span>
         <RiskBadge regime={data.riskRegime} />
         <VixBadge regime={data.vixRegime} />
         <YieldCurveBadge regime={data.yieldCurveRegime} spreadBps={data.yieldSpread} />
-        <span className="ml-auto text-[10px] text-gray-400 dark:text-zinc-600">
-          {new Date(data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · 10min cache
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {isStale && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              Stale data
+            </span>
+          )}
+          <span className="text-[10px] text-gray-400 dark:text-zinc-600">
+            {lastUpdated
+              ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · `
+              : ''}
+            <button
+              onClick={fetchMacro}
+              className="underline underline-offset-2 hover:text-gray-600 dark:hover:text-zinc-400 transition-colors"
+            >
+              refresh
+            </button>
+          </span>
+        </div>
       </div>
 
       {/* ── Row 2: Tiles grid ── */}
