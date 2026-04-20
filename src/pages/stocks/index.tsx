@@ -1249,13 +1249,13 @@ export default function StockScannerPage() {
   };
 
   return (
-    <Layout title="Stock Scanner">
+    <Layout title="Stock Analysis">
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
         {/* ── Header ── */}
         <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
           <div className="flex flex-wrap items-center gap-3 mb-3">
-            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 shrink-0">Stock Scanner</h1>
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 shrink-0">Stock Analysis</h1>
             <p className="text-xs text-gray-400">
               Technical setups · Entry, exit &amp; stop-loss · Risk:Reward + Probability of success
             </p>

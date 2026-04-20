@@ -1377,7 +1377,7 @@ export default function ScannerPage() {
               href={`/stocks?symbol=${encodeURIComponent(symbol)}`}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors shrink-0"
             >
-              <span>📊 {symbol} in Stock Scanner</span>
+              <span>📊 {symbol} in Stock Analysis</span>
               <span className="text-indigo-400">→</span>
             </Link>
             <form onSubmit={(e) => { e.preventDefault(); handleSymbol(input); }} className="flex gap-2">
