@@ -89,7 +89,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           avgWin,
           avgLoss,
           topSymbols,
-          recentTrades: allTrades.slice(0, 20) as TradeSummary['recentTrades'],
+          recentTrades: (allTrades.slice(0, 20) as { symbol: string; type: string; status: string; pnl: number | null; entry_date: string; exit_date: string | null; tags: string[] }[]).map((t) => ({
+            symbol: t.symbol,
+            type: t.type,
+            status: t.status,
+            pnl: t.pnl,
+            entryDate: t.entry_date,
+            exitDate: t.exit_date,
+            tags: t.tags ?? [],
+          })),
         };
       }
     }
