@@ -246,7 +246,7 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
             <p className="text-2xl mb-2">📚</p>
             <p className="text-sm font-medium text-foreground mb-1">Your personal trading coach</p>
             <p className="text-xs text-muted-foreground mb-6">
-              Ask anything — I'll ground my answer in your actual past trades.
+              Ask anything &mdash; I&apos;ll ground my answer in your actual past trades.
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               {STARTERS.map((s) => (
