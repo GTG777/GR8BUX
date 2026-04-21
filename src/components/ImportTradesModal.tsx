@@ -65,7 +65,7 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
       try {
         const result = parseSchwabCSV(text);
         if (result.trades.length === 0 && result.skippedRows.length === 0) {
-          setParseError('No trades found. Is this a Schwab account statement CSV?');
+          setParseError('No trades found. Make sure this is a supported broker CSV (Schwab, ThinkorSwim).');
           return;
         }
         setParseResult(result);
@@ -133,9 +133,9 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Import Trades from Schwab</h2>
+            <h2 className="text-lg font-bold text-foreground">Import Trades</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Upload your Schwab/ThinkorSwim account statement CSV
+              Upload your broker&apos;s transaction history CSV
             </p>
           </div>
           <button
@@ -160,8 +160,9 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
           ))}
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Body — min-h-0 is required so flexbox allows this item to shrink
+             below its content height, enabling overflow-y-auto to activate */}
+        <div className="flex-1 overflow-y-auto min-h-0 p-6">
 
           {/* ── Step 1: Upload ────────────────────────────────────────────── */}
           {step === 'upload' && (
@@ -178,7 +179,7 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
                 }`}
               >
                 <div className="text-4xl mb-3">📂</div>
-                <p className="text-sm font-medium text-foreground">Drag & drop your Schwab CSV here</p>
+                <p className="text-sm font-medium text-foreground">Drag &amp; drop your broker CSV here</p>
                 <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
                 <input
                   ref={fileInputRef}
@@ -195,11 +196,21 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
                 </div>
               )}
 
-              <div className="rounded-lg bg-muted/50 border border-border p-4 text-xs text-muted-foreground space-y-1">
-                <p className="font-medium text-foreground mb-2">How to export from Schwab:</p>
-                <p>1. Log in to schwab.com → <strong>Accounts</strong> → select your account</p>
-                <p>2. Click <strong>History</strong> → set your date range → <strong>Export</strong></p>
-                <p>3. Choose <strong>CSV</strong> format and download</p>
+              <div className="rounded-lg bg-muted/50 border border-border p-4 text-xs text-muted-foreground space-y-2">
+                <p className="font-medium text-foreground">Supported brokers</p>
+                <p>Schwab &amp; ThinkorSwim CSV exports are fully supported.</p>
+                <details className="group">
+                  <summary className="cursor-pointer text-blue-500 hover:text-blue-400 list-none flex items-center gap-1">
+                    <span className="group-open:hidden">▶</span>
+                    <span className="hidden group-open:inline">▼</span>
+                    How to export from Schwab
+                  </summary>
+                  <div className="mt-2 space-y-1 pl-3 border-l border-border">
+                    <p>1. Log in to schwab.com → <strong>Accounts</strong> → select your account</p>
+                    <p>2. Click <strong>History</strong> → set your date range → <strong>Export</strong></p>
+                    <p>3. Choose <strong>CSV</strong> format and download</p>
+                  </div>
+                </details>
               </div>
             </div>
           )}
