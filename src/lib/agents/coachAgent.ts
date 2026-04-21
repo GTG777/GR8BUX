@@ -12,10 +12,34 @@ import { findSimilarTrades, SimilarTrade } from '@/lib/ragEmbeddings';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface TradeSummary {
+  totalTrades: number;
+  closedTrades: number;
+  openTrades: number;
+  winCount: number;
+  lossCount: number;
+  winRate: number;         // 0-100
+  totalPnl: number;
+  avgWin: number;
+  avgLoss: number;
+  topSymbols: Array<{ symbol: string; trades: number; pnl: number }>;
+  recentTrades: Array<{
+    symbol: string;
+    type: string;
+    status: string;
+    pnl: number | null;
+    entryDate: string;
+    exitDate: string | null;
+    tags: string[];
+  }>;
+}
+
 export interface CoachInput {
   userId: string;
   /** The user's question or trade idea they want coached on */
   userQuery: string;
+  /** Aggregate stats from the trades table — always populated by the API */
+  tradeSummary?: TradeSummary;
   /** Current trade context (optional — enriches retrieval query) */
   currentTrade?: {
     symbol?: string;
@@ -136,12 +160,13 @@ export class CoachAgent extends Agent {
   private buildSystemPrompt(): string {
     return `You are a personal trading coach with deep knowledge of technical analysis, options, and behavioral finance.
 Your role is to give traders personalized, evidence-based coaching grounded in their actual past trade history.
-You have access to semantically similar trades from the user's journal — use them as your primary evidence.
-Be direct, specific, and honest. Acknowledge both strengths and patterns to improve.
-Always ground your advice in the retrieved trade data rather than generic advice.
+You have access to the user's full trade portfolio statistics AND semantically similar trades from their journal.
+Use the Portfolio Summary as ground truth for what trades exist. Use similar trades for detailed pattern analysis.
+Be direct, specific, and honest. Reference actual symbols, P&L numbers, and dates from the data provided.
+Never say you cannot see the user's trades — the portfolio summary always reflects the real database state.
 Format your response as JSON with exactly these fields:
 {
-  "reply": "Your coaching response in 2-4 paragraphs. Reference specific trades from context.",
+  "reply": "Your coaching response in 2-4 paragraphs. Reference specific trades and numbers from the context.",
   "suggestedActions": ["Action 1", "Action 2", "Action 3"]
 }`;
   }
@@ -156,21 +181,40 @@ Format your response as JSON with exactly these fields:
     // User's question
     parts.push(`## User Question\n${input.userQuery}`);
 
+    // Portfolio summary from direct DB query (always accurate, no embeddings needed)
+    if (input.tradeSummary) {
+      const s = input.tradeSummary;
+      const topSymbolsText = s.topSymbols
+        .slice(0, 8)
+        .map((x) => `${x.symbol} (${x.trades} trades, P&L: $${x.pnl.toFixed(2)})`)
+        .join(', ');
+      const recentText = s.recentTrades
+        .slice(0, 10)
+        .map((t) => `${t.symbol} ${t.type} ${t.status}${t.pnl != null ? ` P&L:$${t.pnl.toFixed(2)}` : ''} entry:${t.entryDate.slice(0, 10)}`)
+        .join(' | ');
+      parts.push(`## Portfolio Summary (live from database)
+Total Trades: ${s.totalTrades} (${s.closedTrades} closed, ${s.openTrades} open)
+Win Rate: ${s.winRate}% (${s.winCount} wins / ${s.lossCount} losses on closed trades)
+Total P&L: $${s.totalPnl.toFixed(2)}
+Avg Win: $${s.avgWin.toFixed(2)} | Avg Loss: $${s.avgLoss.toFixed(2)}
+Most Traded Symbols: ${topSymbolsText || 'N/A'}
+Recent Trades: ${recentText || 'N/A'}`);
+    }
+
     // Current trade context
     if (input.currentTrade) {
       parts.push(`## Current Trade Context\n${JSON.stringify(input.currentTrade, null, 2)}`);
     }
 
-    // Behavioral patterns computed from RAG results
-    parts.push(`## Patterns from Similar Past Trades (${similarTrades.length} retrieved)
+    // Behavioral patterns from RAG results
+    if (similarTrades.length > 0) {
+      parts.push(`## Patterns from Semantically Similar Trades (${similarTrades.length} retrieved)
 Win Rate: ${patterns.winRate}%
 Avg Win: $${patterns.avgWin.toFixed(2)}
 Avg Loss: $${patterns.avgLoss.toFixed(2)}
 Top Setups: ${patterns.topSetups.join(', ') || 'N/A'}
 Risk Warnings: ${patterns.riskWarnings.join('; ') || 'None'}`);
 
-    // The retrieved similar trades (raw context for the LLM to reason over)
-    if (similarTrades.length > 0) {
       const tradeContext = similarTrades
         .map((t, i) =>
           `Trade ${i + 1} (${Math.round(t.similarity * 100)}% similar):
@@ -181,7 +225,7 @@ Risk Warnings: ${patterns.riskWarnings.join('; ') || 'None'}`);
         .join('\n\n');
       parts.push(`## Retrieved Similar Trades\n${tradeContext}`);
     } else {
-      parts.push(`## Retrieved Similar Trades\nNo similar past trades found yet. Provide general coaching based on the question.`);
+      parts.push(`## Retrieved Similar Trades\nSemantic search returned no results (embeddings may still be processing). Use the Portfolio Summary above as your primary data source.`);
     }
 
     return parts.join('\n\n');

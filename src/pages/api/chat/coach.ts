@@ -14,8 +14,9 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireAuth } from '@/lib/apiAuth';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { getCoachAgent } from '@/lib/agents/coachAgent';
-import type { CoachResponse, CoachInput } from '@/lib/agents/coachAgent';
+import type { CoachResponse, CoachInput, TradeSummary } from '@/lib/agents/coachAgent';
 
 interface ApiResponse {
   success: boolean;
@@ -44,11 +45,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   // Enforce safe history size (last 10 messages max)
   const safeHistory = (history ?? []).slice(-10);
 
+  // ── Fetch aggregate portfolio stats directly from trades table ──────────────
+  // This gives the coach ground-truth context regardless of embedding status.
+  let tradeSummary: TradeSummary | undefined;
+  try {
+    const supabase = getSupabaseServiceRoleClient();
+    if (supabase) {
+      const { data: allTrades } = await supabase
+        .from('trades')
+        .select('id, symbol, type, status, pnl, entry_date, exit_date, tags')
+        .eq('user_id', user.id)
+        .order('entry_date', { ascending: false });
+
+      if (allTrades && allTrades.length > 0) {
+        const closed = allTrades.filter((t: { status: string }) => t.status === 'closed');
+        const open = allTrades.filter((t: { status: string }) => t.status === 'open');
+        const wins = closed.filter((t: { pnl: number | null }) => (t.pnl ?? 0) > 0);
+        const losses = closed.filter((t: { pnl: number | null }) => (t.pnl ?? 0) < 0);
+        const totalPnl = closed.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0);
+        const avgWin = wins.length ? wins.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0) / wins.length : 0;
+        const avgLoss = losses.length ? losses.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0) / losses.length : 0;
+
+        // Aggregate by symbol
+        const bySymbol: Record<string, { trades: number; pnl: number }> = {};
+        for (const t of allTrades as { symbol: string; pnl: number | null }[]) {
+          if (!bySymbol[t.symbol]) bySymbol[t.symbol] = { trades: 0, pnl: 0 };
+          bySymbol[t.symbol].trades++;
+          bySymbol[t.symbol].pnl += t.pnl ?? 0;
+        }
+        const topSymbols = Object.entries(bySymbol)
+          .sort((a, b) => b[1].trades - a[1].trades)
+          .slice(0, 10)
+          .map(([symbol, v]) => ({ symbol, ...v }));
+
+        tradeSummary = {
+          totalTrades: allTrades.length,
+          closedTrades: closed.length,
+          openTrades: open.length,
+          winCount: wins.length,
+          lossCount: losses.length,
+          winRate: closed.length > 0 ? Math.round((wins.length / closed.length) * 100) : 0,
+          totalPnl,
+          avgWin,
+          avgLoss,
+          topSymbols,
+          recentTrades: allTrades.slice(0, 20) as TradeSummary['recentTrades'],
+        };
+      }
+    }
+  } catch {
+    // Non-fatal — coach proceeds without stats if DB query fails
+  }
+
   try {
     const coach = getCoachAgent();
     const result = await coach.coach({
       userId: user.id,
       userQuery: query.trim(),
+      tradeSummary,
       currentTrade: currentTrade as CoachInput['currentTrade'],
       history: safeHistory,
     });

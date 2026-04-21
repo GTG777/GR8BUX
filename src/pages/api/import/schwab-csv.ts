@@ -150,9 +150,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
       result.imported++;
 
-      // Queue closed trades for RAG embedding
+      // Queue closed trades for RAG embedding — store actual tradeId directly
       if (trade.status === 'closed' && trade.pnl != null) {
-        toEmbed.push({ ...trade, importHash: tradeId }); // pass tradeId as id placeholder
+        toEmbed.push({ ...trade, _tradeId: tradeId });
       }
     } catch (err) {
       result.failed++;
@@ -165,17 +165,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     (async () => {
       for (const t of toEmbed) {
         try {
-          // Fetch the actual trade ID we just inserted (importHash has tradeId now)
-          const { data: row } = await supabase
-            .from('trades')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('import_hash', t.importHash)
-            .maybeSingle();
-          if (!row) continue;
-
+          const tradeId = (t as ParsedTrade & { _tradeId: string })._tradeId;
           await embedTrade({
-            id: row.id,
+            id: tradeId,
             user_id: user.id,
             symbol: t.symbol,
             type: t.type,
