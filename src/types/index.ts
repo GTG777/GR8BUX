@@ -215,6 +215,7 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  total?: number;
 }
 
 // Smart Money Concepts (SMC) Types
