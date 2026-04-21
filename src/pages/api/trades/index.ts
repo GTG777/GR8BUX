@@ -3,6 +3,7 @@ import { getSupabaseClient, getSupabaseServiceRoleClient } from '@/lib/supabase'
 import { Trade, ApiResponse } from '@/types';
 import { convertTradeFromDatabase } from '@/lib/tradeConverters';
 import { requireAuth } from '@/lib/apiAuth';
+import { embedTrade } from '@/lib/ragEmbeddings';
 
 /**
  * GET: Fetch all trades for authenticated user
@@ -268,6 +269,25 @@ async function handleCreateTrade(
     const row = completeTradeData as any;
     const stRow = Array.isArray(row.stock_trades) ? row.stock_trades[0] : row.stock_trades;
     const optRow = Array.isArray(row.option_trades) ? row.option_trades[0] : row.option_trades;
+
+    // Trigger embedding if newly created trade is already closed (fire-and-forget)
+    if (row.status === 'closed') {
+      embedTrade({
+        id: row.id,
+        user_id: row.user_id,
+        symbol: row.symbol,
+        type: row.type,
+        status: row.status,
+        pnl: row.pnl,
+        notes: row.notes ?? null,
+        plan_notes: row.plan_notes ?? null,
+        tags: row.tags ?? null,
+        entry_date: row.entry_date ?? new Date().toISOString(),
+        exit_date: row.exit_date ?? null,
+        setup_type: row.setup_type ?? null,
+      }).catch((err) => console.error('[embedTrade] create trigger failed:', err));
+    }
+
     return res.status(201).json({
       success: true,
       data: convertTradeFromDatabase({ ...row, stockData: stRow ?? undefined, optionData: optRow ?? undefined }),
