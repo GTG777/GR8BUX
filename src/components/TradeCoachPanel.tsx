@@ -313,7 +313,7 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
           </button>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-          Coach uses your trade journal for personalized advice. Not financial advice.
+          Coach uses your trade journal for personalized coaching. Not financial advice.
         </p>
       </div>
     </div>
