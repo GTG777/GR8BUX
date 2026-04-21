@@ -6,6 +6,35 @@
 // Agent Types
 export type AgentType = 'technical' | 'greeks' | 'risk_manager' | 'sentiment' | 'strategist' | 'coach';
 
+// Coach Agent — RAG-powered
+export interface CoachSimilarTrade {
+  trade_id: string;
+  symbol: string;
+  setup_type: string | null;
+  outcome: 'win' | 'loss' | 'breakeven';
+  pnl: number | null;
+  tags: string[];
+  similarity: number;
+  embedded_text: string;
+}
+
+export interface CoachPatterns {
+  winRate: number;
+  avgWin: number;
+  avgLoss: number;
+  topSetups: string[];
+  riskWarnings: string[];
+}
+
+export interface CoachChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  similarTrades?: CoachSimilarTrade[];
+  patterns?: CoachPatterns;
+  suggestedActions?: string[];
+}
+
 // Technical Analyst Responses
 export interface TechnicalAnalysis {
   agentType: 'technical';

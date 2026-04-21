@@ -18,6 +18,9 @@ export type { RiskData } from './riskManager';
 export { TradeStrategist, getTradeStrategist } from './tradeStrategist';
 export type { StrategyInput } from './tradeStrategist';
 
+export { CoachAgent, getCoachAgent } from './coachAgent';
+export type { CoachInput, CoachResponse } from './coachAgent';
+
 export { AIOrchestrator, getAIOrchestrator, resetOrchestratorInstance } from './orchestrator';
 export type { OrchestrationConfig, FullSetupData } from './orchestrator';
 

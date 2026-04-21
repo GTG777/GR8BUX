@@ -10,3 +10,4 @@ export { default as Navigation } from './Navigation/Navigation';
 
 // AI Agent Components
 export { default as AIAdvisorPanel } from './AIAdvisorPanel';
+export { TradeCoachPanel } from './TradeCoachPanel';
