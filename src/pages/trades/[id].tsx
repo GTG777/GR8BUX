@@ -141,10 +141,10 @@ export default function TradeDetailPage() {
     new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const dirColor = (dir: 'long' | 'short') =>
-    dir === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    dir === 'long' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400';
 
   const typeColor = (t: 'call' | 'put') =>
-    t === 'call' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+    t === 'call' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-400';
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm';
 
@@ -175,7 +175,7 @@ export default function TradeDetailPage() {
 
         {/* Breadcrumb */}
         <div className="flex items-center justify-between">
-          <Link href="/trades" className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
+          <Link href="/trades" className="text-sm text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-100 flex items-center gap-1">
             ← Back to Trades
           </Link>
           {!editMode ? (
@@ -188,7 +188,7 @@ export default function TradeDetailPage() {
           ) : (
             <button
               onClick={() => { setEditMode(false); setEditData(null); }}
-              className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-medium"
+              className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600 font-medium"
             >
               Cancel
             </button>
@@ -207,7 +207,7 @@ export default function TradeDetailPage() {
                     className="text-3xl font-extrabold text-gray-900 dark:text-white border-b-2 border-blue-400 bg-transparent focus:outline-none w-32"
                   />
                 ) : (
-                  <h1 className="text-3xl font-extrabold text-gray-900">{trade.symbol}</h1>
+                  <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">{trade.symbol}</h1>
                 )}
                 {editMode ? (
                   <select
@@ -221,10 +221,10 @@ export default function TradeDetailPage() {
                   </select>
                 ) : (
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
-                    trade.status === 'closed' ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'
+                    trade.status === 'closed' ? 'bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-zinc-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                   }`}>{trade.status}</span>
                 )}
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 capitalize">{trade.type}</span>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 capitalize">{trade.type}</span>
               </div>
               {trade.optionData?.strategy && (
                 <p className="text-sm text-gray-500 font-medium">{trade.optionData.strategy}</p>
@@ -246,7 +246,7 @@ export default function TradeDetailPage() {
               ) : (
                 <p className={`text-3xl font-extrabold ${
                   trade.pnl == null ? 'text-gray-400' :
-                  trade.pnl > 0 ? 'text-green-600' : trade.pnl < 0 ? 'text-red-600' : 'text-gray-600'
+                  trade.pnl > 0 ? 'text-green-500' : trade.pnl < 0 ? 'text-red-500' : 'text-gray-500 dark:text-zinc-400'
                 }`}>
                   {trade.pnl == null ? '—' : `${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}`}
                 </p>
@@ -260,7 +260,7 @@ export default function TradeDetailPage() {
               {editMode ? (
                 <input type="date" value={editData!.entryDate} onChange={(e) => set('entryDate', e.target.value)} className={inputCls} />
               ) : (
-                <p className="font-semibold text-gray-800">{fmt(trade.entryDate)}</p>
+                <p className="font-semibold text-gray-800 dark:text-zinc-100">{fmt(trade.entryDate)}</p>
               )}
             </div>
             <div>
@@ -268,7 +268,7 @@ export default function TradeDetailPage() {
               {editMode ? (
                 <input type="date" value={editData!.exitDate} onChange={(e) => set('exitDate', e.target.value)} className={inputCls} />
               ) : (
-                <p className="font-semibold text-gray-800">{trade.exitDate ? fmt(trade.exitDate) : '—'}</p>
+                <p className="font-semibold text-gray-800 dark:text-zinc-100">{trade.exitDate ? fmt(trade.exitDate) : '—'}</p>
               )}
             </div>
             <div>
@@ -276,7 +276,7 @@ export default function TradeDetailPage() {
               {editMode ? (
                 <input type="number" step="0.01" placeholder="0.00" value={editData!.commission} onChange={(e) => set('commission', e.target.value)} className={inputCls} />
               ) : (
-                <p className="font-semibold text-gray-800">${(trade.commission || 0).toFixed(2)}</p>
+                <p className="font-semibold text-gray-800 dark:text-zinc-100">${(trade.commission || 0).toFixed(2)}</p>
               )}
             </div>
             <div>
@@ -287,7 +287,7 @@ export default function TradeDetailPage() {
                 <div className="flex flex-wrap gap-1">
                   {trade.tags && trade.tags.length > 0
                     ? trade.tags.map((t) => (
-                        <span key={t} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{t}</span>
+                        <span key={t} className="px-2 py-0.5 bg-gray-100 text-gray-600 dark:bg-zinc-700 dark:text-zinc-300 rounded text-xs">{t}</span>
                       ))
                     : <span className="text-gray-400">—</span>
                   }
@@ -301,16 +301,16 @@ export default function TradeDetailPage() {
         {trade.type === 'option' && trade.optionData && (
           <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6">
             <div className="flex items-center gap-3 mb-4">
-              <h2 className="text-base font-bold text-gray-800">Option Legs</h2>
+              <h2 className="text-base font-bold text-gray-800 dark:text-white">Option Legs</h2>
               <div className="flex gap-3 text-sm text-gray-500">
-                <span>Net Credit: <strong className="text-gray-800">
+                <span>Net Credit: <strong className="text-gray-800 dark:text-zinc-100">
                   {trade.optionData.totalCost != null
                     ? (trade.optionData.totalCost <= 0
                         ? `+$${Math.abs(trade.optionData.totalCost).toFixed(2)}`
                         : `-$${trade.optionData.totalCost.toFixed(2)}`)
                     : '—'}
                 </strong></span>
-                <span>Total Premium: <strong className="text-gray-800">
+                <span>Total Premium: <strong className="text-gray-800 dark:text-zinc-100">
                   ${(trade.optionData.totalPremium || 0).toFixed(2)}
                 </strong></span>
               </div>
@@ -320,7 +320,7 @@ export default function TradeDetailPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
+                    <tr className="border-b border-gray-100 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800">
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Direction</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Call/Put</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Strike</th>
@@ -344,7 +344,7 @@ export default function TradeDetailPage() {
                             : (exitPrice - leg.entryPrice) * leg.quantity * 100
                           : null;
                       return (
-                        <tr key={leg.id || i} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-gray-50/40'}`}>
+                        <tr key={leg.id || i} className={`border-b border-gray-50 dark:border-zinc-800 ${i % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-gray-50/40 dark:bg-zinc-800/40'}`}>
                           <td className="px-3 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${dirColor(leg.direction)}`}>
                               {leg.direction}
@@ -355,10 +355,10 @@ export default function TradeDetailPage() {
                               {leg.type}
                             </span>
                           </td>
-                          <td className="px-3 py-3 font-mono font-semibold text-gray-800">${leg.strikePrice}</td>
-                          <td className="px-3 py-3 text-gray-600">{leg.expirationDate}</td>
-                          <td className="px-3 py-3 text-right text-gray-800">{leg.quantity}</td>
-                          <td className="px-3 py-3 text-right font-mono text-gray-800">${leg.entryPrice.toFixed(2)}</td>
+                          <td className="px-3 py-3 font-mono font-semibold text-gray-800 dark:text-zinc-100">${leg.strikePrice}</td>
+                          <td className="px-3 py-3 text-gray-600 dark:text-zinc-400">{leg.expirationDate}</td>
+                          <td className="px-3 py-3 text-right text-gray-800 dark:text-zinc-100">{leg.quantity}</td>
+                          <td className="px-3 py-3 text-right font-mono text-gray-800 dark:text-zinc-100">${leg.entryPrice.toFixed(2)}</td>
                           <td className="px-3 py-3 text-right font-mono">
                             {editMode && leg.id ? (
                               <input
@@ -370,14 +370,14 @@ export default function TradeDetailPage() {
                                 className="w-24 px-2 py-1 border border-gray-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-right text-sm"
                               />
                             ) : (
-                              <span className="text-gray-500">
+                              <span className="text-gray-500 dark:text-zinc-400">
                                 {leg.exitPrice != null ? `$${leg.exitPrice.toFixed(2)}` : '—'}
                               </span>
                             )}
                           </td>
                           <td className={`px-3 py-3 text-right font-semibold ${
                             legPnl == null ? 'text-gray-400' :
-                            legPnl > 0 ? 'text-green-600' : legPnl < 0 ? 'text-red-600' : 'text-gray-600'
+                            legPnl > 0 ? 'text-green-500' : legPnl < 0 ? 'text-red-500' : 'text-gray-500 dark:text-zinc-400'
                           }`}>
                             {legPnl == null ? '—' : `${legPnl >= 0 ? '+' : ''}$${legPnl.toFixed(2)}`}
                           </td>
@@ -396,14 +396,14 @@ export default function TradeDetailPage() {
         {/* Stock Details */}
         {trade.type === 'stock' && (trade.stockData || editMode) && (
           <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6">
-            <h2 className="text-base font-bold text-gray-800 mb-4">Stock Details</h2>
+            <h2 className="text-base font-bold text-gray-800 dark:text-white mb-4">Stock Details</h2>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Quantity</p>
                 {editMode ? (
                   <input type="number" value={editData!.stockQty} onChange={(e) => set('stockQty', e.target.value)} className={inputCls} />
                 ) : (
-                  <p className="font-semibold text-gray-800">{trade.stockData?.quantity}</p>
+                  <p className="font-semibold text-gray-800 dark:text-zinc-100">{trade.stockData?.quantity}</p>
                 )}
               </div>
               <div>
@@ -411,7 +411,7 @@ export default function TradeDetailPage() {
                 {editMode ? (
                   <input type="number" step="0.01" value={editData!.stockEntry} onChange={(e) => set('stockEntry', e.target.value)} className={inputCls} />
                 ) : (
-                  <p className="font-semibold text-gray-800">${trade.stockData?.entryPrice?.toFixed(2)}</p>
+                  <p className="font-semibold text-gray-800 dark:text-zinc-100">${trade.stockData?.entryPrice?.toFixed(2)}</p>
                 )}
               </div>
               <div>
@@ -419,7 +419,7 @@ export default function TradeDetailPage() {
                 {editMode ? (
                   <input type="number" step="0.01" value={editData!.stockExit} onChange={(e) => set('stockExit', e.target.value)} className={inputCls} />
                 ) : (
-                  <p className="font-semibold text-gray-800">
+                  <p className="font-semibold text-gray-800 dark:text-zinc-100">
                     {trade.stockData?.exitPrice != null ? `$${trade.stockData.exitPrice.toFixed(2)}` : '—'}
                   </p>
                 )}
@@ -431,7 +431,7 @@ export default function TradeDetailPage() {
         {/* Notes */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6 space-y-4">
           <div>
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">Plan Notes</h2>
+            <h2 className="text-sm font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-widest mb-2">Plan Notes</h2>
             {editMode ? (
               <textarea
                 rows={4}
@@ -441,13 +441,13 @@ export default function TradeDetailPage() {
                 className={inputCls}
               />
             ) : (
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              <p className="text-sm text-gray-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
                 {trade.planNotes || <span className="text-gray-400">—</span>}
               </p>
             )}
           </div>
           <div>
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">Trade Notes</h2>
+            <h2 className="text-sm font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-widest mb-2">Trade Notes</h2>
             {editMode ? (
               <textarea
                 rows={4}
@@ -457,7 +457,7 @@ export default function TradeDetailPage() {
                 className={inputCls}
               />
             ) : (
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              <p className="text-sm text-gray-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
                 {trade.notes || <span className="text-gray-400">—</span>}
               </p>
             )}
@@ -469,11 +469,11 @@ export default function TradeDetailPage() {
       {/* Sticky Save Bar */}
       {editMode && (
         <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 shadow-lg px-6 py-4 flex items-center justify-between z-50">
-          <p className="text-sm text-gray-500">Editing <strong>{trade.symbol}</strong> — unsaved changes</p>
+          <p className="text-sm text-gray-500 dark:text-zinc-400">Editing <strong>{trade.symbol}</strong> — unsaved changes</p>
           <div className="flex gap-3">
             <button
               onClick={() => { setEditMode(false); setEditData(null); }}
-              className="px-5 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 font-medium"
+              className="px-5 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800 font-medium"
             >
               Cancel
             </button>
