@@ -14,9 +14,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireAuth } from '@/lib/apiAuth';
-import { getSupabaseServiceRoleClient, getSupabaseClient } from '@/lib/supabase';
 import { getCoachAgent } from '@/lib/agents/coachAgent';
-import type { CoachResponse } from '@/lib/agents/coachAgent';
+import type { CoachResponse, CoachInput } from '@/lib/agents/coachAgent';
 
 interface ApiResponse {
   success: boolean;
@@ -50,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const result = await coach.coach({
       userId: user.id,
       userQuery: query.trim(),
-      currentTrade: currentTrade as CoachResponse['similarTrades'][0] | undefined,
+      currentTrade: currentTrade as CoachInput['currentTrade'],
       history: safeHistory,
     });
 
