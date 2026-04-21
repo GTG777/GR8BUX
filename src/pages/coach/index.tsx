@@ -27,7 +27,9 @@ export default function CoachPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Sync failed');
-      setSyncResult(`Synced ${json.data?.embedded ?? 0} trade(s). ${json.data?.skipped ?? 0} already up to date.`);
+      const embedded = json.data?.embedded ?? 0;
+      const skipped = json.data?.skipped ?? 0;
+      setSyncResult(`Synced ${embedded} trade(s). ${skipped} already up to date.`);
     } catch (err) {
       setSyncResult(err instanceof Error ? err.message : 'Sync failed');
     } finally {

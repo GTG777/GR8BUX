@@ -16,6 +16,7 @@ import { embedTrade, backfillUserEmbeddings, TradeRecord } from '@/lib/ragEmbedd
 interface ApiResponse {
   success: boolean;
   message?: string;
+  data?: { embedded: number; skipped: number };
   error?: string;
 }
 
@@ -40,7 +41,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       const result = await backfillUserEmbeddings(user.id);
       return res.status(200).json({
         success: true,
-        message: `Embedded ${result.embedded} trades, skipped ${result.skipped}`,
+        message: `Embedded ${result.embedded} trade(s), skipped ${result.skipped}`,
+        data: { embedded: result.embedded, skipped: result.skipped },
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Backfill error';

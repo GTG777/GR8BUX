@@ -173,20 +173,30 @@ export async function backfillUserEmbeddings(userId: string): Promise<{ embedded
   const supabase = getSupabaseServiceRoleClient();
   if (!supabase) throw new Error('Supabase service role client unavailable');
 
-  // Fetch closed trades that have no embedding yet
+  // Fetch IDs already embedded
+  const { data: alreadyEmbedded } = await supabase
+    .from('trade_embeddings')
+    .select('trade_id')
+    .eq('user_id', userId);
+
+  const embeddedIds = new Set((alreadyEmbedded ?? []).map((r: { trade_id: string }) => r.trade_id));
+
+  // Fetch all closed trades for this user
   const { data: trades, error } = await supabase
     .from('trades')
     .select('*')
     .eq('user_id', userId)
-    .eq('status', 'closed')
-    .not('id', 'in', supabase.from('trade_embeddings').select('trade_id'));
+    .eq('status', 'closed');
 
   if (error) throw error;
+
+  // Filter out already-embedded ones in JS (avoids complex subquery)
+  const unembed = (trades ?? []).filter((t: { id: string }) => !embeddedIds.has(t.id));
 
   let embedded = 0;
   let skipped = 0;
 
-  for (const trade of trades ?? []) {
+  for (const trade of unembed) {
     try {
       await embedTrade(trade as TradeRecord);
       embedded++;
