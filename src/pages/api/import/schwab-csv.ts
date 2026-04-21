@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const existingHashes = new Set((existing ?? []).map((r: { import_hash: string }) => r.import_hash));
 
   const result: ImportResult = { imported: 0, duplicate: 0, failed: 0, errors: [] };
-  const toEmbed: typeof trades = [];
+  const toEmbed: Array<{ trade: ParsedTrade; tradeId: string }> = [];
 
   for (const trade of trades) {
     // Skip duplicates
@@ -152,7 +152,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
       // Queue closed trades for RAG embedding — store actual tradeId directly
       if (trade.status === 'closed' && trade.pnl != null) {
-        toEmbed.push({ ...trade, _tradeId: tradeId });
+        toEmbed.push({ trade, tradeId });
       }
     } catch (err) {
       result.failed++;
@@ -163,9 +163,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   // Fire-and-forget RAG embedding for all newly imported closed trades
   if (toEmbed.length > 0) {
     (async () => {
-      for (const t of toEmbed) {
+      for (const { trade: t, tradeId } of toEmbed) {
         try {
-          const tradeId = (t as ParsedTrade & { _tradeId: string })._tradeId;
           await embedTrade({
             id: tradeId,
             user_id: user.id,
