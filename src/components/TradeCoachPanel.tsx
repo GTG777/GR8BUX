@@ -156,8 +156,52 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
   const [messages, setMessages] = useState<CoachChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // ── Load session from DB on mount ─────────────────────────────────────────
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) { setSessionLoading(false); return; }
+    supabase.auth.getSession().then(async ({ data }) => {
+      const token = data?.session?.access_token;
+      if (!token) { setSessionLoading(false); return; }
+      try {
+        const res = await fetch('/api/chat/coach-session', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data.messages.length > 0) {
+            setMessages(json.data.messages);
+          }
+        }
+      } finally {
+        setSessionLoading(false);
+      }
+    });
+  }, []);
+
+  // ── Persist session to DB (fire-and-forget) ───────────────────────────────
+  const saveSession = async (msgs: CoachChatMessage[]) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    if (!token) return;
+    fetch('/api/chat/coach-session', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messages: msgs }),
+    }).catch(() => {/* silent */});
+  };
+
+  // ── Clear session ─────────────────────────────────────────────────────────
+  const clearSession = async () => {
+    setMessages([]);
+    saveSession([]);
+  };
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -209,7 +253,11 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
         patterns,
         suggestedActions,
       };
-      setMessages((prev) => [...prev, assistantMsg]);
+      setMessages((prev) => {
+        const next = [...prev, assistantMsg];
+        saveSession(next);
+        return next;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       // Remove the optimistic user message on error
@@ -233,15 +281,29 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
         <div className="w-8 h-8 rounded-full bg-gradient-brand flex items-center justify-center text-white text-sm">
           🎓
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">Trade Coach</p>
           <p className="text-xs text-muted-foreground">Powered by RAG + Claude — grounded in your own trade history</p>
         </div>
+        {messages.length > 0 && (
+          <button
+            onClick={clearSession}
+            title="Clear chat history"
+            className="text-xs text-muted-foreground hover:text-red-500 transition-colors shrink-0"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
+        {sessionLoading && (
+          <div className="flex justify-center pt-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+          </div>
+        )}
+        {!sessionLoading && messages.length === 0 && (
           <div className="text-center pt-6 pb-2">
             <p className="text-2xl mb-2">📚</p>
             <p className="text-sm font-medium text-foreground mb-1">Your personal trading coach</p>
