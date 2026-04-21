@@ -204,7 +204,7 @@ export default function TradeDetailPage() {
                   <input
                     value={editData!.symbol}
                     onChange={(e) => set('symbol', e.target.value.toUpperCase())}
-                    className="text-3xl font-extrabold text-gray-900 border-b-2 border-blue-400 bg-transparent focus:outline-none w-32"
+                    className="text-3xl font-extrabold text-gray-900 dark:text-white border-b-2 border-blue-400 bg-transparent focus:outline-none w-32"
                   />
                 ) : (
                   <h1 className="text-3xl font-extrabold text-gray-900">{trade.symbol}</h1>
@@ -213,7 +213,7 @@ export default function TradeDetailPage() {
                   <select
                     value={editData!.status}
                     onChange={(e) => set('status', e.target.value)}
-                    className="px-3 py-1 rounded-full text-xs font-semibold border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-1 rounded-full text-xs font-semibold border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="open">open</option>
                     <option value="closed">closed</option>
@@ -241,7 +241,7 @@ export default function TradeDetailPage() {
                   placeholder="0.00"
                   value={editData!.pnl}
                   onChange={(e) => set('pnl', e.target.value)}
-                  className="text-right text-2xl font-extrabold border-b-2 border-blue-400 bg-transparent focus:outline-none w-36"
+                  className="text-right text-2xl font-extrabold text-gray-900 dark:text-white border-b-2 border-blue-400 bg-transparent focus:outline-none w-36"
                 />
               ) : (
                 <p className={`text-3xl font-extrabold ${
@@ -367,7 +367,7 @@ export default function TradeDetailPage() {
                                 placeholder="—"
                                 value={editData!.legExitPrices[leg.id] ?? ''}
                                 onChange={(e) => setLegExit(leg.id!, e.target.value)}
-                                className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-right text-sm"
+                                className="w-24 px-2 py-1 border border-gray-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-right text-sm"
                               />
                             ) : (
                               <span className="text-gray-500">
