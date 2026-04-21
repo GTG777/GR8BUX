@@ -4,7 +4,7 @@ import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 import type { ApiResponse } from '@/types';
 import type { CoachChatMessage } from '@/types/agents';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<ApiResponse>) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse<ApiResponse<unknown>>) {
   const user = await requireAuth(req, res);
   if (!user) return;
 
