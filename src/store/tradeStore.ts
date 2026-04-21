@@ -10,6 +10,7 @@ interface TradeFilter {
 
 interface TradeState {
   trades: Trade[];
+  totalCount: number;
   analytics: TradeAnalytics | null;
   isLoading: boolean;
   error: string | null;
@@ -39,6 +40,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 export const useTradeStore = create<TradeState>((set, get) => ({
   trades: [],
+  totalCount: 0,
   analytics: null,
   isLoading: false,
   error: null,
@@ -56,7 +58,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         headers: await authHeaders(),
       });
       if (response.data.success) {
-        set({ trades: response.data.data, isLoading: false });
+        set({ trades: response.data.data, totalCount: response.data.total ?? response.data.data.length, isLoading: false });
       } else {
         set({ error: response.data.error || 'Failed to fetch trades', isLoading: false });
       }

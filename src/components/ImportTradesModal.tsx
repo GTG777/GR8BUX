@@ -242,7 +242,7 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
               {/* Trade preview table */}
               {parseResult.trades.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto overflow-y-auto max-h-64">
                     <table className="w-full text-xs">
                       <thead className="bg-muted/50 text-muted-foreground">
                         <tr>

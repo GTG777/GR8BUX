@@ -6,7 +6,7 @@ import { Trade } from '@/types';
 import Link from 'next/link';
 
 export function TradeList() {
-  const { trades, isLoading, error, fetchTrades, deleteTrade, clearError } = useTradeStore();
+  const { trades, totalCount, isLoading, error, fetchTrades, deleteTrade, clearError } = useTradeStore();
 
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
@@ -224,7 +224,7 @@ export function TradeList() {
           {/* Pagination */}
           <div className="bg-gray-50 dark:bg-zinc-800/60 px-6 py-4 flex justify-between items-center border-t dark:border-zinc-700/50">
             <div className="text-sm text-gray-600 dark:text-zinc-400">
-              Showing {page * limit + 1} to {Math.min((page + 1) * limit, trades.length)} of {trades.length} trades
+              Showing {page * limit + 1} to {Math.min((page + 1) * limit, totalCount)} of {totalCount} trades
             </div>
             <div className="flex gap-2">
               <button
@@ -236,7 +236,7 @@ export function TradeList() {
               </button>
               <button
                 onClick={() => setPage(page + 1)}
-                disabled={trades.length <= (page + 1) * limit}
+                disabled={totalCount <= (page + 1) * limit}
                 className="px-4 py-2 border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-zinc-300 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next

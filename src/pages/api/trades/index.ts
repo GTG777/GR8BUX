@@ -53,7 +53,7 @@ async function handleGetTrades(
 
   let query = supabase
     .from('trades')
-    .select('*, stock_trades(quantity, entry_price, exit_price), option_trades(strategy, total_premium, total_cost, option_legs(id, symbol, type, strike_price, expiration_date, direction, quantity, entry_price, exit_price))')
+    .select('*, stock_trades(quantity, entry_price, exit_price), option_trades(strategy, total_premium, total_cost, option_legs(id, symbol, type, strike_price, expiration_date, direction, quantity, entry_price, exit_price))', { count: 'exact' })
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -79,10 +79,9 @@ async function handleGetTrades(
     });
   }
 
-  res.setHeader('X-Total-Count', count || 0);
-  res.setHeader('X-Total-Count', count || 0);
   return res.status(200).json({
     success: true,
+    total: count ?? 0,
     data: (data as any[])?.map((row) => {
       // Supabase returns one-to-many joins as arrays even with unique FK
       const stRow = Array.isArray(row.stock_trades) ? row.stock_trades[0] : row.stock_trades;
