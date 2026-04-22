@@ -273,8 +273,13 @@ function matchTrades(rows: SchwabRow[], skippedRows: ParseResult['skippedRows'])
   const optionRows = rows.filter((r) => r.isOption);
 
   // ── Process stocks ──────────────────────────────────────────────────────────
-  // Sort oldest first for FIFO matching
-  stockRows.sort((a, b) => a.date.localeCompare(b.date));
+  // Sort oldest first for FIFO matching; within same date, Buy before Sell
+  // so same-day round-trips (day trades) pair correctly.
+  const stockActionOrder = (a: SchwabRow) => (a.action === 'Buy' ? 0 : 1);
+  stockRows.sort((a, b) => {
+    const d = a.date.localeCompare(b.date);
+    return d !== 0 ? d : stockActionOrder(a) - stockActionOrder(b);
+  });
 
   for (const row of stockRows) {
     const isBuy = row.action === 'Buy';
@@ -347,7 +352,13 @@ function matchTrades(rows: SchwabRow[], skippedRows: ParseResult['skippedRows'])
   }
 
   // ── Process options ─────────────────────────────────────────────────────────
-  optionRows.sort((a, b) => a.date.localeCompare(b.date));
+  // Within same date, Open before Close so same-day spreads/day trades pair correctly.
+  const optActionOrder = (a: SchwabRow) =>
+    (a.action === 'Buy to Open' || a.action === 'Sell to Open') ? 0 : 1;
+  optionRows.sort((a, b) => {
+    const d = a.date.localeCompare(b.date);
+    return d !== 0 ? d : optActionOrder(a) - optActionOrder(b);
+  });
 
   for (const row of optionRows) {
     const isOpen = row.action === 'Buy to Open' || row.action === 'Sell to Open';
