@@ -1,9 +1,25 @@
 ﻿'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTradeStore } from '@/store/tradeStore';
 import { Trade } from '@/types';
 import Link from 'next/link';
+import axios from 'axios';
+import { getSupabaseClient } from '@/lib/supabase';
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return {};
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+interface InlineEdit {
+  exitDate: string;
+  exitPrice: string;
+  status: 'open' | 'closed';
+}
 
 export function TradeList() {
   const { trades, totalCount, isLoading, error, fetchTrades, deleteTrade, clearError } = useTradeStore();
@@ -16,6 +32,76 @@ export function TradeList() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const limit = 20;
+
+  // Inline editing
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRow, setEditRow] = useState<InlineEdit | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+
+  function toDateInput(d?: string | null) {
+    if (!d) return '';
+    return d.slice(0, 10);
+  }
+
+  function openInlineEdit(trade: Trade) {
+    setInlineError(null);
+    const exitPrice = trade.stockData?.exitPrice != null
+      ? String(trade.stockData.exitPrice)
+      : trade.optionData?.legs?.[0]?.exitPrice != null
+      ? String(trade.optionData.legs[0].exitPrice)
+      : '';
+    setEditRow({
+      exitDate: toDateInput(trade.exitDate),
+      exitPrice,
+      status: trade.status as 'open' | 'closed',
+    });
+    setEditingId(trade.id);
+  }
+
+  async function handleInlineSave(trade: Trade) {
+    if (!editRow) return;
+    setSavingId(trade.id);
+    setInlineError(null);
+    try {
+      const headers = await authHeaders();
+      const body: Record<string, any> = {
+        status: editRow.status,
+        exit_date: editRow.exitDate ? new Date(editRow.exitDate + 'T12:00:00').toISOString() : null,
+      };
+      const ep = editRow.exitPrice !== '' ? parseFloat(editRow.exitPrice) : undefined;
+      if (trade.type === 'stock' && trade.stockData) {
+        body.stockData = {
+          quantity: trade.stockData.quantity,
+          entryPrice: trade.stockData.entryPrice,
+          exitPrice: ep,
+        };
+      } else if (trade.type === 'option' && trade.optionData?.legs?.length) {
+        body.legUpdates = trade.optionData.legs.map((leg) => ({
+          id: leg.id,
+          exitPrice: ep,
+          entryPrice: leg.entryPrice,
+          quantity: leg.quantity,
+          direction: leg.direction,
+        }));
+      }
+      const res = await axios.put(`/api/trades/${trade.id}`, body, { headers });
+      if (res.data.success) {
+        // Update local store trades list directly
+        useTradeStore.setState((state) => ({
+          trades: state.trades.map((t) => t.id === trade.id ? res.data.data : t),
+        }));
+        setEditingId(null);
+        setEditRow(null);
+      } else {
+        setInlineError(res.data.error || 'Failed to save');
+      }
+    } catch {
+      setInlineError('Failed to save changes.');
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   // Debounce symbol input — only fire fetch after 350ms of no typing
   useEffect(() => {
@@ -174,6 +260,13 @@ export function TradeList() {
         </div>
       )}
 
+      {/* Inline edit error */}
+      {inlineError && (
+        <div className="px-4 py-2 bg-red-900/30 border border-red-700/50 rounded-lg text-red-400 text-sm">
+          {inlineError}
+        </div>
+      )}
+
       {/* Trades Table */}
       {!isLoading && sortedTrades.length > 0 && (
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow">
@@ -195,8 +288,14 @@ export function TradeList() {
                 </tr>
               </thead>
               <tbody>
-                {sortedTrades.map((trade) => (
-                  <tr key={trade.id} className="border-b dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors">
+                {sortedTrades.map((trade) => {
+                  const isEditing = editingId === trade.id;
+                  const isSaving = savingId === trade.id;
+                  const inCls = 'w-full px-1.5 py-1 text-xs rounded border border-zinc-600 bg-zinc-800 text-white focus:ring-1 focus:ring-primary focus:outline-none';
+                  return (
+                  <tr key={trade.id} className={`border-b dark:border-zinc-700/20 transition-colors ${
+                    isEditing ? 'bg-zinc-800/60' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/40'
+                  }`}>
                     <td className="px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white">{trade.symbol}</td>
                     <td className="px-3 py-2 text-xs text-gray-600 dark:text-zinc-400 capitalize">{trade.type}</td>
                     <td className="px-3 py-2 text-xs text-center">
@@ -217,11 +316,19 @@ export function TradeList() {
                         : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-600 dark:text-zinc-400 whitespace-nowrap">{formatDate(trade.entryDate)}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600 dark:text-zinc-400 whitespace-nowrap">
-                      {trade.exitDate
-                        ? formatDate(trade.exitDate)
-                        : <span className="text-gray-400">—</span>}
+
+                    {/* Exit Date — editable */}
+                    <td className="px-2 py-1.5 text-xs text-gray-600 dark:text-zinc-400 whitespace-nowrap">
+                      {isEditing ? (
+                        <input
+                          type="date"
+                          value={editRow!.exitDate}
+                          onChange={(e) => setEditRow((r) => r ? { ...r, exitDate: e.target.value } : r)}
+                          className={inCls}
+                        />
+                      ) : trade.exitDate ? formatDate(trade.exitDate) : <span className="text-gray-400">—</span>}
                     </td>
+
                     <td className="px-3 py-2 text-xs text-right text-gray-600 dark:text-zinc-400">
                       {trade.stockData?.entryPrice != null
                         ? formatCurrency(trade.stockData.entryPrice)
@@ -229,45 +336,96 @@ export function TradeList() {
                         ? formatCurrency(trade.optionData.legs[0].entryPrice)
                         : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-3 py-2 text-xs text-right text-gray-600 dark:text-zinc-400">
-                      {trade.stockData?.exitPrice != null
-                        ? formatCurrency(trade.stockData.exitPrice)
-                        : trade.optionData?.legs?.[0]?.exitPrice != null
-                        ? formatCurrency(trade.optionData.legs[0].exitPrice)
-                        : <span className="text-gray-400">—</span>}
+
+                    {/* Exit Price — editable */}
+                    <td className="px-2 py-1.5 text-xs text-right text-gray-600 dark:text-zinc-400">
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={editRow!.exitPrice}
+                          onChange={(e) => setEditRow((r) => r ? { ...r, exitPrice: e.target.value } : r)}
+                          className={inCls + ' text-right w-24'}
+                        />
+                      ) : (
+                        trade.stockData?.exitPrice != null
+                          ? formatCurrency(trade.stockData.exitPrice)
+                          : trade.optionData?.legs?.[0]?.exitPrice != null
+                          ? formatCurrency(trade.optionData.legs[0].exitPrice)
+                          : <span className="text-gray-400">—</span>
+                      )}
                     </td>
+
                     <td className={`px-3 py-2 text-xs text-right ${getWinLossColor(trade.pnl)}`}>
                       {formatCurrency(trade.pnl)}
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+
+                    {/* Status — editable */}
+                    <td className="px-2 py-1.5 text-center">
+                      {isEditing ? (
+                        <select
+                          value={editRow!.status}
+                          onChange={(e) => setEditRow((r) => r ? { ...r, status: e.target.value as 'open' | 'closed' } : r)}
+                          className={inCls}
+                        >
+                          <option value="open">open</option>
+                          <option value="closed">closed</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                           trade.status === 'closed'
                             ? 'bg-gray-100 dark:bg-zinc-700 text-gray-800 dark:text-zinc-200'
                             : 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300'
-                        }`}
-                      >
-                        {trade.status}
-                      </span>
+                        }`}>{trade.status}</span>
+                      )}
                     </td>
-                    <td className="px-3 py-2 text-xs text-right whitespace-nowrap">
-                      <div className="flex justify-end gap-3">
-                        <Link
-                          href={`/trades/${trade.id}`}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          View
-                        </Link>
-                        <button
-                          onClick={() => setDeleteConfirm(trade.id)}
-                          className="text-red-600 hover:text-red-800 font-medium"
-                        >
-                          Delete
-                        </button>
-                      </div>
+
+                    {/* Actions */}
+                    <td className="px-3 py-1.5 text-xs text-right whitespace-nowrap">
+                      {isEditing ? (
+                        <div className="flex justify-end items-center gap-2">
+                          <button
+                            onClick={() => handleInlineSave(trade)}
+                            disabled={isSaving}
+                            className="px-2 py-1 rounded text-xs font-semibold bg-bull/20 text-bull hover:bg-bull/30 disabled:opacity-50"
+                          >
+                            {isSaving ? '…' : 'Save'}
+                          </button>
+                          <button
+                            onClick={() => { setEditingId(null); setEditRow(null); setInlineError(null); }}
+                            className="px-2 py-1 rounded text-xs font-semibold bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => openInlineEdit(trade)}
+                            className="text-primary hover:opacity-80 font-medium"
+                          >
+                            Edit
+                          </button>
+                          <Link
+                            href={`/trades/${trade.id}`}
+                            className="text-muted-foreground hover:text-foreground font-medium"
+                          >
+                            View
+                          </Link>
+                          <button
+                            onClick={() => setDeleteConfirm(trade.id)}
+                            className="text-bear hover:opacity-80 font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
