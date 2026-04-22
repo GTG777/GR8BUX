@@ -53,6 +53,11 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
   const [showSkipped, setShowSkipped] = useState(false);
   const [fileName, setFileName] = useState('');
   const [previewPage, setPreviewPage] = useState(0);
+  const [showClearSection, setShowClearSection] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearResult, setClearResult] = useState<{ deleted: number } | null>(null);
+  const [clearError, setClearError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Parse CSV in browser — stay on upload step, show filename ────────────
@@ -104,6 +109,38 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
     setShowSkipped(false);
     setFileName('');
     setPreviewPage(0);
+    setShowClearSection(false);
+    setClearConfirm(false);
+    setClearResult(null);
+    setClearError('');
+  };
+
+  // ── Clear all trades ──────────────────────────────────────────────────────
+
+  const handleClearAll = async () => {
+    if (!clearConfirm) return;
+    setClearing(true);
+    setClearError('');
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Database not configured');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+      const res = await fetch('/api/trades/delete-all', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Delete failed');
+      setClearResult(json.data);
+      setClearConfirm(false);
+      onImported(); // refresh trade list in background
+    } catch (err) {
+      setClearError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setClearing(false);
+    }
   };
 
   // ── Import ────────────────────────────────────────────────────────────────
@@ -250,6 +287,64 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
                   {parseError}
                 </div>
               )}
+
+              {/* ── Clear all trades section ── */}
+              <div className="rounded-lg border border-red-200 dark:border-red-800/50 overflow-hidden">
+                <button
+                  onClick={() => { setShowClearSection(v => !v); setClearResult(null); setClearError(''); setClearConfirm(false); }}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Clear all existing trades first
+                  </span>
+                  <span className="text-xs">{showClearSection ? '▲' : '▼'}</span>
+                </button>
+
+                {showClearSection && (
+                  <div className="px-4 py-4 space-y-3 bg-background">
+                    {clearResult ? (
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {clearResult.deleted} trade{clearResult.deleted !== 1 ? 's' : ''} deleted. You can now upload your CSV to re-import cleanly.
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          This will permanently delete <strong className="text-foreground">all of your trades</strong> from the database. Use this before re-importing to fix incorrectly parsed trades.
+                        </p>
+                        {clearError && (
+                          <p className="text-xs text-red-600 dark:text-red-400">{clearError}</p>
+                        )}
+                        <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={clearConfirm}
+                            onChange={(e) => setClearConfirm(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-red-600"
+                          />
+                          <span className="text-foreground">I understand this cannot be undone</span>
+                        </label>
+                        <button
+                          onClick={handleClearAll}
+                          disabled={!clearConfirm || clearing}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                        >
+                          {clearing ? (
+                            <><div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Deleting…</>
+                          ) : (
+                            '🗑 Delete all trades'
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="rounded-lg bg-muted/50 border border-border p-4 text-xs text-muted-foreground space-y-2">
                 <p className="font-medium text-foreground">Supported brokers</p>
