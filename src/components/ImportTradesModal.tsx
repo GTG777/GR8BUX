@@ -242,8 +242,8 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
               {/* Trade preview table */}
               {parseResult.trades.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden">
-                  <div className="overflow-x-auto overflow-y-auto max-h-[45vh]">
-                    <table className="w-full text-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs min-w-[640px]">
                       <thead className="bg-muted/50 text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2 text-left">Symbol</th>
