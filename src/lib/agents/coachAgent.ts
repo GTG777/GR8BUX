@@ -22,6 +22,19 @@ export interface TradeSummary {
   totalPnl: number;
   avgWin: number;
   avgLoss: number;
+  // Stats broken down by trade type
+  byType: Record<string, { closed: number; wins: number; totalPnl: number; avgWin: number; avgLoss: number }>;
+  // All open positions with leg detail
+  openPositions: Array<{
+    symbol: string;
+    type: string;
+    entryDate: string;
+    strategy?: string | null;
+    premiumAtRisk?: number | null;
+    legs?: Array<{ direction: string; type: string; strike: number; expiry: string; qty: number; entryPrice: number }>;
+    stockQty?: number | null;
+    stockEntryPrice?: number | null;
+  }>;
   topSymbols: Array<{ symbol: string; trades: number; pnl: number }>;
   recentTrades: Array<{
     symbol: string;
@@ -32,6 +45,7 @@ export interface TradeSummary {
     exitDate: string | null;
     tags: string[];
     notes?: string | null;
+    planNotes?: string | null;
     strategy?: string | null;
     // Stock fields
     stockQty?: number | null;
@@ -218,7 +232,7 @@ Format your response as JSON with exactly these fields:
           if (t.pnl != null) line += ` P&L:$${t.pnl.toFixed(2)}`;
           line += ` entry:${t.entryDate.slice(0, 10)}`;
           if (t.exitDate) line += ` exit:${t.exitDate.slice(0, 10)}`;
-          if (t.strategy) line += ` strategy:${t.strategy}`;
+          if (t.strategy) line += ` strategy:${t.strategy}`;\n          if (t.notes) line += ` | notes: ${t.notes.slice(0, 80)}`;\n          if (t.planNotes) line += ` | plan: ${t.planNotes.slice(0, 80)}`;
           // Stock detail
           if (t.type === 'stock' && t.stockQty != null) {
             line += ` qty:${t.stockQty} @$${t.stockEntryPrice}`;
@@ -246,10 +260,42 @@ Format your response as JSON with exactly these fields:
         .join('\n  ');
       parts.push(`## Portfolio Summary (live from database)
 Total Trades: ${s.totalTrades} (${s.closedTrades} closed, ${s.openTrades} open)
-Win Rate: ${s.winRate}% (${s.winCount} wins / ${s.lossCount} losses on closed trades)
-Total P&L: $${s.totalPnl.toFixed(2)}
+Overall Win Rate: ${s.winRate}% (${s.winCount} wins / ${s.lossCount} losses on closed trades)
+Total Realized P&L: $${s.totalPnl.toFixed(2)}
 Avg Win: $${s.avgWin.toFixed(2)} | Avg Loss: $${s.avgLoss.toFixed(2)}
-Most Traded Symbols: ${topSymbolsText || 'N/A'}
+
+Performance by Type:
+${
+  Object.entries(s.byType ?? {})
+    .filter(([, v]) => v.closed > 0)
+    .map(([typ, v]) => {
+      const wr = v.closed > 0 ? Math.round((v.wins / v.closed) * 100) : 0;
+      return `  ${typ.toUpperCase()}: ${v.closed} closed trades, win rate ${wr}%, total P&L $${v.totalPnl.toFixed(2)}, avg win $${v.avgWin.toFixed(2)}, avg loss $${v.avgLoss.toFixed(2)}`;
+    })
+    .join('\n') || '  N/A'
+}
+
+Most Traded Symbols: ${topSymbolsText || 'N/A'}`);
+
+      // Open positions block
+      if (s.openPositions?.length > 0) {
+        const openLines = s.openPositions.map((p) => {
+          let line = `  ${p.symbol} ${p.type} — entered ${p.entryDate}`;
+          if (p.strategy) line += ` (${p.strategy})`;
+          if (p.type === 'stock' && p.stockQty != null) {
+            line += ` | ${p.stockQty} shares @ $${p.stockEntryPrice}`;
+          }
+          if (p.legs?.length) {
+            const legStrs = p.legs.map((l) =>
+              `${l.direction} ${l.qty}x ${l.type} $${l.strike} exp:${l.expiry} @$${l.entryPrice}`
+            );
+            line += ` | [${legStrs.join('; ')}]`;
+          }
+          if (p.premiumAtRisk != null) line += ` | premium at risk: $${p.premiumAtRisk.toFixed(2)}`;
+          return line;
+        }).join('\n');
+        parts.push(`## Open Positions (${s.openPositions.length} total)\n${openLines}`);
+      }
 Recent Trades (with option leg detail):
   ${recentText || 'N/A'}`);
     }

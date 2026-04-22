@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       const { data: allTrades } = await supabase
         .from('trades')
         .select(`
-          id, symbol, type, status, pnl, entry_date, exit_date, tags, notes,
+          id, symbol, type, status, pnl, entry_date, exit_date, tags, notes, plan_notes,
           stock_trades(quantity, entry_price, exit_price),
           option_trades(
             strategy, total_premium,
@@ -72,6 +72,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         const totalPnl = closed.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0);
         const avgWin = wins.length ? wins.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0) / wins.length : 0;
         const avgLoss = losses.length ? losses.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0) / losses.length : 0;
+
+        // Stats split by trade type (stock vs option)
+        const byType: Record<string, { closed: number; wins: number; totalPnl: number; avgWin: number; avgLoss: number }> = {};
+        for (const typ of ['stock', 'option']) {
+          const tClosed = closed.filter((t: any) => t.type === typ);
+          const tWins = tClosed.filter((t: any) => (t.pnl ?? 0) > 0);
+          const tLosses = tClosed.filter((t: any) => (t.pnl ?? 0) < 0);
+          byType[typ] = {
+            closed: tClosed.length,
+            wins: tWins.length,
+            totalPnl: tClosed.reduce((s: number, t: any) => s + (t.pnl ?? 0), 0),
+            avgWin: tWins.length ? tWins.reduce((s: number, t: any) => s + (t.pnl ?? 0), 0) / tWins.length : 0,
+            avgLoss: tLosses.length ? tLosses.reduce((s: number, t: any) => s + (t.pnl ?? 0), 0) / tLosses.length : 0,
+          };
+        }
+
+        // Open positions with leg detail
+        const openPositions = (open as any[]).map((t) => {
+          const legs = t.option_trades?.option_legs ?? [];
+          const premiumAtRisk = legs
+            .filter((l: any) => l.direction === 'long')
+            .reduce((s: number, l: any) => s + (l.entry_price ?? 0) * (l.quantity ?? 0) * 100, 0);
+          return {
+            symbol: t.symbol,
+            type: t.type,
+            entryDate: t.entry_date?.slice(0, 10),
+            strategy: t.option_trades?.strategy ?? null,
+            premiumAtRisk: premiumAtRisk > 0 ? premiumAtRisk : null,
+            legs: legs.map((l: any) => ({
+              direction: l.direction,
+              type: l.type,
+              strike: l.strike_price,
+              expiry: l.expiration_date?.slice(0, 10),
+              qty: l.quantity,
+              entryPrice: l.entry_price,
+            })),
+            stockQty: t.stock_trades?.quantity ?? null,
+            stockEntryPrice: t.stock_trades?.entry_price ?? null,
+          };
+        });
 
         // Aggregate by symbol
         const bySymbol: Record<string, { trades: number; pnl: number }> = {};
@@ -95,6 +135,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           totalPnl,
           avgWin,
           avgLoss,
+          byType,
+          openPositions,
           topSymbols,
           recentTrades: (allTrades.slice(0, 20) as any[]).map((t) => {
             const legs = t.option_trades?.option_legs ?? [];
@@ -116,6 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
               exitDate: t.exit_date,
               tags: t.tags ?? [],
               notes: t.notes ?? null,
+              planNotes: t.plan_notes ?? null,
               strategy: t.option_trades?.strategy ?? null,
               stockQty: t.stock_trades?.quantity ?? null,
               stockEntryPrice: t.stock_trades?.entry_price ?? null,

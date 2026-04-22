@@ -1,35 +1,60 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { TradeCoachPanel } from '@/components/TradeCoachPanel';
 import { getSupabaseClient } from '@/lib/supabase';
 
+async function getAuthToken(): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token ?? null;
+}
+
+async function runBackfill(token: string): Promise<{ embedded: number; skipped: number }> {
+  const res = await fetch('/api/rag/embed-trade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ backfill: true }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Sync failed');
+  return { embedded: json.data?.embedded ?? 0, skipped: json.data?.skipped ?? 0 };
+}
+
 export default function CoachPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState('');
+  const [autoSynced, setAutoSynced] = useState(false);
+
+  // Auto-sync silently on mount — embeds any un-embedded closed trades
+  useEffect(() => {
+    let cancelled = false;
+    getAuthToken().then(async (token) => {
+      if (!token || cancelled) return;
+      try {
+        const { embedded } = await runBackfill(token);
+        if (!cancelled && embedded > 0) {
+          setAutoSynced(true); // only show notice if new trades were embedded
+        }
+      } catch {
+        // Silent — don't surface auto-sync errors to user
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleBackfill = async () => {
     setSyncing(true);
     setSyncResult('');
     try {
-      const supabase = getSupabaseClient();
-      if (!supabase) throw new Error('Database not configured');
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const token = await getAuthToken();
       if (!token) throw new Error('Not authenticated');
-
-      const res = await fetch('/api/rag/embed-trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ backfill: true }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Sync failed');
-      const embedded = json.data?.embedded ?? 0;
-      const skipped = json.data?.skipped ?? 0;
+      const { embedded, skipped } = await runBackfill(token);
       setSyncResult(`Synced ${embedded} trade(s). ${skipped} already up to date.`);
+      setAutoSynced(false);
     } catch (err) {
       setSyncResult(err instanceof Error ? err.message : 'Sync failed');
     } finally {
@@ -52,6 +77,9 @@ export default function CoachPage() {
 
             {/* Backfill / sync button */}
             <div className="shrink-0 text-right">
+              {autoSynced && (
+                <p className="text-xs text-bull mb-1">✓ Trade history synced</p>
+              )}
               <button
                 onClick={handleBackfill}
                 disabled={syncing}
