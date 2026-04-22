@@ -25,7 +25,10 @@ export type SchwabAction =
   | 'Buy to Open'
   | 'Sell to Open'
   | 'Buy to Close'
-  | 'Sell to Close';
+  | 'Sell to Close'
+  | 'Expired'
+  | 'Assigned'
+  | 'Exercise';
 
 /** One raw parsed row from the CSV */
 export interface SchwabRow {
@@ -114,6 +117,7 @@ const SKIP_ACTIONS = new Set([
 
 const TRADE_ACTIONS = new Set<SchwabAction>([
   'Buy', 'Sell', 'Buy to Open', 'Sell to Open', 'Buy to Close', 'Sell to Close',
+  'Expired', 'Assigned', 'Exercise',
 ]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -362,7 +366,8 @@ function matchTrades(rows: SchwabRow[], skippedRows: ParseResult['skippedRows'])
 
   for (const row of optionRows) {
     const isOpen = row.action === 'Buy to Open' || row.action === 'Sell to Open';
-    const isClose = row.action === 'Sell to Close' || row.action === 'Buy to Close';
+    const isClose = row.action === 'Sell to Close' || row.action === 'Buy to Close'
+      || row.action === 'Expired' || row.action === 'Assigned' || row.action === 'Exercise';
     const direction: 'long' | 'short' = row.action === 'Buy to Open' || row.action === 'Buy to Close' ? 'long' : 'short';
 
     if (isOpen) {
@@ -375,9 +380,13 @@ function matchTrades(rows: SchwabRow[], skippedRows: ParseResult['skippedRows'])
         const multiplier = 100;
         const entryDirection: 'long' | 'short' =
           entry.action === 'Buy to Open' ? 'long' : 'short';
+        // Expired/Assigned options close at $0 exit price regardless of row.price
+        const isExpiry = row.action === 'Expired' || row.action === 'Assigned' || row.action === 'Exercise';
+        const exitPrice = isExpiry ? 0 : row.price;
+        const closeNote = isExpiry ? ` (${row.action})` : '';
         const rawPnl = entryDirection === 'long'
-          ? (row.price - entry.price) * entry.quantity * multiplier
-          : (entry.price - row.price) * entry.quantity * multiplier;
+          ? (exitPrice - entry.price) * entry.quantity * multiplier
+          : (entry.price - exitPrice) * entry.quantity * multiplier;
         const pnl = rawPnl - entry.commission - row.commission;
 
         trades.push({
@@ -388,7 +397,7 @@ function matchTrades(rows: SchwabRow[], skippedRows: ParseResult['skippedRows'])
           status: 'closed',
           commission: entry.commission + row.commission,
           pnl: parseFloat(pnl.toFixed(2)),
-          notes: `Imported from Schwab. Entry: ${entry.description}. Exit: ${row.description}.`,
+          notes: `Imported from Schwab${closeNote}. Entry: ${entry.description}. Exit: ${row.description}.`,
           importHash: entry.hash,
           tags: ['schwab-import', 'options'],
           optionData: {
@@ -404,16 +413,16 @@ function matchTrades(rows: SchwabRow[], skippedRows: ParseResult['skippedRows'])
                 direction: entryDirection,
                 quantity: entry.quantity,
                 entryPrice: entry.price,
-                exitPrice: row.price,
+                exitPrice: exitPrice,
               },
             ],
           },
         });
       } else {
-        // Closing with no matching open — import as closed with exit data only
+        // Closing with no matching open — skip silently
         skippedRows.push({
           row: -1,
-          reason: `No matching open found for ${row.rawSymbol} — skipped`,
+          reason: `No matching open found for ${row.rawSymbol} (${row.action}) — skipped`,
           raw: row.rawSymbol,
         });
       }
