@@ -232,7 +232,9 @@ Format your response as JSON with exactly these fields:
           if (t.pnl != null) line += ` P&L:$${t.pnl.toFixed(2)}`;
           line += ` entry:${t.entryDate.slice(0, 10)}`;
           if (t.exitDate) line += ` exit:${t.exitDate.slice(0, 10)}`;
-          if (t.strategy) line += ` strategy:${t.strategy}`;\n          if (t.notes) line += ` | notes: ${t.notes.slice(0, 80)}`;\n          if (t.planNotes) line += ` | plan: ${t.planNotes.slice(0, 80)}`;
+          if (t.strategy) line += ` strategy:${t.strategy}`;
+          if (t.notes) line += ` | notes: ${t.notes.slice(0, 80)}`;
+          if (t.planNotes) line += ` | plan: ${t.planNotes.slice(0, 80)}`;
           // Stock detail
           if (t.type === 'stock' && t.stockQty != null) {
             line += ` qty:${t.stockQty} @$${t.stockEntryPrice}`;
