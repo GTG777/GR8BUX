@@ -53,7 +53,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (supabase) {
       const { data: allTrades } = await supabase
         .from('trades')
-        .select('id, symbol, type, status, pnl, entry_date, exit_date, tags')
+        .select(`
+          id, symbol, type, status, pnl, entry_date, exit_date, tags, notes,
+          stock_trades(quantity, entry_price, exit_price),
+          option_trades(
+            strategy, total_premium,
+            option_legs(type, strike_price, expiration_date, direction, quantity, entry_price, exit_price)
+          )
+        `)
         .eq('user_id', user.id)
         .order('entry_date', { ascending: false });
 
@@ -89,15 +96,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           avgWin,
           avgLoss,
           topSymbols,
-          recentTrades: (allTrades.slice(0, 20) as { symbol: string; type: string; status: string; pnl: number | null; entry_date: string; exit_date: string | null; tags: string[] }[]).map((t) => ({
-            symbol: t.symbol,
-            type: t.type,
-            status: t.status,
-            pnl: t.pnl,
-            entryDate: t.entry_date,
-            exitDate: t.exit_date,
-            tags: t.tags ?? [],
-          })),
+          recentTrades: (allTrades.slice(0, 20) as any[]).map((t) => {
+            const legs = t.option_trades?.option_legs ?? [];
+            const optionLegs = legs.map((l: any) => ({
+              type: l.type,            // 'call' | 'put'
+              direction: l.direction,  // 'long' | 'short'
+              strike: l.strike_price,
+              expiry: l.expiration_date?.slice(0, 10),
+              qty: l.quantity,
+              entryPrice: l.entry_price,
+              exitPrice: l.exit_price ?? null,
+            }));
+            return {
+              symbol: t.symbol,
+              type: t.type,
+              status: t.status,
+              pnl: t.pnl,
+              entryDate: t.entry_date,
+              exitDate: t.exit_date,
+              tags: t.tags ?? [],
+              notes: t.notes ?? null,
+              strategy: t.option_trades?.strategy ?? null,
+              stockQty: t.stock_trades?.quantity ?? null,
+              stockEntryPrice: t.stock_trades?.entry_price ?? null,
+              stockExitPrice: t.stock_trades?.exit_price ?? null,
+              optionLegs: optionLegs.length > 0 ? optionLegs : null,
+            };
+          }),
         };
       }
     }

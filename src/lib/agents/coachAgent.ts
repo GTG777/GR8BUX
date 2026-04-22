@@ -31,6 +31,22 @@ export interface TradeSummary {
     entryDate: string;
     exitDate: string | null;
     tags: string[];
+    notes?: string | null;
+    strategy?: string | null;
+    // Stock fields
+    stockQty?: number | null;
+    stockEntryPrice?: number | null;
+    stockExitPrice?: number | null;
+    // Option legs
+    optionLegs?: Array<{
+      type: 'call' | 'put';
+      direction: 'long' | 'short';
+      strike: number;
+      expiry: string;
+      qty: number;
+      entryPrice: number;
+      exitPrice: number | null;
+    }> | null;
   }>;
 }
 
@@ -162,7 +178,14 @@ export class CoachAgent extends Agent {
 Your role is to give traders personalized, evidence-based coaching grounded in their actual past trade history.
 You have access to the user's full trade portfolio statistics AND semantically similar trades from their journal.
 Use the Portfolio Summary as ground truth for what trades exist. Use similar trades for detailed pattern analysis.
-Be direct, specific, and honest. Reference actual symbols, P&L numbers, and dates from the data provided.
+
+Options P&L calculation context (for your reference when reasoning):
+- Long call/put: P&L = (exitPrice - entryPrice) × qty × 100 per contract
+- Short call/put: P&L = (entryPrice - exitPrice) × qty × 100 per contract
+- Expired worthless: exitPrice = $0, so long = full premium loss, short = full premium gain
+- "Premium paid" for open long options = entryPrice × qty × 100
+
+Be direct, specific, and honest. Reference actual symbols, strikes, P&L numbers, and dates from the data provided.
 Never say you cannot see the user's trades — the portfolio summary always reflects the real database state.
 Format your response as JSON with exactly these fields:
 {
@@ -189,16 +212,46 @@ Format your response as JSON with exactly these fields:
         .map((x) => `${x.symbol} (${x.trades} trades, P&L: $${x.pnl.toFixed(2)})`)
         .join(', ');
       const recentText = s.recentTrades
-        .slice(0, 10)
-        .map((t) => `${t.symbol} ${t.type} ${t.status}${t.pnl != null ? ` P&L:$${t.pnl.toFixed(2)}` : ''} entry:${t.entryDate.slice(0, 10)}`)
-        .join(' | ');
+        .slice(0, 15)
+        .map((t) => {
+          let line = `${t.symbol} ${t.type} ${t.status}`;
+          if (t.pnl != null) line += ` P&L:$${t.pnl.toFixed(2)}`;
+          line += ` entry:${t.entryDate.slice(0, 10)}`;
+          if (t.exitDate) line += ` exit:${t.exitDate.slice(0, 10)}`;
+          if (t.strategy) line += ` strategy:${t.strategy}`;
+          // Stock detail
+          if (t.type === 'stock' && t.stockQty != null) {
+            line += ` qty:${t.stockQty} @$${t.stockEntryPrice}`;
+            if (t.stockExitPrice != null) line += `→$${t.stockExitPrice}`;
+          }
+          // Option legs
+          if (t.optionLegs?.length) {
+            const legStrs = t.optionLegs.map((l) => {
+              let ls = `${l.direction} ${l.qty}x ${l.type} $${l.strike} exp:${l.expiry} @$${l.entryPrice}`;
+              if (l.exitPrice != null) {
+                ls += `→$${l.exitPrice}`;
+                const legPnl = l.direction === 'long'
+                  ? (l.exitPrice - l.entryPrice) * l.qty * 100
+                  : (l.entryPrice - l.exitPrice) * l.qty * 100;
+                ls += ` legP&L:$${legPnl.toFixed(2)}`;
+              } else if (t.status === 'open') {
+                ls += ` (open — premium paid: $${(l.entryPrice * l.qty * 100).toFixed(2)})`;
+              }
+              return ls;
+            });
+            line += ` [${legStrs.join('; ')}]`;
+          }
+          return line;
+        })
+        .join('\n  ');
       parts.push(`## Portfolio Summary (live from database)
 Total Trades: ${s.totalTrades} (${s.closedTrades} closed, ${s.openTrades} open)
 Win Rate: ${s.winRate}% (${s.winCount} wins / ${s.lossCount} losses on closed trades)
 Total P&L: $${s.totalPnl.toFixed(2)}
 Avg Win: $${s.avgWin.toFixed(2)} | Avg Loss: $${s.avgLoss.toFixed(2)}
 Most Traded Symbols: ${topSymbolsText || 'N/A'}
-Recent Trades: ${recentText || 'N/A'}`);
+Recent Trades (with option leg detail):
+  ${recentText || 'N/A'}`);
     }
 
     // Current trade context
