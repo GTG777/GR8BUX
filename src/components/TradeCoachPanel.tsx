@@ -135,6 +135,8 @@ function MessageBubble({ msg }: { msg: CoachChatMessage }) {
       )}
 
       <p className="text-[10px] text-muted-foreground">
+        {new Date(msg.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+        {' · '}
         {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </p>
     </div>
