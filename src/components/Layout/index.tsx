@@ -372,7 +372,7 @@ export function Layout({ children, title }: LayoutProps) {
 
   return (
     <ProtectedRoute>
-      <div className="flex h-screen bg-background overflow-hidden">
+      <div className="flex h-screen bg-background">
         {/* Mobile overlay backdrop */}
         {mobileOpen && (
           <div
@@ -511,7 +511,7 @@ export function Layout({ children, title }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Top bar */}
           <header className="h-16 glass border-b border-border/60 flex items-center px-6 shrink-0 gap-4">
             {/* Hamburger — mobile only */}

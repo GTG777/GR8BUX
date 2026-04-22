@@ -143,9 +143,9 @@ export function TradeList() {
 
       {/* Trades Table */}
       {!isLoading && sortedTrades.length > 0 && (
-        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow">
+          <div className="overflow-x-auto rounded-lg">
+            <table className="min-w-full">
               <thead>
                 <tr className="bg-gray-50 dark:bg-zinc-800/60 border-b dark:border-zinc-700/50">
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Symbol</th>
@@ -156,7 +156,6 @@ export function TradeList() {
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-zinc-300">Exit $</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-zinc-300">P&L</th>
                   <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-zinc-300">Status</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Tags</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-zinc-300">Actions</th>
                 </tr>
               </thead>
@@ -199,24 +198,8 @@ export function TradeList() {
                         {trade.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs max-w-[120px]">
-                      {trade.tags && trade.tags.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {trade.tags.slice(0, 1).map((tag) => (
-                            <span key={tag} className="bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-zinc-300 px-1.5 py-0.5 rounded text-[10px] truncate max-w-[90px]">
-                              {tag}
-                            </span>
-                          ))}
-                          {trade.tags.length > 1 && (
-                            <span className="text-gray-500 text-[10px]">+{trade.tags.length - 1}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-right">
-                      <div className="flex justify-end gap-2">
+                    <td className="px-3 py-2 text-xs text-right whitespace-nowrap">
+                      <div className="flex justify-end gap-3">
                         <Link
                           href={`/trades/${trade.id}`}
                           className="text-blue-600 hover:text-blue-800 font-medium"
