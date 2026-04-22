@@ -59,7 +59,7 @@ async function handleGetTrades(
 
   // Apply filters
   if (symbol) {
-    query = query.eq('symbol', symbol);
+    query = query.ilike('symbol', `${symbol}%`);
   }
 
   if (status) {

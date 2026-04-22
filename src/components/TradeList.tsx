@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTradeStore } from '@/store/tradeStore';
 import { Trade } from '@/types';
 import Link from 'next/link';
@@ -9,6 +9,7 @@ export function TradeList() {
   const { trades, totalCount, isLoading, error, fetchTrades, deleteTrade, clearError } = useTradeStore();
 
   const [filterSymbol, setFilterSymbol] = useState('');
+  const [debouncedSymbol, setDebouncedSymbol] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
   const [filterType, setFilterType] = useState<'all' | 'stock' | 'option'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'pnl' | 'symbol'>('date');
@@ -16,17 +17,28 @@ export function TradeList() {
   const [page, setPage] = useState(0);
   const limit = 20;
 
+  // Debounce symbol input — only fire fetch after 350ms of no typing
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSymbol(filterSymbol.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [filterSymbol]);
+
+  // Reset to page 0 when symbol changes
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSymbol]);
+
   useEffect(() => {
     fetchTrades(
       {
-        symbol: filterSymbol || undefined,
+        symbol: debouncedSymbol || undefined,
         status: filterStatus !== 'all' ? filterStatus : undefined,
         type: filterType !== 'all' ? filterType : undefined,
       },
       limit,
       page * limit
     );
-  }, [filterSymbol, filterStatus, filterType, page]);
+  }, [debouncedSymbol, filterStatus, filterType, page]);
 
   const handleDelete = async (id: string) => {
     if (await deleteTrade(id)) {
@@ -37,6 +49,7 @@ export function TradeList() {
   const handleClearFilters = () => {
     clearError();
     setFilterSymbol('');
+    setDebouncedSymbol('');
     setFilterStatus('all');
     setFilterType('all');
     setPage(0);
