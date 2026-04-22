@@ -2,19 +2,19 @@
  * ImportTradesModal
  *
  * 3-step modal for importing Schwab/ThinkorSwim CSV exports:
- *   Step 1 — Upload: drag-and-drop or file picker
- *   Step 2 — Preview: parsed trade table with skip reasons
+ *   Step 1 — Upload: drag-and-drop or file picker → shows filename + Next button
+ *   Step 2 — Preview: paginated trade table with skipped rows toggle
  *   Step 3 — Result: import summary
  */
 
 import React, { useState, useRef, useCallback } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { parseSchwabCSV } from '@/lib/importParsers/schwab';
-import type { ParsedTrade, ParseResult } from '@/lib/importParsers/schwab';
+import type { ParseResult } from '@/lib/importParsers/schwab';
 
 interface ImportTradesModalProps {
   onClose: () => void;
-  onImported: () => void; // called after successful import to refresh trade list
+  onImported: () => void;
 }
 
 type Step = 'upload' | 'preview' | 'importing' | 'result';
@@ -25,6 +25,8 @@ interface ImportResult {
   failed: number;
   errors: string[];
 }
+
+const PREVIEW_LIMIT = 20;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,9 +51,11 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
   const [parseError, setParseError] = useState('');
   const [importError, setImportError] = useState('');
   const [showSkipped, setShowSkipped] = useState(false);
+  const [fileName, setFileName] = useState('');
+  const [previewPage, setPreviewPage] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Parse CSV in browser ──────────────────────────────────────────────────
+  // ── Parse CSV in browser — stay on upload step, show filename ────────────
 
   const handleFile = useCallback((file: File) => {
     setParseError('');
@@ -69,7 +73,9 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
           return;
         }
         setParseResult(result);
-        setStep('preview');
+        setFileName(file.name);
+        setPreviewPage(0);
+        // Stay on upload step — user clicks Next to proceed
       } catch (err) {
         setParseError(err instanceof Error ? err.message : 'Failed to parse CSV');
       }
@@ -87,6 +93,17 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleFile(file);
+  };
+
+  const handleReset = () => {
+    setStep('upload');
+    setParseResult(null);
+    setImportResult(null);
+    setParseError('');
+    setImportError('');
+    setShowSkipped(false);
+    setFileName('');
+    setPreviewPage(0);
   };
 
   // ── Import ────────────────────────────────────────────────────────────────
@@ -123,13 +140,19 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const totalPreviewPages = parseResult ? Math.ceil(parseResult.trades.length / PREVIEW_LIMIT) : 0;
+  const pagedTrades = parseResult
+    ? parseResult.trades.slice(previewPage * PREVIEW_LIMIT, (previewPage + 1) * PREVIEW_LIMIT)
+    : [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative bg-background border border-border rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden">
+      {/* Modal — fixed height so footer is always visible */}
+      <div className="relative bg-background border border-border rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col">
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div>
@@ -152,7 +175,13 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
         <div className="flex items-center gap-2 px-6 py-3 border-b border-border shrink-0 text-xs">
           {(['upload', 'preview', 'result'] as const).map((s, i) => (
             <React.Fragment key={s}>
-              <span className={`font-medium ${step === s || (step === 'importing' && s === 'preview') ? 'text-blue-500' : step === 'result' && s !== 'result' ? 'text-green-500' : 'text-muted-foreground'}`}>
+              <span className={`font-medium ${
+                step === s || (step === 'importing' && s === 'preview')
+                  ? 'text-blue-500'
+                  : step === 'result' && s !== 'result'
+                  ? 'text-green-500'
+                  : 'text-muted-foreground'
+              }`}>
                 {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
               </span>
               {i < 2 && <span className="text-muted-foreground">→</span>}
@@ -160,13 +189,11 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
           ))}
         </div>
 
-        {/* Body — min-h-0 is required so flexbox allows this item to shrink
-             below its content height, enabling overflow-y-auto to activate */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-6">
-
-          {/* ── Step 1: Upload ────────────────────────────────────────────── */}
-          {step === 'upload' && (
-            <div className="space-y-6">
+        {/* ── STEP 1: Upload ──────────────────────────────────────────────────── */}
+        {step === 'upload' && (
+          <>
+            <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-6">
+              {/* Drop zone */}
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -175,12 +202,18 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
                 className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
                   dragOver
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+                    : fileName
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
                     : 'border-border hover:border-blue-400 hover:bg-muted/30'
                 }`}
               >
-                <div className="text-4xl mb-3">📂</div>
-                <p className="text-sm font-medium text-foreground">Drag &amp; drop your broker CSV here</p>
-                <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+                <div className="text-4xl mb-3">{fileName ? '✅' : '📂'}</div>
+                <p className="text-sm font-medium text-foreground">
+                  {fileName ? 'File ready — click Next to preview' : 'Drag & drop your broker CSV here'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {fileName ? '' : 'or click to browse'}
+                </p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -189,6 +222,28 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
                   onChange={handleFileInput}
                 />
               </div>
+
+              {/* Filename confirmation */}
+              {fileName && parseResult && (
+                <div className="flex items-center gap-3 rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30 px-4 py-3">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-green-800 dark:text-green-300 truncate">{fileName}</p>
+                    <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
+                      {parseResult.trades.length} trade{parseResult.trades.length !== 1 ? 's' : ''} found
+                      {parseResult.skippedRows.length > 0 && ` · ${parseResult.skippedRows.length} rows skipped`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleReset(); }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline shrink-0"
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
 
               {parseError && (
                 <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
@@ -213,129 +268,178 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
                 </details>
               </div>
             </div>
-          )}
 
-          {/* ── Step 2: Preview ───────────────────────────────────────────── */}
-          {(step === 'preview' || step === 'importing') && parseResult && (
-            <div className="space-y-4">
-              {/* Summary bar */}
-              <div className="flex flex-wrap gap-3 text-sm">
-                <span className="bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 px-3 py-1 rounded-full font-medium">
-                  ✓ {parseResult.trades.length} trades to import
-                </span>
-                {parseResult.skippedRows.length > 0 && (
-                  <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-full font-medium">
-                    ⚠ {parseResult.skippedRows.length} rows skipped
-                  </span>
-                )}
-                <span className="text-muted-foreground self-center text-xs">
-                  ({parseResult.totalRows} total rows in file)
-                </span>
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0 bg-card">
+              <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Cancel
+              </button>
+              {fileName && parseResult && parseResult.trades.length > 0 && (
+                <button
+                  onClick={() => setStep('preview')}
+                  className="px-5 py-2 bg-gradient-brand text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity flex items-center gap-2"
+                >
+                  Next — Preview {parseResult.trades.length} trade{parseResult.trades.length !== 1 ? 's' : ''}
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 2: Preview — self-contained scroll + pagination ─────────────── */}
+        {(step === 'preview' || step === 'importing') && parseResult && (
+          <>
+            {/* Summary bar */}
+            <div className="flex flex-wrap gap-3 items-center px-6 py-3 border-b border-border shrink-0 text-sm">
+              <span className="bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 px-3 py-1 rounded-full font-medium text-xs">
+                ✓ {parseResult.trades.length} trades to import
+              </span>
+              {parseResult.skippedRows.length > 0 && (
+                <button
+                  onClick={() => setShowSkipped((v) => !v)}
+                  className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-full font-medium text-xs hover:opacity-80"
+                >
+                  ⚠ {parseResult.skippedRows.length} rows skipped {showSkipped ? '▲' : '▼'}
+                </button>
+              )}
+              <span className="text-muted-foreground text-xs ml-auto">
+                {parseResult.totalRows} total rows in file
+              </span>
+            </div>
+
+            {/* Skipped rows panel (collapsible, fixed height) */}
+            {showSkipped && parseResult.skippedRows.length > 0 && (
+              <div className="border-b border-border shrink-0 max-h-32 overflow-y-auto">
+                {parseResult.skippedRows.map((s, i) => (
+                  <div key={i} className="px-6 py-1.5 flex gap-3 text-xs border-b border-border/50 last:border-0">
+                    <span className="text-amber-600 shrink-0">Row {s.row > 0 ? s.row : '—'}</span>
+                    <span className="text-muted-foreground">{s.reason}</span>
+                  </div>
+                ))}
               </div>
+            )}
 
-              {importError && (
+            {importError && (
+              <div className="px-6 py-3 shrink-0">
                 <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
                   {importError}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Trade preview table */}
-              {parseResult.trades.length > 0 && (
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs min-w-[640px]">
-                      <thead className="bg-muted/50 text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Symbol</th>
-                          <th className="px-3 py-2 text-left">Type</th>
-                          <th className="px-3 py-2 text-left">Entry</th>
-                          <th className="px-3 py-2 text-left">Exit</th>
-                          <th className="px-3 py-2 text-right">Qty</th>
-                          <th className="px-3 py-2 text-right">Entry $</th>
-                          <th className="px-3 py-2 text-right">Exit $</th>
-                          <th className="px-3 py-2 text-right">P&L</th>
-                          <th className="px-3 py-2 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {parseResult.trades.map((t, i) => (
-                          <tr key={i} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-3 py-2 font-bold text-foreground">{t.symbol}</td>
-                            <td className="px-3 py-2 text-muted-foreground capitalize">{t.type}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{t.entryDate.slice(0, 10)}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{t.exitDate?.slice(0, 10) ?? '—'}</td>
-                            <td className="px-3 py-2 text-right text-muted-foreground">
-                              {t.type === 'stock' ? t.stockData?.quantity : t.optionData?.legs[0]?.quantity}
-                            </td>
-                            <td className="px-3 py-2 text-right text-muted-foreground">
-                              ${t.type === 'stock' ? t.stockData?.entryPrice?.toFixed(2) : t.optionData?.legs[0]?.entryPrice?.toFixed(2)}
-                            </td>
-                            <td className="px-3 py-2 text-right text-muted-foreground">
-                              {t.type === 'stock' && t.stockData?.exitPrice
-                                ? `$${t.stockData.exitPrice.toFixed(2)}`
-                                : t.type === 'option' && t.optionData?.legs[0]?.exitPrice
-                                ? `$${t.optionData.legs[0].exitPrice.toFixed(2)}`
-                                : '—'}
-                            </td>
-                            <td className={`px-3 py-2 text-right font-medium ${pnlColor(t.pnl)}`}>
-                              {fmtPnl(t.pnl)}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                t.status === 'closed'
-                                  ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
-                                  : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
-                              }`}>
-                                {t.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Skipped rows (collapsible) */}
-              {parseResult.skippedRows.length > 0 && (
-                <div>
-                  <button
-                    onClick={() => setShowSkipped((v) => !v)}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-                  >
-                    {showSkipped ? '▼' : '▶'} {showSkipped ? 'Hide' : 'Show'} skipped rows ({parseResult.skippedRows.length})
-                  </button>
-                  {showSkipped && (
-                    <div className="mt-2 rounded-lg border border-border divide-y divide-border text-xs max-h-40 overflow-y-auto">
-                      {parseResult.skippedRows.map((s, i) => (
-                        <div key={i} className="px-3 py-2 flex gap-3">
-                          <span className="text-amber-600 shrink-0">Row {s.row > 0 ? s.row : '—'}</span>
-                          <span className="text-muted-foreground">{s.reason}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* Table — flex-1, scrolls independently */}
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-xs min-w-[640px]">
+                <thead className="bg-muted/60 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left font-semibold text-foreground/80 border-b border-border">Symbol</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-foreground/80 border-b border-border">Type</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-foreground/80 border-b border-border">Entry Date</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-foreground/80 border-b border-border">Exit Date</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-foreground/80 border-b border-border">Qty</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-foreground/80 border-b border-border">Entry $</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-foreground/80 border-b border-border">Exit $</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-foreground/80 border-b border-border">P&amp;L</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-foreground/80 border-b border-border">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {pagedTrades.map((t, i) => (
+                    <tr key={i} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-3 py-2 font-bold text-foreground">{t.symbol}</td>
+                      <td className="px-3 py-2 text-muted-foreground capitalize">{t.type}</td>
+                      <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{t.entryDate.slice(0, 10)}</td>
+                      <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{t.exitDate?.slice(0, 10) ?? '—'}</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        {t.type === 'stock' ? t.stockData?.quantity : t.optionData?.legs[0]?.quantity}
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        ${t.type === 'stock' ? t.stockData?.entryPrice?.toFixed(2) : t.optionData?.legs[0]?.entryPrice?.toFixed(2)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        {t.type === 'stock' && t.stockData?.exitPrice
+                          ? `$${t.stockData.exitPrice.toFixed(2)}`
+                          : t.type === 'option' && t.optionData?.legs[0]?.exitPrice
+                          ? `$${t.optionData.legs[0].exitPrice.toFixed(2)}`
+                          : '—'}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-medium ${pnlColor(t.pnl)}`}>{fmtPnl(t.pnl)}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          t.status === 'closed'
+                            ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
+                            : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
+                        }`}>
+                          {t.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
 
-          {/* ── Step: Importing (spinner) ──────────────────────────────────── */}
-          {step === 'importing' && (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <div className="w-10 h-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
-              <p className="text-sm text-muted-foreground">Importing trades…</p>
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-6 py-3 border-t border-border shrink-0 bg-muted/30">
+              <p className="text-xs text-muted-foreground">
+                Showing {previewPage * PREVIEW_LIMIT + 1}–{Math.min((previewPage + 1) * PREVIEW_LIMIT, parseResult.trades.length)} of {parseResult.trades.length} trades
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPreviewPage((p) => Math.max(0, p - 1))}
+                  disabled={previewPage === 0}
+                  className="px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Prev
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  Page {previewPage + 1} / {totalPreviewPages}
+                </span>
+                <button
+                  onClick={() => setPreviewPage((p) => Math.min(totalPreviewPages - 1, p + 1))}
+                  disabled={previewPage >= totalPreviewPages - 1}
+                  className="px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next →
+                </button>
+              </div>
             </div>
-          )}
 
-          {/* ── Step 3: Result ────────────────────────────────────────────── */}
-          {step === 'result' && importResult && (
-            <div className="space-y-6">
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0 bg-card">
+              <button
+                onClick={() => { setStep('upload'); setImportError(''); }}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={step === 'importing'}
+                className="px-5 py-2 bg-gradient-brand text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
+              >
+                {step === 'importing' ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    Importing…
+                  </>
+                ) : (
+                  `Import ${parseResult.trades.length} trade${parseResult.trades.length !== 1 ? 's' : ''}`
+                )}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 3: Result ──────────────────────────────────────────────────── */}
+        {step === 'result' && importResult && (
+          <>
+            <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-6">
               <div className="text-center py-4">
-                <div className="text-5xl mb-4">
-                  {importResult.failed === 0 ? '✅' : '⚠️'}
-                </div>
+                <div className="text-5xl mb-4">{importResult.failed === 0 ? '✅' : '⚠️'}</div>
                 <h3 className="text-xl font-bold text-foreground mb-1">Import complete</h3>
               </div>
 
@@ -369,43 +473,17 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
                 </p>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0 bg-card">
-          <button
-            onClick={onClose}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {step === 'result' ? 'Close' : 'Cancel'}
-          </button>
-
-          {step === 'preview' && parseResult && parseResult.trades.length > 0 && (
-            <button
-              onClick={handleImport}
-              className="px-5 py-2 bg-gradient-brand text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity"
-            >
-              Import {parseResult.trades.length} trade{parseResult.trades.length !== 1 ? 's' : ''}
-            </button>
-          )}
-
-          {step === 'result' && (
-            <button
-              onClick={() => {
-                setStep('upload');
-                setParseResult(null);
-                setImportResult(null);
-                setParseError('');
-                setImportError('');
-                setShowSkipped(false);
-              }}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              Import another file
-            </button>
-          )}
-        </div>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0 bg-card">
+              <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Close
+              </button>
+              <button onClick={handleReset} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                Import another file
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
