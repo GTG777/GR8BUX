@@ -169,6 +169,7 @@ export function TradeList() {
                 <tr className="bg-gray-50 dark:bg-zinc-800/60 border-b dark:border-zinc-700/50">
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Symbol</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Type</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-zinc-300">Side</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-zinc-300">Qty</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Entry Date</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Exit Date</th>
@@ -184,6 +185,16 @@ export function TradeList() {
                   <tr key={trade.id} className="border-b dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors">
                     <td className="px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white">{trade.symbol}</td>
                     <td className="px-3 py-2 text-xs text-gray-600 dark:text-zinc-400 capitalize">{trade.type}</td>
+                    <td className="px-3 py-2 text-xs text-center">
+                      {(() => {
+                        const isShort = trade.type === 'option'
+                          ? trade.optionData?.legs?.[0]?.direction === 'short'
+                          : trade.tags?.includes('short');
+                        return isShort
+                          ? <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">Sell</span>
+                          : <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Buy</span>;
+                      })()}
+                    </td>
                     <td className="px-3 py-2 text-xs text-right text-gray-600 dark:text-zinc-400">
                       {trade.stockData?.quantity != null
                         ? trade.stockData.quantity
