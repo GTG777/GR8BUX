@@ -129,7 +129,7 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-background border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-background border border-border rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div>
@@ -242,7 +242,7 @@ export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProp
               {/* Trade preview table */}
               {parseResult.trades.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden">
-                  <div className="overflow-x-auto overflow-y-auto max-h-64">
+                  <div className="overflow-x-auto overflow-y-auto max-h-[45vh]">
                     <table className="w-full text-xs">
                       <thead className="bg-muted/50 text-muted-foreground">
                         <tr>
