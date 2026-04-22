@@ -100,9 +100,21 @@ export default function TradeDetailPage() {
     setSaving(true);
     try {
       const headers = await authHeaders();
-      const legUpdates = Object.entries(editData.legExitPrices)
-        .filter(([, v]) => v !== '')
-        .map(([legId, v]) => ({ id: legId, exit_price: parseFloat(v) }));
+
+      // Build leg updates with camelCase keys + all fields needed for P&L recalculation
+      const legUpdates = (trade.optionData?.legs ?? [])
+        .filter((leg) => leg.id != null)
+        .map((leg) => {
+          const rawExit = editData.legExitPrices[leg.id!];
+          return {
+            id: leg.id,
+            exitPrice: rawExit !== '' && rawExit != null ? parseFloat(rawExit) : undefined,
+            entryPrice: leg.entryPrice,
+            quantity: leg.quantity,
+            direction: leg.direction,
+          };
+        });
+
       const body: Record<string, any> = {
         symbol: editData.symbol,
         status: editData.status,
@@ -118,8 +130,8 @@ export default function TradeDetailPage() {
       if (trade.type === 'stock') {
         body.stockData = {
           quantity: editData.stockQty ? parseInt(editData.stockQty) : null,
-          entry_price: editData.stockEntry ? parseFloat(editData.stockEntry) : null,
-          exit_price: editData.stockExit ? parseFloat(editData.stockExit) : null,
+          entryPrice: editData.stockEntry ? parseFloat(editData.stockEntry) : null,
+          exitPrice: editData.stockExit ? parseFloat(editData.stockExit) : null,
         };
       }
       const res = await axios.put(`/api/trades/${trade.id}`, body, { headers });

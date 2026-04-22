@@ -147,22 +147,21 @@ async function handleUpdateTrade(
   }
 
   // Update individual option legs if provided, then recalculate P&L
-  if (Array.isArray(legUpdates)) {
+  if (Array.isArray(legUpdates) && legUpdates.length > 0) {
     for (const leg of legUpdates) {
       if (!leg.id) continue;
-      await supabase
-        .from('option_legs')
-        .update({
-          exit_price: leg.exitPrice ?? null,
-          quantity: leg.quantity,
-          entry_price: leg.entryPrice,
-        })
-        .eq('id', leg.id);
+      // Only update exit_price; preserve entry_price/quantity as-is
+      if (leg.exitPrice !== undefined) {
+        await supabase
+          .from('option_legs')
+          .update({ exit_price: leg.exitPrice })
+          .eq('id', leg.id);
+      }
     }
 
     // Recalculate option P&L if all legs now have exit prices
     const allExited = legUpdates.every((l: any) => l.exitPrice != null);
-    if (allExited && legUpdates.length > 0) {
+    if (allExited) {
       const optPnl = legUpdates.reduce((sum: number, l: any) => {
         const diff = l.direction === 'long'
           ? (l.exitPrice - l.entryPrice) * l.quantity * 100
