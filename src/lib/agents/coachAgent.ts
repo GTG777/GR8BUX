@@ -298,7 +298,7 @@ Most Traded Symbols: ${topSymbolsText || 'N/A'}`);
         }).join('\n');
         parts.push(`## Open Positions (${s.openPositions.length} total)\n${openLines}`);
       }
-Recent Trades (with option leg detail):
+      parts.push(`## Recent Trades (with option leg detail):
   ${recentText || 'N/A'}`);
     }
 
