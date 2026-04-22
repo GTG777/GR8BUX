@@ -30,11 +30,20 @@ interface EditData {
   legExitPrices: Record<string, string>;
 }
 
+/** Parse a date string's YYYY-MM-DD part as local midnight to avoid UTC timezone shift. */
+function parseLocalDate(d: string): Date {
+  const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, day);
+}
+
 function toDateInput(d?: string | null) {
   if (!d) return '';
-  const dt = new Date(d);
+  const dt = parseLocalDate(d);
   if (isNaN(dt.getTime())) return '';
-  return dt.toISOString().slice(0, 10);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 export default function TradeDetailPage() {
@@ -150,7 +159,7 @@ export default function TradeDetailPage() {
   }
 
   const fmt = (d: string) =>
-    new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    parseLocalDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const dirColor = (dir: 'long' | 'short') =>
     dir === 'long' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400';
