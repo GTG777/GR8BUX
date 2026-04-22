@@ -49,7 +49,7 @@ async function handleGetTrades(
   userId: string
 ) {
   const supabase = getSupabaseServiceRoleClient() || getSupabaseClient()!;
-  const { symbol, status, limit = 50, offset = 0 } = req.query;
+  const { symbol, status, type, limit = 50, offset = 0 } = req.query;
 
   let query = supabase
     .from('trades')
@@ -64,6 +64,10 @@ async function handleGetTrades(
 
   if (status) {
     query = query.eq('status', status);
+  }
+
+  if (type) {
+    query = query.eq('type', type);
   }
 
   // Apply pagination

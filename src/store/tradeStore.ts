@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 interface TradeFilter {
   symbol?: string;
   status?: 'open' | 'closed';
+  type?: 'stock' | 'option';
 }
 
 interface TradeState {
@@ -51,6 +52,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       const params = new URLSearchParams();
       if (filter?.symbol) params.append('symbol', filter.symbol);
       if (filter?.status) params.append('status', filter.status);
+      if (filter?.type) params.append('type', filter.type);
       params.append('limit', limit.toString());
       params.append('offset', offset.toString());
 

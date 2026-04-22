@@ -10,6 +10,7 @@ export function TradeList() {
 
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'stock' | 'option'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'pnl' | 'symbol'>('date');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -20,11 +21,12 @@ export function TradeList() {
       {
         symbol: filterSymbol || undefined,
         status: filterStatus !== 'all' ? filterStatus : undefined,
+        type: filterType !== 'all' ? filterType : undefined,
       },
       limit,
       page * limit
     );
-  }, [filterSymbol, filterStatus, page]);
+  }, [filterSymbol, filterStatus, filterType, page]);
 
   const handleDelete = async (id: string) => {
     if (await deleteTrade(id)) {
@@ -36,6 +38,7 @@ export function TradeList() {
     clearError();
     setFilterSymbol('');
     setFilterStatus('all');
+    setFilterType('all');
     setPage(0);
   };
 
@@ -105,6 +108,22 @@ export function TradeList() {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-zinc-400 mb-1">Type</label>
+            <select
+              value={filterType}
+              onChange={(e) => {
+                setFilterType(e.target.value as any);
+                setPage(0);
+              }}
+              className="px-3 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Types</option>
+              <option value="stock">Stock</option>
+              <option value="option">Option</option>
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-zinc-400 mb-1">Sort By</label>
             <select
               value={sortBy}
@@ -150,6 +169,7 @@ export function TradeList() {
                 <tr className="bg-gray-50 dark:bg-zinc-800/60 border-b dark:border-zinc-700/50">
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Symbol</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Type</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-zinc-300">Qty</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Entry Date</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-zinc-300">Exit Date</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-zinc-300">Entry $</th>
@@ -164,6 +184,13 @@ export function TradeList() {
                   <tr key={trade.id} className="border-b dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors">
                     <td className="px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white">{trade.symbol}</td>
                     <td className="px-3 py-2 text-xs text-gray-600 dark:text-zinc-400 capitalize">{trade.type}</td>
+                    <td className="px-3 py-2 text-xs text-right text-gray-600 dark:text-zinc-400">
+                      {trade.stockData?.quantity != null
+                        ? trade.stockData.quantity
+                        : trade.optionData?.legs?.[0]?.quantity != null
+                        ? trade.optionData.legs[0].quantity
+                        : <span className="text-gray-400">—</span>}
+                    </td>
                     <td className="px-3 py-2 text-xs text-gray-600 dark:text-zinc-400 whitespace-nowrap">{formatDate(trade.entryDate)}</td>
                     <td className="px-3 py-2 text-xs text-gray-600 dark:text-zinc-400 whitespace-nowrap">
                       {trade.exitDate
