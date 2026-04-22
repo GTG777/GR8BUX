@@ -191,8 +191,8 @@ export function TradeList() {
                           ? trade.optionData?.legs?.[0]?.direction === 'short'
                           : trade.tags?.includes('short');
                         return isShort
-                          ? <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">Sell</span>
-                          : <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Buy</span>;
+                          ? <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-bear/15 text-bear">Sell</span>
+                          : <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-bull/15 text-bull">Buy</span>;
                       })()}
                     </td>
                     <td className="px-3 py-2 text-xs text-right text-gray-600 dark:text-zinc-400">

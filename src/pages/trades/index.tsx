@@ -46,7 +46,7 @@ export default function TradesPage() {
       ) : (
         <div>
           <div className="mb-6 flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-900">Trade History</h2>
+            <h2 className="text-xl font-semibold text-foreground">Trade History</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowImport(true)}
