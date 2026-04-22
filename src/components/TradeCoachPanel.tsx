@@ -13,7 +13,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
-import type { CoachChatMessage, CoachSimilarTrade, CoachPatterns } from '@/types/agents';
+import type { CoachChatMessage, CoachSimilarTrade, CoachPatterns, CoachTokenUsage } from '@/types/agents';
 
 interface CurrentTrade {
   symbol?: string;
@@ -138,6 +138,11 @@ function MessageBubble({ msg }: { msg: CoachChatMessage }) {
         {new Date(msg.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
         {' · '}
         {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        {!isUser && msg.usage && (
+          <span className="ml-2 opacity-60">
+            {msg.usage.inputTokens.toLocaleString()} in · {msg.usage.outputTokens.toLocaleString()} out · ${msg.usage.estimatedCostUsd.toFixed(4)}
+          </span>
+        )}
       </p>
     </div>
   );
@@ -245,7 +250,7 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Coach error');
 
-      const { reply, similarTrades, patterns, suggestedActions } = json.data;
+      const { reply, similarTrades, patterns, suggestedActions, usage } = json.data;
 
       const assistantMsg: CoachChatMessage = {
         role: 'assistant',
@@ -254,6 +259,7 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
         similarTrades,
         patterns,
         suggestedActions,
+        usage,
       };
       setMessages((prev) => {
         const next = [...prev, assistantMsg];

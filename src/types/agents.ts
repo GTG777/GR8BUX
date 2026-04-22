@@ -26,6 +26,13 @@ export interface CoachPatterns {
   riskWarnings: string[];
 }
 
+export interface CoachTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  /** Estimated cost in USD based on claude-sonnet-4-5 pricing */
+  estimatedCostUsd: number;
+}
+
 export interface CoachChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -33,6 +40,7 @@ export interface CoachChatMessage {
   similarTrades?: CoachSimilarTrade[];
   patterns?: CoachPatterns;
   suggestedActions?: string[];
+  usage?: CoachTokenUsage;
 }
 
 // Technical Analyst Responses

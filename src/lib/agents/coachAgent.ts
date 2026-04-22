@@ -83,6 +83,12 @@ export interface CoachInput {
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
+export interface CoachTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+}
+
 export interface CoachResponse {
   reply: string;
   similarTrades: SimilarTrade[];
@@ -94,6 +100,7 @@ export interface CoachResponse {
     riskWarnings: string[];
   };
   suggestedActions: string[];
+  usage?: CoachTokenUsage;
 }
 
 // ─── Agent ────────────────────────────────────────────────────────────────────
@@ -132,12 +139,12 @@ export class CoachAgent extends Agent {
       { role: 'user', content: userPrompt },
     ];
 
-    const rawReply = await this.queryWithHistory(systemPrompt, messages);
+    const { text: rawReply, usage } = await this.queryWithHistory(systemPrompt, messages);
 
     // ── Step 6: Parse structured response ─────────────────────────
     const { reply, suggestedActions } = this.parseReply(rawReply);
 
-    return { reply, similarTrades, patterns, suggestedActions };
+    return { reply, similarTrades, patterns, suggestedActions, usage };
   }
 
   // ─── Private helpers ────────────────────────────────────────────
@@ -335,7 +342,7 @@ Risk Warnings: ${patterns.riskWarnings.join('; ') || 'None'}`);
   private async queryWithHistory(
     systemPrompt: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>
-  ): Promise<string> {
+  ): Promise<{ text: string; usage: CoachTokenUsage }> {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: this.maxTokens,
@@ -343,8 +350,15 @@ Risk Warnings: ${patterns.riskWarnings.join('; ') || 'None'}`);
       system: systemPrompt,
       messages,
     });
-    if (response.content[0].type === 'text') return response.content[0].text;
-    throw new Error('Unexpected response type from Claude');
+    if (response.content[0].type !== 'text') throw new Error('Unexpected response type from Claude');
+    // claude-sonnet-4-5 pricing: $3/M input, $15/M output
+    const inputTokens = response.usage.input_tokens;
+    const outputTokens = response.usage.output_tokens;
+    const estimatedCostUsd = (inputTokens / 1_000_000) * 3 + (outputTokens / 1_000_000) * 15;
+    return {
+      text: response.content[0].text,
+      usage: { inputTokens, outputTokens, estimatedCostUsd },
+    };
   }
 
   private parseReply(raw: string): { reply: string; suggestedActions: string[] } {
