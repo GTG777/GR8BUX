@@ -285,8 +285,8 @@ export default function StockScreenerPage() {
               <p className="text-xs text-gray-400 dark:text-zinc-500">Click a row → Stock Analysis</p>
             </div>
 
-            {/* Desktop table */}
-            <div className="overflow-x-auto hidden sm:block">
+            {/* Table — always visible, scrolls horizontally on narrow screens */}
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-zinc-800/60">
                   <tr>
@@ -357,39 +357,7 @@ export default function StockScreenerPage() {
               </table>
             </div>
 
-            {/* Mobile cards */}
-            <div className="sm:hidden divide-y divide-gray-100 dark:divide-zinc-800">
-              {visible.map(row => {
-                const tl = trendLabel(row.trendScore);
-                return (
-                  <div
-                    key={row.symbol}
-                    onClick={() => router.push(`/stocks?symbol=${row.symbol}`)}
-                    className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
-                  >
-                    <div className="w-14 shrink-0">
-                      <p className="font-bold text-gray-900 dark:text-white">{row.symbol}</p>
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${gradeChip(row.grade)}`}>{row.grade}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-gray-800 dark:text-white">${row.price.toFixed(2)}</span>
-                        <span className={`font-mono text-xs font-semibold ${changeColor(row.changePct)}`}>
-                          {row.changePct >= 0 ? '+' : ''}{row.changePct.toFixed(2)}%
-                        </span>
-                      </div>
-                      <p className={`text-xs mt-0.5 ${tl.cls}`}>{tl.text}</p>
-                    </div>
-                    <div className="text-right text-xs space-y-0.5 shrink-0">
-                      <p className={rsiColor(row.rsi)}>RSI {row.rsi.toFixed(0)}</p>
-                      <p className={row.volumeRatio >= 1.3 ? 'text-orange-500 font-semibold' : 'text-gray-400'}>
-                        Vol {row.volumeRatio.toFixed(1)}×
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+
           </div>
         )}
 
