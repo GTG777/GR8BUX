@@ -324,12 +324,12 @@ const WELCOME: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "Hi! I'm your LEAPS Advisor — powered by Claude AI + live Massive.com market data. Tell me your profit goal and I'll scan all 18 LEAPS candidates, run a multi-agent AI analysis, and show you the best setups ranked by probability of success with exact position sizing.\n\nTry: *\"Make $1,000 today\"* or *\"Low-risk LEAPS for $10k capital\"*.",
+    "Hi! I'm your LEAPS Coach — powered by Claude AI + live Massive.com market data. Tell me your profit goal and I'll scan all 18 LEAPS candidates, run a multi-agent AI analysis, and show you the best setups ranked by probability of success with exact position sizing.\n\nTry: *\"Make $1,000 today\"* or *\"Low-risk LEAPS for $10k capital\"*.",
   timestamp: new Date(),
 };
 
 // ── Main page ─────────────────────────────────────────────────────────────
-export default function LeapsAdvisorPage() {
+export default function LeapsCoachPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -422,7 +422,7 @@ export default function LeapsAdvisorPage() {
   return (
     <Layout>
       <Head>
-        <title>LEAPS Advisor | GR8BUX</title>
+        <title>LEAPS Coach | GR8BUX</title>
       </Head>
 
       {/* Full-height chat container, negates Layout's p-6 */}
@@ -431,7 +431,7 @@ export default function LeapsAdvisorPage() {
         {/* ── Header ────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-sm px-5 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">LEAPS Advisor</h1>
+            <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">LEAPS Coach</h1>
             <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
               AI-powered scanner · 18 tickers · Claude + live Massive.com data
             </p>

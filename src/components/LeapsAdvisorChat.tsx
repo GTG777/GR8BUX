@@ -1,5 +1,5 @@
 /**
- * LeapsAdvisorChat – the full advisor chat UI without a Layout wrapper.
+ * LeapsCoachChat – the full coach chat UI without a Layout wrapper.
  * Used as a tab inside the /leaps page.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -238,12 +238,12 @@ const WELCOME: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "Hi! I'm your LEAPS Advisor — powered by Claude AI + live Massive.com market data. Tell me your profit goal and I'll scan all 18 LEAPS candidates, run a multi-agent AI analysis, and show you the best setups ranked by probability of success with exact position sizing.\n\nTry: *\"Make $1,000 today\"* or *\"Low-risk LEAPS for $10k capital\"*.",
+    "Hi! I'm your LEAPS Coach — powered by Claude AI + live Massive.com market data. Tell me your profit goal and I'll scan all 18 LEAPS candidates, run a multi-agent AI analysis, and show you the best setups ranked by probability of success with exact position sizing.\n\nTry: *\"Make $1,000 today\"* or *\"Low-risk LEAPS for $10k capital\"*.",
   timestamp: new Date(),
 };
 
 // ── Chat component ────────────────────────────────────────────────────────
-export function LeapsAdvisorChat() {
+export function LeapsCoachChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -305,7 +305,7 @@ export function LeapsAdvisorChat() {
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 backdrop-blur-sm px-5 py-3 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-bold text-gray-900 dark:text-white tracking-tight">LEAPS Advisor</h2>
+          <h2 className="text-sm font-bold text-gray-900 dark:text-white tracking-tight">LEAPS Coach</h2>
           <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">AI-powered scanner · 18 tickers · Claude + live data</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-500">

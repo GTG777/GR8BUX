@@ -1,10 +1,10 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
-import { LeapsAdvisorChat } from '@/components/LeapsAdvisorChat';
+import { LeapsCoachChat } from '@/components/LeapsAdvisorChat';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { LeapsContract, LeapsChainResponse } from '@/pages/api/options/leaps-chain';
-import { AIAdvisorPanel } from '@/components';
+import { AICoachPanel } from '@/components';
 import { useAIAnalysis } from '@/hooks/useAIAnalysis';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
@@ -358,7 +358,7 @@ const GUIDES: Record<string, GuideData> = {
 /* -----------------------------------------------------------------
    Main Page
 ----------------------------------------------------------------- */
-type Tab = 'screener' | 'chain' | 'builder' | 'portfolio' | 'rules' | 'advisor';
+type Tab = 'screener' | 'chain' | 'builder' | 'portfolio' | 'rules' | 'coach';
 type SortKey = 'expiry' | 'strike' | 'delta' | 'premium' | 'theta' | 'oi' | 'be';
 
 // Portfolio position (persisted to localStorage)
@@ -717,7 +717,7 @@ export default function LeapsPage() {
     { id: 'builder',  label: '🛠️ Builder' },
     { id: 'portfolio',label: '💼 Portfolio' },
     { id: 'rules',    label: '📚 Rules & Tips' },
-    { id: 'advisor',  label: '🤖 AI Advisor' },
+    { id: 'coach',    label: '🤖 AI Coach' },
   ];
 
   return (
@@ -822,7 +822,7 @@ export default function LeapsPage() {
               </div>
             </div>
 
-            {/* Screener + AI Advisor Grid */}
+            {/* Screener + AI Coach Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Screener Table (left side) */}
               <div className="lg:col-span-2 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
@@ -843,10 +843,10 @@ export default function LeapsPage() {
                 />
               </div>
 
-              {/* AI Advisor Panel (right side) */}
+              {/* AI Coach Panel (right side) */}
               <div>
                 {selectedScreenerRow ? (
-                  <AIAdvisorPanel
+                  <AICoachPanel
                     analysis={aiAnalysis ?? undefined}
                     isLoading={aiLoading}
                     error={aiError ?? undefined}
@@ -1632,9 +1632,9 @@ export default function LeapsPage() {
         )}
 
         {/* ------------------------------------------------------
-            TAB: AI ADVISOR
+            TAB: AI COACH
         ------------------------------------------------------ */}
-        {tab === 'advisor' && <LeapsAdvisorChat />}
+        {tab === 'coach' && <LeapsCoachChat />}
 
       </div>
     </Layout>

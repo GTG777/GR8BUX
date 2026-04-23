@@ -4,7 +4,7 @@
  */
 
 import { getTechnicalAnalyst, TechnicalSetupData } from './technicalAnalyst';
-import { getGreeksAdvisor, GreeksSetupData } from './greeksAdvisor';
+import { getGreeksCoach, GreeksSetupData } from './greeksAdvisor';
 import { getSentimentAnalyst, SentimentData } from './sentimentAnalyst';
 import { getRiskManager, RiskData } from './riskManager';
 import { getTradeStrategist, StrategyInput } from './tradeStrategist';
@@ -23,7 +23,7 @@ export interface OrchestrationConfig {
 
 // Extended setup data that carries all agent inputs
 export interface FullSetupData extends TechnicalSetupData {
-  // Greeks Advisor extras
+  // Greeks Coach extras
   ivRank?: number;
   hv20?: number;
   delta?: number;
@@ -83,7 +83,7 @@ export class AIOrchestrator {
           daysToExpiry: setupData.daysToExpiry,
         };
         parallelTasks.push(
-          getGreeksAdvisor().analyzeGreeks(greeksData).then((result) => {
+          getGreeksCoach().analyzeGreeks(greeksData).then((result) => {
             analyses.greeks = result;
             explanations.greeksReasoning = this.explainGreeks(result);
           })

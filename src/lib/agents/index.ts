@@ -6,7 +6,7 @@
 export { TechnicalAnalyst, getTechnicalAnalyst } from './technicalAnalyst';
 export type { TechnicalSetupData } from './technicalAnalyst';
 
-export { GreeksAdvisor, getGreeksAdvisor } from './greeksAdvisor';
+export { GreeksCoach, getGreeksCoach } from './greeksAdvisor';
 export type { GreeksSetupData } from './greeksAdvisor';
 
 export { SentimentAnalyst, getSentimentAnalyst } from './sentimentAnalyst';

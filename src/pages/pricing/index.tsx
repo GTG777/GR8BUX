@@ -40,7 +40,7 @@ const PLANS: Plan[] = [
       { text: 'Performance Analytics', included: false },
       { text: 'Stock Scanner', included: false },
       { text: 'AI Market Assistant', included: false },
-      { text: 'LEAPS Advisor', included: false },
+      { text: 'LEAPS Coach', included: false },
       { text: 'Earnings Calendar', included: false },
       { text: 'Community Access', included: false },
       { text: 'Priority support', included: false },

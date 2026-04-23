@@ -9,5 +9,5 @@ export { default as TechnicalSetups } from './TechnicalSetups/TechnicalSetups';
 export { default as Navigation } from './Navigation/Navigation';
 
 // AI Agent Components
-export { default as AIAdvisorPanel } from './AIAdvisorPanel';
+export { default as AICoachPanel } from './AIAdvisorPanel';
 export { TradeCoachPanel } from './TradeCoachPanel';

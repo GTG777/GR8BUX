@@ -64,7 +64,7 @@ export interface TechnicalAnalysis {
   timestamp: string;
 }
 
-// Greeks Advisor Responses
+// Greeks Coach Responses
 export interface GreeksAnalysis {
   agentType: 'greeks';
   symbol: string;

@@ -287,7 +287,7 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
       max_tokens: 450,
       temperature: 0.65,
       system:
-        'You are a LEAPS options advisor. Be direct, specific, and practical. No filler phrases. Use exact numbers. 3–5 sentences max.',
+        'You are a LEAPS options coach. Be direct, specific, and practical. No filler phrases. Use exact numbers. 3–5 sentences max.',
       messages: [
         ...(history.slice(-4) as any),
         {

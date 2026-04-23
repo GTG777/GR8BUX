@@ -1,5 +1,5 @@
 ﻿/**
- * AI Advisor Panel Component
+ * AI Coach Panel Component
  * Displays multi-agent AI analysis (Technical, Greeks, Sentiment, Risk, Strategy)
  */
 
@@ -17,7 +17,7 @@ import {
 
 type TabId = 'overview' | 'technical' | 'greeks' | 'sentiment' | 'risk' | 'strategy';
 
-interface AIAdvisorPanelProps {
+interface AICoachPanelProps {
   analysis?: OrchestratorResponse;
   isLoading?: boolean;
   error?: string;
@@ -450,7 +450,7 @@ function StrategySection({ s }: { s: TradeStrategy }) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export const AIAdvisorPanel: React.FC<AIAdvisorPanelProps> = ({
+export const AICoachPanel: React.FC<AICoachPanelProps> = ({
   analysis,
   isLoading = false,
   error,
@@ -509,7 +509,7 @@ export const AIAdvisorPanel: React.FC<AIAdvisorPanelProps> = ({
       >
         <div className="flex items-center gap-3">
           <span className="text-lg">🤖</span>
-          <h3 className="font-semibold">AI Advisor</h3>
+          <h3 className="font-semibold">AI Coach</h3>
           {technical && (
             <span className={`text-xs font-bold ${getScoreColor(technical.qualityScore)}`}>
               {technical.qualityScore}/100
@@ -653,4 +653,4 @@ export const AIAdvisorPanel: React.FC<AIAdvisorPanelProps> = ({
   );
 };
 
-export default AIAdvisorPanel;
+export default AICoachPanel;

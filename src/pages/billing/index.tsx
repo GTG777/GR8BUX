@@ -145,7 +145,7 @@ export default function BillingPage() {
           </div>
           <div className="p-5 space-y-4">
             <UsageMeter label="Trades Logged"     used={47}   limit={null} unit="trades" />
-            <UsageMeter label="AI Advisor Queries" used={23}   limit={50}   unit="queries" />
+            <UsageMeter label="AI Coach Queries" used={23}   limit={50}   unit="queries" />
             <UsageMeter label="Watchlist Symbols"  used={18}   limit={50}   unit="symbols" />
             <UsageMeter label="Options Scans"      used={312}  limit={null} unit="scans" />
           </div>

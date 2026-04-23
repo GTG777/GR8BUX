@@ -1,5 +1,5 @@
 /**
- * Greeks Advisor Agent
+ * Greeks Coach Agent
  * Recommends optimal options strategies using Greeks and IV analysis
  */
 
@@ -21,7 +21,7 @@ export interface GreeksSetupData {
   daysToExpiry?: number; // if known
 }
 
-export class GreeksAdvisor extends Agent {
+export class GreeksCoach extends Agent {
   constructor(config: AgentConfig = {}) {
     super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
   }
@@ -123,11 +123,11 @@ Respond with this JSON:
   }
 }
 
-let greeksAdvisorInstance: GreeksAdvisor | null = null;
+let greeksCoachInstance: GreeksCoach | null = null;
 
-export function getGreeksAdvisor(config?: AgentConfig): GreeksAdvisor {
-  if (!greeksAdvisorInstance) {
-    greeksAdvisorInstance = new GreeksAdvisor(config);
+export function getGreeksCoach(config?: AgentConfig): GreeksCoach {
+  if (!greeksCoachInstance) {
+    greeksCoachInstance = new GreeksCoach(config);
   }
-  return greeksAdvisorInstance;
+  return greeksCoachInstance;
 }
