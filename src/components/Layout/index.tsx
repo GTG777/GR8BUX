@@ -36,6 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
     emoji: '📈',
     items: [
       { href: '/stocks',    label: 'Stock Analysis', icon: StockScannerIcon },
+      { href: '/chart',     label: 'Chart',          icon: ChartIcon        },
       { href: '/market',    label: 'Stock Screener', icon: MarketIcon       },
     ],
   },
