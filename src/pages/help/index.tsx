@@ -177,9 +177,9 @@ const sections: Section[] = [
     body: (
       <>
         <p className="text-sm text-gray-600 mb-4">
-          The Market page is your macro-level dashboard. It uses TradingView&apos;s embedded widgets to give
-          you a real-time pulse on the broad market, sector rotation, and individual stock movers — all
-          without leaving the platform.
+          The Market page is your macro-level dashboard with live data from your own data feeds —
+          no third-party embeds. It shows a real-time pulse on the broad market, sector rotation,
+          and individual stock movers — all without leaving the platform.
         </p>
 
         <SectionCard title="Ticker Tape">
@@ -209,16 +209,16 @@ const sections: Section[] = [
 
         <SectionCard title="Sector Performance Heatmap">
           <p className="text-sm text-gray-600">
-            A color-coded heat map of all major US ETFs arranged by asset class and market cap. Green cells
-            indicate outperformers, red cells indicate underperformers on a percentage change basis.
-            Great for spotting sector rotation and risk-on/risk-off shifts.
+            A color-coded grid of all 11 GICS sector ETFs (XLK, XLF, XLV, etc.). Green cells indicate
+            outperformers, red cells indicate underperformers on a percentage-change basis. The regime
+            badge (Risk-On / Defensive / Commodity / Mixed) summarizes the rotation direction.
           </p>
         </SectionCard>
 
-        <SectionCard title="Stock Screener Widget">
+        <SectionCard title="Stock Screener">
           <p className="text-sm text-gray-600">
-            A TradingView stock screener preset to the US market. Use it to filter by technical criteria
-            or browse general market overview. For more powerful screening, see Options Screener and Stock Scanner.
+            A full custom screener is coming soon, powered by your own data feeds. In the meantime,
+            use Top Movers and Options Screener to find active names.
           </p>
         </SectionCard>
 
@@ -244,25 +244,25 @@ const sections: Section[] = [
     body: (
       <>
         <p className="text-sm text-gray-600 mb-4">
-          The Chart page is built for serious technical analysis. It combines TradingView&apos;s advanced
-          interactive chart with custom in-house panels — including a fully rendered True Strength Index
-          chart, pivot levels, and an automated signal engine — all calculated locally from real Yahoo
-          Finance price data.
+          The Chart page is built for serious technical analysis. It combines a commercial-safe open-source
+          candlestick chart (Lightweight Charts, Apache 2.0) with custom in-house panels — including a
+          fully rendered True Strength Index chart, pivot levels, and an automated signal engine — all
+          calculated locally from real price data.
         </p>
 
-        <SectionCard title="TradingView Advanced Chart">
+        <SectionCard title="Candlestick Chart (Open-Source)">
           <FeatureList items={[
-            { label: 'Full interactivity', desc: 'Pan, zoom, draw trendlines, switch timeframes (1m → 1D).' },
+            { label: 'Full interactivity', desc: 'Pan, zoom, switch timeframes (1m → 1D).' },
             { label: 'EMA Overlays', desc: 'EMA 9 (fast), EMA 21, EMA 50 (trend), EMA 200 (macro trend) plotted directly on candles.' },
-            { label: 'Volume', desc: 'Volume histogram at the bottom of the main chart.' },
-            { label: 'Symbol search', desc: 'Enter any US or global ticker symbol in the chart\'s top-left search box.' },
+            { label: 'Volume', desc: 'Semi-transparent volume histogram at the bottom of the main chart.' },
+            { label: 'Dark / Light mode', desc: 'Chart theme syncs with your site-wide dark mode toggle automatically.' },
           ]} />
         </SectionCard>
 
         <SectionCard title="True Strength Index (TSI) Chart — In-House">
           <p className="text-sm text-gray-600 mb-3">
-            This is our custom-built momentum oscillator chart rendered below the TradingView widget.
-            It uses the last 120 trading days of data fetched from Yahoo Finance.
+            This is our custom-built momentum oscillator chart rendered below the candlestick chart.
+            It uses historical price data fetched from your data feeds.
           </p>
           <FeatureList items={[
             { label: 'TSI Line (indigo)', desc: 'The main oscillator. Ranges approximately from −100 to +100.' },
@@ -456,9 +456,9 @@ const sections: Section[] = [
           ]} />
         </SectionCard>
 
-        <SectionCard title="TradingView Mini Chart">
+        <SectionCard title="Candlestick Chart">
           <p className="text-sm text-gray-600">
-            A daily candlestick chart of the selected symbol with EMA20, EMA50, and Volume overlays.
+            A daily candlestick chart with EMA 20, EMA 50, and Volume overlays.
             Use it to confirm your directional bias before acting on any spread recommendation.
           </p>
         </SectionCard>
@@ -527,19 +527,19 @@ const sections: Section[] = [
           ]} />
         </SectionCard>
 
-        <SectionCard title="TradingView Chart">
+        <SectionCard title="Candlestick Chart (Open-Source)">
           <p className="text-sm text-gray-600">
-            An embedded interactive daily chart with EMA 20, EMA 50, EMA 200, and Volume overlays.
-            Use this to visually confirm any setup detected below. Note: all indicator calculations
-            (TSI, ATR, etc.) are done separately from real Yahoo Finance data — they are not dependent
-            on the TradingView chart.
+            A daily candlestick chart of the selected symbol with EMA20, EMA50, and Volume overlays.
+            Use this to visually confirm any setup detected below. All indicator calculations
+            (TSI, ATR, etc.) are done separately from real price data — they are not dependent
+            on the chart rendering.
           </p>
         </SectionCard>
 
         <SectionCard title="True Strength Index (TSI) Chart — In-House">
           <p className="text-sm text-gray-600 mb-2">
-            The same in-house TSI chart from the Chart page is rendered directly below the TradingView
-            widget. It shows the last 120 daily bars of TSI and Signal computed from real price data.
+          The same in-house TSI chart from the Chart page is rendered directly below the candlestick
+          chart. It shows the last 120 daily bars of TSI and Signal computed from real price data.
           </p>
           <FeatureList items={[
             { label: 'TSI Line (indigo)', desc: 'Double-smoothed momentum oscillator, params: slow=25, fast=13.' },

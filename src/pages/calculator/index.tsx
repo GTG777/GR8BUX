@@ -16,6 +16,7 @@ import {
   Bar,
 } from 'recharts';
 import { Layout } from '@/components/Layout';
+import LWChart from '@/components/LWChart';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { BlackScholesInputs } from '@/lib/greeks';
 import type { OptionContract } from '@/pages/api/options/chain';
@@ -365,36 +366,7 @@ function computeOptionsAnalytics(contracts: OptionContract[], spot: number): Opt
   return { ivr: calcIVR(contracts), maxPain: calcMaxPainOpt(contracts, spot), gex: gexByStrike, totalGex, nearestExpiry };
 }
 
-/* ── TradingView widget ─────────────────────────────────────────── */
-function TVWidget({ symbol }: { symbol: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const CHART_H = 420;
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = '';
-    const widgetDiv = document.createElement('div');
-    widgetDiv.className = 'tradingview-widget-container__widget';
-    widgetDiv.style.cssText = `height:${CHART_H}px;width:100%`;
-    containerRef.current.appendChild(widgetDiv);
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      width: '100%', height: CHART_H, symbol, interval: 'D',
-      timezone: 'America/Chicago', theme: 'light', style: '1', locale: 'en',
-      enable_publishing: false, allow_symbol_change: false,
-      hide_side_toolbar: false, withdateranges: true, save_image: false,
-      studies: [
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 20 } },
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 50 } },
-        { id: 'Volume@tv-basicstudies' },
-      ],
-    });
-    containerRef.current.appendChild(script);
-  }, [symbol]);
-  return <div className="tradingview-widget-container" ref={containerRef} style={{ height: CHART_H, width: '100%' }} />;
-}
+/* TVWidget removed — replaced by LWChart (commercial-safe, Apache 2.0) */
 
 /* ── Info tooltip ───────────────────────────────────────────────── */
 function InfoTip({ text }: { text: string }) {
@@ -533,6 +505,19 @@ function calcHV(closes: number[], period: number): number {
   const mean = returns.reduce((a, b) => a + b) / returns.length;
   const variance = returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (returns.length - 1);
   return parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
+}
+
+function calcEMAArr(data: number[], period: number): number[] {
+  if (data.length < period) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [];
+  let ema = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  result.push(ema);
+  for (let i = period; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+    result.push(ema);
+  }
+  return result;
 }
 
 /* ── P&L Diagram (tabbed) ───────────────────────────────────────── */
@@ -1126,6 +1111,8 @@ export default function CalculatorPage() {
   // Results
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null);
   const [hvData, setHvData] = useState<HVData | null>(null);
+  const [calcCandles, setCalcCandles] = useState<{ date: string; open: number; high: number; low: number; close: number; volume: number }[]>([]);
+  const [calcEmaArrays, setCalcEmaArrays] = useState<{ ema20: number[]; ema50: number[] } | null>(null);
   const [hvLoading, setHvLoading] = useState(false);
   const [calcError, setCalcError] = useState('');
 
@@ -1140,15 +1127,20 @@ export default function CalculatorPage() {
   const fetchHV = useCallback(async (sym: string) => {
     setHvLoading(true);
     setHvData(null);
+    setCalcCandles([]);
+    setCalcEmaArrays(null);
     try {
       const res = await fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`);
       if (res.ok) {
         const json = await res.json();
-        const closes: number[] = json.candles?.map((c: { close: number }) => c.close) ?? [];
+        const rawCandles = json.candles ?? [];
+        setCalcCandles(rawCandles);
+        const closes: number[] = rawCandles.map((c: { close: number }) => c.close);
         if (closes.length) {
           const latest = closes[closes.length - 1];
           setHvData({ hv10: calcHV(closes, 10), hv20: calcHV(closes, 20), hv30: calcHV(closes, 30), hv60: calcHV(closes, 60), currentPrice: latest });
           setSpot(latest.toFixed(2));
+          setCalcEmaArrays({ ema20: calcEMAArr(closes, 20), ema50: calcEMAArr(closes, 50) });
         }
       }
     } finally {
@@ -1355,9 +1347,9 @@ export default function CalculatorPage() {
         {/* ── Chain & Analytics Tab ── */}
         {activeTab === 'chain' && (
           <div className="space-y-6">
-            {/* TradingView chart */}
+            {/* Chart */}
             <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
-              <TVWidget symbol={symbol} />
+              <LWChart candles={calcCandles} ema20={calcEmaArrays?.ema20} ema50={calcEmaArrays?.ema50} height={420} showVolume />
             </div>
             {/* Analytics panel */}
             {chainLoading && (
