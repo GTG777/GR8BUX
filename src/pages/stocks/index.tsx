@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { Layout } from '@/components/Layout';
 import LWChart from '@/components/LWChart';
+import StockCoachPanel from '@/components/StockCoachPanel';
 import CandlePatternsPanel from '@/components/CandlePatternsPanel';
 import VWAPPanel from '@/components/VWAPPanel';
 import InsiderActivityPanel from '@/components/InsiderActivityPanel';
@@ -1283,7 +1284,7 @@ export default function StockScannerPage() {
 
         {/* ── Tabs ── */}
         {(() => {
-          const tabs = ['Overview', 'Technicals', 'Insider', 'Setups'] as const;
+          const tabs = ['Overview', 'Technicals', 'Coach', 'Insider', 'Setups'] as const;
           type Tab = typeof tabs[number];
           // eslint-disable-next-line react-hooks/rules-of-hooks
           const [activeTab, setActiveTab] = React.useState<Tab>('Overview');
@@ -1361,6 +1362,15 @@ export default function StockScannerPage() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* ── Coach ── */}
+              {activeTab === 'Coach' && (
+                <StockCoachPanel
+                  symbol={symbol}
+                  indicators={indicators}
+                  setups={setups}
+                />
               )}
 
               {/* ── Insider ── */}
