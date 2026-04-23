@@ -84,6 +84,16 @@ function calcEMAArr(data: number[], period: number): number[] {
   return result;
 }
 
+function calcEMAFull(data: number[], period: number): number[] {
+  if (data.length === 0) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [data[0]];
+  for (let i = 1; i < data.length; i++) {
+    result.push(data[i] * k + result[i - 1] * (1 - k));
+  }
+  return result;
+}
+
 function calcTSI(closes: number[], fast = 13, slow = 25): number {
   if (closes.length < slow + fast + 2) return 0;
   const momentum = closes.slice(1).map((c, i) => c - closes[i]);
@@ -557,7 +567,7 @@ export default function ChartPage() {
       setIndicators(computeIndicators(json.candles));
       setTsiSeries(calcTSIArr(json.candles));
       const cls: number[] = json.candles.map((c: Candle) => c.close);
-      setChartEmaArrays({ e9: calcEMAArr(cls, 9), e21: calcEMAArr(cls, 21), e50: calcEMAArr(cls, 50), e200: calcEMAArr(cls, 200) });
+      setChartEmaArrays({ e9: calcEMAFull(cls, 9), e21: calcEMAFull(cls, 21), e50: calcEMAFull(cls, 50), e200: calcEMAFull(cls, 200) });
     } catch {
       setError('Network error — please try again.');
     } finally {

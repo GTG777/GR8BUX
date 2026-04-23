@@ -520,6 +520,16 @@ function calcEMAArr(data: number[], period: number): number[] {
   return result;
 }
 
+function calcEMAFull(data: number[], period: number): number[] {
+  if (data.length === 0) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [data[0]];
+  for (let i = 1; i < data.length; i++) {
+    result.push(data[i] * k + result[i - 1] * (1 - k));
+  }
+  return result;
+}
+
 /* ── P&L Diagram (tabbed) ───────────────────────────────────────── */
 const fmt$ = (v: number) => v >= 0 ? `+$${v.toFixed(0)}` : `-$${Math.abs(v).toFixed(0)}`;
 
@@ -1140,7 +1150,7 @@ export default function CalculatorPage() {
           const latest = closes[closes.length - 1];
           setHvData({ hv10: calcHV(closes, 10), hv20: calcHV(closes, 20), hv30: calcHV(closes, 30), hv60: calcHV(closes, 60), currentPrice: latest });
           setSpot(latest.toFixed(2));
-          setCalcEmaArrays({ ema20: calcEMAArr(closes, 20), ema50: calcEMAArr(closes, 50) });
+          setCalcEmaArrays({ ema20: calcEMAFull(closes, 20), ema50: calcEMAFull(closes, 50) });
         }
       }
     } finally {

@@ -91,6 +91,18 @@ function calcEMAArr(data: number[], period: number): number[] {
   return result;
 }
 
+// Full-length EMA for chart overlays — seeds from first price so all lines
+// start at candle[0] and converge to the true EMA by ~period bars.
+function calcEMAFull(data: number[], period: number): number[] {
+  if (data.length === 0) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [data[0]];
+  for (let i = 1; i < data.length; i++) {
+    result.push(data[i] * k + result[i - 1] * (1 - k));
+  }
+  return result;
+}
+
 // Returns full TSI series aligned to candle dates (used for the in-house TSI chart)
 function calcTSIArr(candles: Candle[], fast = 13, slow = 25): { date: string; tsi: number; signal: number }[] {
   const closes = candles.map((c) => c.close);
@@ -1206,7 +1218,7 @@ export default function StockScannerPage() {
       setTsiData(calcTSIArr(candles));
       setAllCandles(candles);
       const cls = candles.map((c: Candle) => c.close);
-      setEmaArrays({ ema20: calcEMAArr(cls, 20), ema50: calcEMAArr(cls, 50), ema200: calcEMAArr(cls, 200) });
+      setEmaArrays({ ema20: calcEMAFull(cls, 20), ema50: calcEMAFull(cls, 50), ema200: calcEMAFull(cls, 200) });
       setLastScanned(new Date().toLocaleTimeString());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Scan failed');

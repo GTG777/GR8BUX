@@ -111,6 +111,16 @@ function calcEMAArr(data: number[], period: number): number[] {
   return result;
 }
 
+function calcEMAFull(data: number[], period: number): number[] {
+  if (data.length === 0) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [data[0]];
+  for (let i = 1; i < data.length; i++) {
+    result.push(data[i] * k + result[i - 1] * (1 - k));
+  }
+  return result;
+}
+
 /* ── DTE helper ─────────────────────────────────────────────────── */
 function dteTill(exStr: string): number {
   const exp = new Date(exStr + 'T16:00:00-05:00');
@@ -1257,7 +1267,7 @@ export default function ScannerPage() {
       const closes: number[] = candlesJson.candles?.map((c: { close: number }) => c.close) ?? [];
       if (!closes.length) throw new Error('No historical price data returned');
       setScanCandles(candlesJson.candles ?? []);
-      setScanEmaArrays({ ema20: calcEMAArr(closes, 20), ema50: calcEMAArr(closes, 50) });
+      setScanEmaArrays({ ema20: calcEMAFull(closes, 20), ema50: calcEMAFull(closes, 50) });
 
       const price = chain.underlyingPrice || closes.at(-1)!;
       const hv10  = calcHV(closes, 10);
