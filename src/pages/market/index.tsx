@@ -1,38 +1,421 @@
-﻿import React from 'react';
-import Link from 'next/link';
+﻿import React, { useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
+import type { ScreenerRow } from '@/pages/api/market/screener';
 
+// ── Presets ───────────────────────────────────────────────────────
+const PRESETS: Record<string, string[]> = {
+  'Tech': ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','AVGO','CRM','ORCL','NFLX','ADBE','QCOM','INTC'],
+  'Mega Cap': ['AAPL','MSFT','NVDA','GOOGL','AMZN','META','LLY','V','JPM','UNH','XOM','TSLA','AVGO','JNJ','COST'],
+  'Financials': ['JPM','GS','MS','BAC','WFC','V','MA','AXP','BLK','SCHW','CB','PGR','TFC','USB','COF'],
+  'Energy': ['XOM','CVX','COP','EOG','SLB','PSX','VLO','MPC','OXY','HAL','DVN','HES','APA','BKR','MRO'],
+  'Healthcare': ['UNH','LLY','JNJ','ABBV','MRK','PFE','TMO','ABT','AMGN','BMY','ISRG','MDT','CVS','CI','ELV'],
+  'Consumer': ['AMZN','HD','MCD','COST','TGT','WMT','NKE','SBUX','LOW','TJX','YUM','ULTA','ROST','DG','DLTR'],
+  'ETFs': ['SPY','QQQ','IWM','DIA','GLD','SLV','TLT','HYG','XLE','XLF','XLK','XLV','XLI','XLC','ARKK'],
+};
+
+// ── Types ─────────────────────────────────────────────────────────
+type SortKey = keyof Pick<ScreenerRow,'price'|'changePct'|'trendScore'|'rsi'|'tsi'|'volumeRatio'|'atr14'|'hv20'>;
+type TrendFilter = 'all' | 'bull3' | 'bull' | 'bear' | 'bear3';
+type RsiFilter   = 'all' | 'oversold' | 'neutral' | 'overbought';
+type VolFilter   = 'all' | 'elevated';
+type GradeFilter = 'all' | 'A' | 'B' | 'C';
+
+// ── Helpers ───────────────────────────────────────────────────────
+function trendLabel(s: number) {
+  if (s === 3)  return { text: '▲▲▲ Strong Bull', cls: 'text-green-600 dark:text-green-400 font-bold' };
+  if (s === 2)  return { text: '▲▲ Bullish',      cls: 'text-green-500 dark:text-green-400' };
+  if (s === 1)  return { text: '▲ Leaning Bull',  cls: 'text-emerald-500' };
+  if (s === -1) return { text: '▼ Leaning Bear',  cls: 'text-orange-500' };
+  if (s === -2) return { text: '▼▼ Bearish',      cls: 'text-red-500' };
+  return              { text: '▼▼▼ Strong Bear', cls: 'text-red-600 dark:text-red-400 font-bold' };
+}
+
+function gradeChip(g: string) {
+  if (g === 'A') return 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300';
+  if (g === 'B') return 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300';
+  if (g === 'C') return 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300';
+  return 'bg-gray-100 dark:bg-zinc-800 text-gray-400';
+}
+
+function rsiColor(rsi: number) {
+  if (rsi > 70) return 'text-red-600 dark:text-red-400';
+  if (rsi < 30) return 'text-green-600 dark:text-green-400';
+  return 'text-gray-700 dark:text-zinc-200';
+}
+
+function changeColor(v: number) {
+  return v >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400';
+}
+
+// ── Chip button ───────────────────────────────────────────────────
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+        active
+          ? 'bg-indigo-600 border-indigo-600 text-white'
+          : 'bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 hover:border-indigo-400 dark:hover:border-indigo-500'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ── Sort header ───────────────────────────────────────────────────
+function SortTh({ col, label, sortKey, dir, onSort }: {
+  col: SortKey; label: string; sortKey: SortKey; dir: 'asc'|'desc'; onSort: (k: SortKey) => void
+}) {
+  const active = sortKey === col;
+  return (
+    <th
+      onClick={() => onSort(col)}
+      className="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide cursor-pointer select-none hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap"
+    >
+      {label}{active ? (dir === 'asc' ? ' ↑' : ' ↓') : ''}
+    </th>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────
 export default function StockScreenerPage() {
+  const router = useRouter();
+
+  // ── State ────────────────────────────────────────────────────────
+  const [activePreset, setActivePreset] = useState<string>('Tech');
+  const [customInput, setCustomInput]   = useState('');
+  const [rows, setRows]                 = useState<ScreenerRow[]>([]);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
+  const [scanned, setScanned]           = useState(false);
+
+  // Filters
+  const [trend, setTrend]   = useState<TrendFilter>('all');
+  const [rsiF, setRsiF]     = useState<RsiFilter>('all');
+  const [volF, setVolF]     = useState<VolFilter>('all');
+  const [gradeF, setGradeF] = useState<GradeFilter>('all');
+
+  // Sort
+  const [sortKey, setSortKey] = useState<SortKey>('trendScore');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // ── Scan ─────────────────────────────────────────────────────────
+  const scan = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    const symbols = customInput.trim()
+      ? customInput.split(/[\s,]+/).map(s => s.toUpperCase()).filter(Boolean)
+      : PRESETS[activePreset] ?? [];
+    if (symbols.length === 0) { setLoading(false); return; }
+    try {
+      const res = await fetch(`/api/market/screener?symbols=${symbols.join(',')}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? 'Scan failed');
+      setRows(json.rows);
+      setScanned(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scan failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [activePreset, customInput]);
+
+  // ── Sort handler ─────────────────────────────────────────────────
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+
+  // ── Filter + sort rows ────────────────────────────────────────────
+  const visible = rows
+    .filter(r => {
+      if (trend === 'bull3' && r.trendScore !== 3)  return false;
+      if (trend === 'bull'  && r.trendScore < 1)    return false;
+      if (trend === 'bear'  && r.trendScore > -1)   return false;
+      if (trend === 'bear3' && r.trendScore !== -3)  return false;
+      if (rsiF === 'oversold'   && r.rsi >= 30)  return false;
+      if (rsiF === 'neutral'    && (r.rsi < 30 || r.rsi > 70)) return false;
+      if (rsiF === 'overbought' && r.rsi <= 70)  return false;
+      if (volF === 'elevated'   && r.volumeRatio < 1.3) return false;
+      if (gradeF !== 'all' && r.grade !== gradeF) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const av = a[sortKey] as number;
+      const bv = b[sortKey] as number;
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+
   return (
     <Layout title="Stock Screener">
-      <div className="max-w-3xl mx-auto px-4 py-16 text-center space-y-6">
-        <div className="text-5xl">🔍</div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Full Screener Coming Soon
-        </h1>
-        <p className="text-gray-500 dark:text-zinc-400 text-base leading-relaxed">
-          We are building a custom stock screener powered by your own data — no third-party
-          embeds, full SaaS licensing compliance.
-        </p>
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
-          >
-            ← Market Overview
-          </Link>
-          <Link
-            href="/stocks"
-            className="inline-flex items-center justify-center gap-2 border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-zinc-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold px-6 py-3 rounded-xl transition-colors"
-          >
-            Stock Analysis →
-          </Link>
+        {/* ── Page header ── */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Stock Screener</h1>
+          <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
+            Trend score · RSI · TSI · Volume · Setup grade — powered by live market data
+          </p>
         </div>
 
-        <p className="text-xs text-gray-400 dark:text-zinc-600 pt-6">
-          In the meantime, use Top Movers on the dashboard to find active names.
-        </p>
+        {/* ── Controls ── */}
+        <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4 space-y-4">
+
+          {/* Presets */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Preset Lists</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(PRESETS).map(p => (
+                <Chip key={p} active={activePreset === p && !customInput} onClick={() => { setActivePreset(p); setCustomInput(''); }}>
+                  {p}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom symbols + scan */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide block mb-1">
+                Custom Symbols (comma or space separated, max 40)
+              </label>
+              <input
+                type="text"
+                value={customInput}
+                onChange={e => setCustomInput(e.target.value.toUpperCase())}
+                placeholder="e.g. AAPL, TSLA, NVDA, SPY"
+                className="w-full rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-600"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={scan}
+                disabled={loading}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-6 py-2 rounded-lg transition-colors text-sm"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Scanning…
+                  </>
+                ) : '🔍 Scan'}
+              </button>
+            </div>
+          </div>
+
+          {/* Filters — only shown once there are results */}
+          {scanned && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-gray-100 dark:border-zinc-800">
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Trend</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['all','bull3','bull','bear','bear3'] as TrendFilter[]).map(v => (
+                    <Chip key={v} active={trend === v} onClick={() => setTrend(v)}>
+                      {v === 'all' ? 'All' : v === 'bull3' ? '▲▲▲' : v === 'bull' ? '▲ Bull' : v === 'bear' ? '▼ Bear' : '▼▼▼'}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">RSI</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['all','oversold','neutral','overbought'] as RsiFilter[]).map(v => (
+                    <Chip key={v} active={rsiF === v} onClick={() => setRsiF(v)}>
+                      {v === 'all' ? 'All' : v === 'oversold' ? '< 30' : v === 'neutral' ? '30–70' : '> 70'}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Volume</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Chip active={volF === 'all'} onClick={() => setVolF('all')}>All</Chip>
+                  <Chip active={volF === 'elevated'} onClick={() => setVolF('elevated')}>Elevated ≥1.3×</Chip>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Grade</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['all','A','B','C'] as GradeFilter[]).map(v => (
+                    <Chip key={v} active={gradeF === v} onClick={() => setGradeF(v)}>
+                      {v === 'all' ? 'All' : `Grade ${v}`}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Error ── */}
+        {error && (
+          <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        {/* ── Empty / initial state ── */}
+        {!loading && !scanned && !error && (
+          <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-12 text-center">
+            <div className="text-4xl mb-3">🔍</div>
+            <p className="text-gray-500 dark:text-zinc-400 text-sm">
+              Select a preset or enter symbols above, then click <strong>Scan</strong>.
+            </p>
+            <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">Results cached 15 min. Click any row to open Stock Analysis.</p>
+          </div>
+        )}
+
+        {/* ── No results after filter ── */}
+        {!loading && scanned && visible.length === 0 && rows.length > 0 && (
+          <div className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-6 text-center text-sm text-amber-700 dark:text-amber-400">
+            No symbols match the current filters. Try relaxing your criteria.
+          </div>
+        )}
+
+        {/* ── Results table ── */}
+        {visible.length > 0 && (
+          <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-700 dark:text-zinc-200">
+                {visible.length} result{visible.length !== 1 ? 's' : ''}
+                {visible.length < rows.length && <span className="text-gray-400 dark:text-zinc-500 font-normal"> of {rows.length} scanned</span>}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-zinc-500">Click a row → Stock Analysis</p>
+            </div>
+
+            {/* Desktop table */}
+            <div className="overflow-x-auto hidden sm:block">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-zinc-800/60">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Symbol</th>
+                    <SortTh col="price"       label="Price"     sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="changePct"   label="Change%"   sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="trendScore"  label="Trend"     sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="rsi"         label="RSI"       sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="tsi"         label="TSI"       sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="volumeRatio" label="Vol Ratio" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="atr14"       label="ATR"       sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="hv20"        label="HV20%"     sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Grade</th>
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Setups</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {visible.map(row => {
+                    const tl = trendLabel(row.trendScore);
+                    return (
+                      <tr
+                        key={row.symbol}
+                        onClick={() => router.push(`/stocks?symbol=${row.symbol}`)}
+                        className="hover:bg-indigo-50 dark:hover:bg-indigo-950/20 cursor-pointer transition-colors"
+                      >
+                        <td className="px-4 py-2.5">
+                          <span className="font-bold text-gray-900 dark:text-white">{row.symbol}</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-gray-700 dark:text-zinc-200">
+                          ${row.price.toFixed(2)}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-mono font-semibold ${changeColor(row.changePct)}`}>
+                          {row.changePct >= 0 ? '+' : ''}{row.changePct.toFixed(2)}%
+                        </td>
+                        <td className={`px-3 py-2.5 text-right text-xs ${tl.cls}`}>
+                          {tl.text}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-mono ${rsiColor(row.rsi)}`}>
+                          {row.rsi.toFixed(1)}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-mono ${row.tsi > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                          {row.tsi.toFixed(1)}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-mono ${row.volumeRatio >= 1.3 ? 'text-orange-600 dark:text-orange-400 font-semibold' : 'text-gray-600 dark:text-zinc-300'}`}>
+                          {row.volumeRatio.toFixed(2)}×
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-gray-600 dark:text-zinc-300">
+                          ${row.atr14.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono text-gray-600 dark:text-zinc-300">
+                          {row.hv20.toFixed(1)}%
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${gradeChip(row.grade)}`}>
+                            {row.grade}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {row.setupCount > 0
+                            ? <span className="text-indigo-600 dark:text-indigo-400 font-bold">{row.setupCount}</span>
+                            : <span className="text-gray-300 dark:text-zinc-600">—</span>
+                          }
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="sm:hidden divide-y divide-gray-100 dark:divide-zinc-800">
+              {visible.map(row => {
+                const tl = trendLabel(row.trendScore);
+                return (
+                  <div
+                    key={row.symbol}
+                    onClick={() => router.push(`/stocks?symbol=${row.symbol}`)}
+                    className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                  >
+                    <div className="w-14 shrink-0">
+                      <p className="font-bold text-gray-900 dark:text-white">{row.symbol}</p>
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${gradeChip(row.grade)}`}>{row.grade}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-gray-800 dark:text-white">${row.price.toFixed(2)}</span>
+                        <span className={`font-mono text-xs font-semibold ${changeColor(row.changePct)}`}>
+                          {row.changePct >= 0 ? '+' : ''}{row.changePct.toFixed(2)}%
+                        </span>
+                      </div>
+                      <p className={`text-xs mt-0.5 ${tl.cls}`}>{tl.text}</p>
+                    </div>
+                    <div className="text-right text-xs space-y-0.5 shrink-0">
+                      <p className={rsiColor(row.rsi)}>RSI {row.rsi.toFixed(0)}</p>
+                      <p className={row.volumeRatio >= 1.3 ? 'text-orange-500 font-semibold' : 'text-gray-400'}>
+                        Vol {row.volumeRatio.toFixed(1)}×
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Legend ── */}
+        {scanned && (
+          <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4">
+            <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide mb-3">Column Guide</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-2">
+              {[
+                ['Trend Score',  'EMAs 20/50/200 vs price. +3 = all below (strong uptrend). −3 = all above (strong downtrend).'],
+                ['RSI',         'Relative Strength Index 14. < 30 = oversold (green). > 70 = overbought (red).'],
+                ['TSI',         'True Strength Index (25,13). Positive = bullish momentum. Negative = bearish.'],
+                ['Vol Ratio',   "Today's volume vs 20-day average. ≥ 1.3× = elevated conviction (orange)."],
+                ['ATR',         'Average True Range 14. Dollar measure of daily price volatility.'],
+                ['HV20%',       'Historical volatility (annualised). Useful for options pricing context.'],
+                ['Grade',       'A = 4–5 signals aligned. B = 2–3. C = 0–1. Based on trend + momentum + volume.'],
+                ['Setups',      'Count of high-confidence trade setups detected. Click row to see full breakdown.'],
+              ].map(([term, def]) => (
+                <div key={term} className="flex gap-2 text-xs py-1">
+                  <span className="font-semibold text-gray-700 dark:text-gray-200 w-24 shrink-0">{term}</span>
+                  <span className="text-gray-500 dark:text-gray-400">{def}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
