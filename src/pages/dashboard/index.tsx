@@ -1,135 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Layout } from '@/components/Layout';
 import MacroBar from '@/components/MacroBar';
 import SectorRotationPanel from '@/components/SectorRotationPanel';
 import TopMovers from '@/components/TopMovers';
+import IndexTape from '@/components/IndexTape';
+import SparklineCard from '@/components/SparklineCard';
+import SectorGrid from '@/components/SectorGrid';
 
-const TV_EMBED = 'https://s3.tradingview.com/external-embedding';
-
-function TVWidget({
-  src,
-  config,
-  height,
-}: {
-  src: string;
-  config: Record<string, unknown>;
-  height: number;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const initialized = useRef(false);
-
-  useEffect(() => {
-    if (initialized.current || !containerRef.current) return;
-    initialized.current = true;
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = src;
-    script.async = true;
-    script.innerHTML = JSON.stringify(config);
-    containerRef.current.appendChild(script);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div className="tradingview-widget-container" ref={containerRef} style={{ minHeight: height, borderRadius: 'inherit', overflow: 'hidden' }}>
-      <div className="tradingview-widget-container__widget" style={{ borderRadius: 'inherit' }} />
-    </div>
-  );
-}
-
-function TickerTape() {
-  return (
-    <TVWidget
-      src={`${TV_EMBED}/embed-widget-ticker-tape.js`}
-      height={52}
-      config={{
-        symbols: [
-          { proName: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
-          { proName: 'FOREXCOM:NSXUSD', title: 'NASDAQ 100' },
-          { proName: 'FOREXCOM:DJI',    title: 'Dow Jones' },
-          { proName: 'TVC:RUT',         title: 'Russell 2000' },
-          { proName: 'TVC:VIX',         title: 'VIX' },
-          { proName: 'BITSTAMP:BTCUSD', title: 'Bitcoin' },
-          { proName: 'BITSTAMP:ETHUSD', title: 'Ethereum' },
-          { proName: 'NASDAQ:NVDA',     title: 'NVDA' },
-          { proName: 'NASDAQ:AAPL',     title: 'AAPL' },
-          { proName: 'NASDAQ:MSFT',     title: 'MSFT' },
-          { proName: 'NASDAQ:TSLA',     title: 'TSLA' },
-          { proName: 'NASDAQ:META',     title: 'META' },
-          { proName: 'NASDAQ:GOOGL',    title: 'GOOGL' },
-          { proName: 'NASDAQ:AMZN',     title: 'AMZN' },
-        ],
-        showSymbolLogo: true,
-        isTransparent: true,
-        displayMode: 'adaptive',
-        colorTheme: 'dark',
-        locale: 'en',
-      }}
-    />
-  );
-}
-
-function MiniChart({ symbol, title }: { symbol: string; title: string }) {
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
-      <div className="px-3 pt-2 text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">
-        {title}
-      </div>
-      <TVWidget
-        src={`${TV_EMBED}/embed-widget-mini-symbol-overview.js`}
-        height={160}
-        config={{
-          symbol,
-          width: '100%',
-          height: 160,
-          locale: 'en',
-          dateRange: '1D',
-          colorTheme: 'dark',
-          trendLineColor: 'rgba(41, 98, 255, 1)',
-          underLineColor: 'rgba(41, 98, 255, 0.3)',
-          underLineBottomColor: 'rgba(41, 98, 255, 0)',
-          isTransparent: true,
-          autosize: true,
-          largeChartUrl: '',
-        }}
-      />
-    </div>
-  );
-}
-
-function SectorHeatmap() {
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden p-4">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🗺️ Sector Performance</h2>
-      <TVWidget
-        src={`${TV_EMBED}/embed-widget-etf-heatmap.js`}
-        height={560}
-        config={{
-          dataSource: 'AllUSEtf',
-          blockSize: 'aum',
-          blockColor: 'change',
-          grouping: 'asset_class',
-          locale: 'en',
-          symbolUrl: '',
-          colorTheme: 'dark',
-          hasTopBar: true,
-          isDataSetEnabled: true,
-          isZoomEnabled: true,
-          hasSymbolTooltip: true,
-          isMonoSize: false,
-          width: '100%',
-          height: 560,
-        }}
-      />
-    </div>
-  );
-}
+/* TV widgets removed — replaced by commercial-safe components */
 
 const INDEX_CHARTS = [
-  { symbol: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
-  { symbol: 'FOREXCOM:NSXUSD', title: 'NASDAQ 100' },
-  { symbol: 'FOREXCOM:DJI',    title: 'Dow Jones' },
-  { symbol: 'TVC:RUT',         title: 'Russell 2000' },
+  { symbol: 'SPY',  title: 'S&P 500'     },
+  { symbol: 'QQQ',  title: 'NASDAQ 100'  },
+  { symbol: 'DIA',  title: 'Dow Jones'   },
+  { symbol: 'IWM',  title: 'Russell 2000'},
 ];
 
 export default function DashboardPage() {
@@ -149,17 +33,17 @@ export default function DashboardPage() {
         <MacroBar />
         <SectorRotationPanel />
 
-        <div className="rounded-xl overflow-hidden shadow border border-zinc-700/60 bg-zinc-900">
-          <TickerTape />
+        <div className="rounded-xl overflow-hidden shadow border border-zinc-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-900">
+          <IndexTape />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {INDEX_CHARTS.map((c) => (
-            <MiniChart key={c.symbol} symbol={c.symbol} title={c.title} />
+            <SparklineCard key={c.symbol} symbol={c.symbol} title={c.title} />
           ))}
         </div>
 
-        <SectorHeatmap />
+        <SectorGrid />
 
         <TopMovers />
       </div>

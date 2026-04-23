@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts';
 import { Layout } from '@/components/Layout';
+import LWChart from '@/components/LWChart';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { BlackScholesInputs } from '@/lib/greeks';
 import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/chain';
@@ -363,45 +364,7 @@ function calcHV(closes: number[], period: number): number {
   return parseFloat((Math.sqrt(variance) * Math.sqrt(252) * 100).toFixed(1));
 }
 
-/* ── TradingView widget ─────────────────────────────────────────── */
-function TVWidget({ symbol }: { symbol: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const CHART_H = 420;
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = '';
-    const widgetDiv = document.createElement('div');
-    widgetDiv.className = 'tradingview-widget-container__widget';
-    widgetDiv.style.cssText = `height:${CHART_H}px;width:100%`;
-    containerRef.current.appendChild(widgetDiv);
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      width: '100%',
-      height: CHART_H,
-      symbol,
-      interval: 'D',
-      timezone: 'America/Chicago',
-      theme: 'dark',
-      style: '1',
-      locale: 'en',
-      enable_publishing: false,
-      allow_symbol_change: false,
-      hide_side_toolbar: false,
-      withdateranges: true,
-      save_image: false,
-      studies: [
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 20  } },
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 50  } },
-        { id: 'Volume@tv-basicstudies' },
-      ],
-    });
-    containerRef.current.appendChild(script);
-  }, [symbol]);
-  return <div className="tradingview-widget-container" ref={containerRef} style={{ height: CHART_H, width: '100%' }} />;
-}
+/* TVWidget removed — replaced by LWChart (commercial-safe, Apache 2.0) */
 
 /* ── Info tooltip ───────────────────────────────────────────────── */
 function InfoTip({ text }: { text: string }) {
@@ -973,6 +936,7 @@ export default function OptionsPage() {
   // Results
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null);
   const [hvData, setHvData] = useState<HVData | null>(null);
+  const [optCandles, setOptCandles] = useState<{ date: string; open: number; high: number; low: number; close: number; volume: number }[]>([]);
   const [hvLoading, setHvLoading] = useState(false);
   const [optionsAnalytics, setOptionsAnalytics] = useState<OptionsAnalytics | null>(null);
   const [calcError, setCalcError] = useState('');
@@ -984,6 +948,7 @@ export default function OptionsPage() {
     setHvLoading(true);
     setHvData(null);
     setOptionsAnalytics(null);
+    setOptCandles([]);
     try {
       const [candlesRes, chainRes] = await Promise.all([
         fetch(`/api/market/candles?symbol=${encodeURIComponent(sym)}&range=full`),
@@ -991,7 +956,9 @@ export default function OptionsPage() {
       ]);
       if (candlesRes.ok) {
         const json = await candlesRes.json();
-        const closes: number[] = json.candles?.map((c: { close: number }) => c.close) ?? [];
+        const rawCandles = json.candles ?? [];
+        setOptCandles(rawCandles);
+        const closes: number[] = rawCandles.map((c: { close: number }) => c.close);
         if (closes.length) {
           const latest = closes[closes.length - 1];
           setHvData({ hv10: calcHV(closes, 10), hv20: calcHV(closes, 20), hv30: calcHV(closes, 30), hv60: calcHV(closes, 60), currentPrice: latest });
@@ -1095,9 +1062,9 @@ export default function OptionsPage() {
           </div>
         </div>
 
-        {/* ── TradingView chart ── */}
+        {/* ── Chart ── */}
         <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
-          <TVWidget key={symbol} symbol={symbol} />
+          <LWChart candles={optCandles} height={420} showVolume />
         </div>
 
         {/* ── Options Analytics ── */}

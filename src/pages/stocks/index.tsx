@@ -15,6 +15,7 @@ import {
   Legend,
 } from 'recharts';
 import { Layout } from '@/components/Layout';
+import LWChart from '@/components/LWChart';
 import CandlePatternsPanel from '@/components/CandlePatternsPanel';
 import VWAPPanel from '@/components/VWAPPanel';
 import InsiderActivityPanel from '@/components/InsiderActivityPanel';
@@ -508,37 +509,7 @@ function TSIChart({ data }: { data: TSIPoint[] }) {
   );
 }
 
-/* ── TradingView chart ──────────────────────────────────────────── */
-function TVMini({ symbol }: { symbol: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.innerHTML = '';
-    const wd = document.createElement('div');
-    wd.className = 'tradingview-widget-container__widget';
-    wd.style.cssText = 'height:320px;width:100%';
-    ref.current.appendChild(wd);
-    const sc = document.createElement('script');
-    sc.type = 'text/javascript';
-    sc.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    sc.async = true;
-    sc.innerHTML = JSON.stringify({
-      width: '100%', height: 320, symbol,
-      interval: 'D', timezone: 'America/Chicago', theme: 'dark',
-      style: '1', locale: 'en',
-      enable_publishing: false, allow_symbol_change: false,
-      hide_side_toolbar: true, withdateranges: false, save_image: false,
-      studies: [
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 20 } },
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 50 } },
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 200 } },
-        { id: 'Volume@tv-basicstudies' },
-      ],
-    });
-    ref.current.appendChild(sc);
-  }, [symbol]);
-  return <div className="tradingview-widget-container" ref={ref} style={{ height: 320, width: '100%' }} />;
-}
+/* TVMini removed — replaced by LWChart (commercial-safe, Apache 2.0) */
 
 /* ── Technical snapshot bar ─────────────────────────────────────── */
 function TechBar({ ind }: { ind: Indicators }) {
@@ -1192,6 +1163,7 @@ export default function StockScannerPage() {
   const [setups, setSetups]         = useState<StockSetup[]>([]);
   const [tsiData, setTsiData]       = useState<TSIPoint[]>([]);
   const [allCandles, setAllCandles] = useState<Candle[]>([]);
+  const [emaArrays, setEmaArrays] = useState<{ ema20: number[]; ema50: number[]; ema200: number[] } | null>(null);
   const [vwapData, setVwapData]         = useState<VWAPData | null>(null);
   const [insiderData, setInsiderData]   = useState<InsiderData | null>(null);
   const [loading, setLoading]           = useState(true);
@@ -1205,6 +1177,7 @@ export default function StockScannerPage() {
     setIndicators(null);
     setTsiData([]);
     setAllCandles([]);
+    setEmaArrays(null);
     setVwapData(null);
     setInsiderData(null);
     try {
@@ -1231,6 +1204,8 @@ export default function StockScannerPage() {
       setSetups(found);
       setTsiData(calcTSIArr(candles));
       setAllCandles(candles);
+      const cls = candles.map((c: Candle) => c.close);
+      setEmaArrays({ ema20: calcEMAArr(cls, 20), ema50: calcEMAArr(cls, 50), ema200: calcEMAArr(cls, 200) });
       setLastScanned(new Date().toLocaleTimeString());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Scan failed');
@@ -1294,9 +1269,16 @@ export default function StockScannerPage() {
           </div>
         </div>
 
-        {/* ── TV Chart ── */}
+        {/* ── Chart ── */}
         <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
-          <TVMini key={symbol} symbol={symbol} />
+          <LWChart
+            candles={allCandles}
+            ema20={emaArrays?.ema20}
+            ema50={emaArrays?.ema50}
+            ema200={emaArrays?.ema200}
+            height={320}
+            showVolume
+          />
         </div>
 
         {/* ── Tabs ── */}

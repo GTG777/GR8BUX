@@ -2,6 +2,7 @@
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
+import LWChart from '@/components/LWChart';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import { useTradeStore } from '@/store/tradeStore';
 import type { OptionContract, OptionsChainResponse } from '@/pages/api/options/chain';
@@ -95,6 +96,19 @@ function calcEMA(closes: number[], period: number): number {
   let ema = closes.slice(0, period).reduce((a, b) => a + b) / period;
   for (let i = period; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
   return ema;
+}
+
+function calcEMAArr(data: number[], period: number): number[] {
+  if (data.length < period) return [];
+  const k = 2 / (period + 1);
+  const result: number[] = [];
+  let ema = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  result.push(ema);
+  for (let i = period; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+    result.push(ema);
+  }
+  return result;
 }
 
 /* ── DTE helper ─────────────────────────────────────────────────── */
@@ -555,37 +569,7 @@ function buildIronCondors(bullPuts: Spread[], bearCalls: Spread[]): Spread[] {
   return results;
 }
 
-/* ── Compact TradingView chart ──────────────────────────────────── */
-function TVMini({ symbol }: { symbol: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.innerHTML = '';
-    const wd = document.createElement('div');
-    wd.className = 'tradingview-widget-container__widget';
-    wd.style.cssText = 'height:300px;width:100%';
-    ref.current.appendChild(wd);
-    const sc = document.createElement('script');
-    sc.type = 'text/javascript';
-    sc.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    sc.async = true;
-    sc.innerHTML = JSON.stringify({
-      width: '100%', height: 300, symbol,
-      interval: 'D', timezone: 'America/Chicago', theme: 'dark',
-      style: '1', locale: 'en',
-      enable_publishing: false, allow_symbol_change: false,
-      hide_side_toolbar: true, withdateranges: false,
-      save_image: false,
-      studies: [
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 20 } },
-        { id: 'MAExp@tv-basicstudies', inputs: { length: 50 } },
-        { id: 'Volume@tv-basicstudies' },
-      ],
-    });
-    ref.current.appendChild(sc);
-  }, [symbol]);
-  return <div className="tradingview-widget-container" ref={ref} style={{ height: 300, width: '100%' }} />;
-}
+/* TVMini removed — replaced by LWChart (commercial-safe, Apache 2.0) */
 
 /* ── Market Bias Bar ───────────────────────────────────────────── */
 function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV: number; ivr: number | null; pcRatio: number | null; vwap: VWAPData | null }) {
@@ -1222,6 +1206,7 @@ export default function ScannerPage() {
   const [chainIV, setChainIV]               = useState(0);
   const [optionsAnalytics, setOptionsAnalytics] = useState<OptionsAnalytics | null>(null);
   const [scanCandles, setScanCandles]       = useState<{ date: string; open: number; high: number; low: number; close: number; volume: number }[]>([]);
+  const [scanEmaArrays, setScanEmaArrays]   = useState<{ ema20: number[]; ema50: number[] } | null>(null);
   const [vwapData, setVwapData]             = useState<VWAPData | null>(null);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState('');
@@ -1251,6 +1236,7 @@ export default function ScannerPage() {
     setError('');
     setScanResults([]);
     setScanCandles([]);
+    setScanEmaArrays(null);
     setVwapData(null);
     try {
       const [candlesRes, chainRes, vwapRes] = await Promise.all([
@@ -1271,6 +1257,7 @@ export default function ScannerPage() {
       const closes: number[] = candlesJson.candles?.map((c: { close: number }) => c.close) ?? [];
       if (!closes.length) throw new Error('No historical price data returned');
       setScanCandles(candlesJson.candles ?? []);
+      setScanEmaArrays({ ema20: calcEMAArr(closes, 20), ema50: calcEMAArr(closes, 50) });
 
       const price = chain.underlyingPrice || closes.at(-1)!;
       const hv10  = calcHV(closes, 10);
@@ -1396,9 +1383,15 @@ export default function ScannerPage() {
           </div>
         </div>
 
-        {/* ── TV Chart ── */}
+        {/* ── Chart ── */}
         <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
-          <TVMini key={symbol} symbol={symbol} />
+          <LWChart
+            candles={scanCandles}
+            ema20={scanEmaArrays?.ema20}
+            ema50={scanEmaArrays?.ema50}
+            height={300}
+            showVolume
+          />
         </div>
 
         {/* ── Market Context ── */}

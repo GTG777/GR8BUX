@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts';
 import { Layout } from '@/components/Layout';
+import LWChart from '@/components/LWChart';
 
 /* ─────────────────────────────────────────────
    Types
@@ -311,63 +312,7 @@ function TSIChart({ data, timeframeLabel, interval }: { data: TSIPoint[]; timefr
   );
 }
 
-/* ─────────────────────────────────────────────
-   TradingView Advanced Chart
-   Uses the official embed-widget-advanced-chart
-───────────────────────────────────────────── */
-function AdvancedChart({ symbol, interval }: { symbol: string; interval: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const CHART_H = 560;
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = '';
-
-    const widgetDiv = document.createElement('div');
-    widgetDiv.className = 'tradingview-widget-container__widget';
-    widgetDiv.style.cssText = `height:${CHART_H}px;width:100%`;
-    containerRef.current.appendChild(widgetDiv);
-
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      width: '100%',
-      height: CHART_H,
-      symbol,
-      interval,
-      timezone: 'America/Chicago',
-      theme: 'light',
-      style: '1',
-      locale: 'en',
-      enable_publishing: false,
-      allow_symbol_change: false,
-      hide_side_toolbar: false,
-      withdateranges: true,
-      save_image: false,
-      show_popup_button: false,
-      studies: [
-        { id: 'MAExp@tv-basicstudies',             inputs: { length: 9   } },
-        { id: 'MAExp@tv-basicstudies',             inputs: { length: 21  } },
-        { id: 'MAExp@tv-basicstudies',             inputs: { length: 50  } },
-        { id: 'MAExp@tv-basicstudies',             inputs: { length: 200 } },
-        { id: 'TrueStrengthIndicator@tv-basicstudies', inputs: { first_length: 25, second_length: 13 } },
-        { id: 'Volume@tv-basicstudies'             },
-      ],
-    });
-    containerRef.current.appendChild(script);
-  }, [symbol, interval]);
-
-  return (
-    <div
-      className="tradingview-widget-container"
-      ref={containerRef}
-      style={{ height: CHART_H, width: '100%' }}
-    />
-  );
-}
+/* AdvancedChart removed — replaced by LWChart (commercial-safe, Apache 2.0) */
 
 /* ─────────────────────────────────────────────
    Indicator panels
@@ -594,6 +539,7 @@ export default function ChartPage() {
   const [symbol, setSymbol]     = useState('AAPL');
   const [interval, setInterval] = useState('1');
   const [candles, setCandles]   = useState<Candle[]>([]);
+  const [chartEmaArrays, setChartEmaArrays] = useState<{ e9: number[]; e21: number[]; e50: number[]; e200: number[] } | null>(null);
   const [indicators, setIndicators] = useState<Indicators | null>(null);
   const [tsiSeries, setTsiSeries]   = useState<TSIPoint[]>([]);
   const [loading, setLoading]   = useState(false);
@@ -610,6 +556,8 @@ export default function ChartPage() {
       setCandles(json.candles);
       setIndicators(computeIndicators(json.candles));
       setTsiSeries(calcTSIArr(json.candles));
+      const cls: number[] = json.candles.map((c: Candle) => c.close);
+      setChartEmaArrays({ e9: calcEMAArr(cls, 9), e21: calcEMAArr(cls, 21), e50: calcEMAArr(cls, 50), e200: calcEMAArr(cls, 200) });
     } catch {
       setError('Network error — please try again.');
     } finally {
@@ -691,10 +639,17 @@ export default function ChartPage() {
         {/* ── Status bar ── */}
         {indicators && <StatusBar symbol={symbol} ind={indicators} />}
 
-        {/* ── TradingView chart ── */}
+        {/* ── Chart ── */}
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
-          {/* key forces full remount when symbol/interval changes */}
-          <AdvancedChart key={`${symbol}-${interval}`} symbol={symbol} interval={interval} />
+          <LWChart
+            candles={candles}
+            ema9={chartEmaArrays?.e9}
+            ema21={chartEmaArrays?.e21}
+            ema50={chartEmaArrays?.e50}
+            ema200={chartEmaArrays?.e200}
+            height={560}
+            showVolume
+          />
         </div>
 
         {/* ── TSI Chart ── */}
@@ -727,7 +682,7 @@ export default function ChartPage() {
 
         {/* ── Footer note ── */}
         <p className="text-xs text-gray-400 text-center">
-          Chart powered by TradingView. Indicators (EMA, TSI, Pivots) calculated from Yahoo Finance daily data.
+          Indicators (EMA 9/21/50/200, TSI, Pivots) calculated from historical daily data.
           For informational purposes only — not financial advice.
         </p>
       </div>
