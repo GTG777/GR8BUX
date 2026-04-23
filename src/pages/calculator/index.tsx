@@ -20,6 +20,9 @@ import LWChart from '@/components/LWChart';
 import { calculateCallGreeks, calculatePutGreeks } from '@/lib/greeks';
 import type { BlackScholesInputs } from '@/lib/greeks';
 import type { OptionContract } from '@/pages/api/options/chain';
+import OptionsCoachPanel from '@/components/OptionsCoachPanel';
+import type { OptionsScreenerRow } from '@/pages/api/market/options-screener';
+import { OPTIONS_PRESETS } from '@/pages/api/market/options-screener';
 
 /* ── Types ────────────────────────────────────────────────────────── */
 type StrategyId =
@@ -1099,7 +1102,13 @@ export default function CalculatorPage() {
   const router = useRouter();
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'builder' | 'chain'>('builder');
+  const [activeTab, setActiveTab] = useState<'builder' | 'chain' | 'screener' | 'coach'>('builder');
+
+  // Screener state
+  const [screenerPreset, setScreenerPreset] = useState('All Stars');
+  const [screenerRows, setScreenerRows] = useState<OptionsScreenerRow[]>([]);
+  const [screenerLoading, setScreenerLoading] = useState(false);
+  const screenerLoadedRef = useRef(new Set<string>());
 
   // Symbol
   const [symbol, setSymbol] = useState('SPY');
@@ -1282,6 +1291,33 @@ export default function CalculatorPage() {
     }
   };
 
+  // ── Screener loader ──────────────────────────────────────────────
+  const loadScreener = useCallback(async (preset: string) => {
+    setScreenerLoading(true);
+    setScreenerRows([]);
+    try {
+      const res = await fetch(`/api/market/options-screener?preset=${encodeURIComponent(preset)}`);
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setScreenerRows(data.rows ?? []);
+    } catch {
+      setScreenerRows([]);
+    } finally {
+      setScreenerLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'screener' || screenerLoadedRef.current.has(screenerPreset)) return;
+    screenerLoadedRef.current.add(screenerPreset);
+    loadScreener(screenerPreset);
+  }, [activeTab, screenerPreset, loadScreener]);
+
+  const handlePresetChange = (preset: string) => {
+    setScreenerPreset(preset);
+    screenerLoadedRef.current.delete(preset);
+  };
+
   const inputCls = 'border border-gray-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 w-full bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500';
 
   return (
@@ -1309,7 +1345,7 @@ export default function CalculatorPage() {
 
           {/* Tab bar */}
           <div className="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-lg p-1 w-fit mb-4">
-            {([['builder', '🧮 Strategy Builder'], ['chain', '📊 Chain & Analytics']] as const).map(([id, label]) => (
+            {([['builder', '🧮 Strategy Builder'], ['chain', '📊 Chain & Analytics'], ['screener', '🔍 Screener'], ['coach', '🤖 Options Coach']] as const).map(([id, label]) => (
               <button key={id} onClick={() => setActiveTab(id)}
                 className={`px-4 py-1.5 rounded text-xs font-semibold transition-colors ${activeTab === id ? 'bg-white dark:bg-zinc-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700'}`}>
                 {label}
@@ -1614,6 +1650,151 @@ export default function CalculatorPage() {
           </div>
         </div>
         </>)} {/* end activeTab === 'builder' */}
+
+        {/* ── Screener Tab ── */}
+        {activeTab === 'screener' && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm px-5 py-4">
+              <div className="flex items-center gap-3 mb-3 flex-wrap">
+                <h2 className="text-sm font-bold text-gray-800 dark:text-white">Options Screener</h2>
+                <p className="text-xs text-gray-400 dark:text-zinc-500">IVR · HV20 · GEX · Max Pain · Grade — 15-min cache</p>
+                {screenerLoading && <span className="text-xs text-indigo-500 animate-pulse ml-auto">Scanning…</span>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {Object.keys(OPTIONS_PRESETS).map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => handlePresetChange(preset)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                      screenerPreset === preset
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-gray-50 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-200 dark:border-zinc-700 hover:border-indigo-300'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+                <button
+                  onClick={() => { screenerLoadedRef.current.delete(screenerPreset); loadScreener(screenerPreset); }}
+                  disabled={screenerLoading}
+                  className="px-3 py-1 rounded-lg text-xs border border-gray-200 dark:border-zinc-700 text-gray-500 hover:border-indigo-300 disabled:opacity-40 ml-auto"
+                >
+                  ↺ Refresh
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-x-auto">
+              {screenerLoading ? (
+                <div className="py-16 text-center text-sm text-gray-400 dark:text-zinc-500 animate-pulse">Fetching options chains… ~10–15s</div>
+              ) : screenerRows.length === 0 ? (
+                <div className="py-16 text-center text-sm text-gray-400 dark:text-zinc-500">Select a preset to load.</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-zinc-800 text-gray-400 dark:text-zinc-500 text-left">
+                      <th className="px-4 py-3 font-medium">Symbol</th>
+                      <th className="px-3 py-3 font-medium text-right">Price</th>
+                      <th className="px-3 py-3 font-medium text-right">HV20</th>
+                      <th className="px-3 py-3 font-medium text-right">Avg IV</th>
+                      <th className="px-3 py-3 font-medium text-right">IVR</th>
+                      <th className="px-3 py-3 font-medium text-right">IV−HV</th>
+                      <th className="px-3 py-3 font-medium text-right">GEX</th>
+                      <th className="px-3 py-3 font-medium text-right">Max Pain</th>
+                      <th className="px-3 py-3 font-medium">Setup</th>
+                      <th className="px-3 py-3 font-medium text-center">Grade</th>
+                      <th className="px-3 py-3 font-medium">Expiry</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...screenerRows]
+                      .sort((a, b) => {
+                        const go = { A: 0, B: 1, C: 2, null: 3 };
+                        const ga = go[a.grade ?? 'null'], gb = go[b.grade ?? 'null'];
+                        if (ga !== gb) return ga - gb;
+                        return (b.ivr ?? 0) - (a.ivr ?? 0);
+                      })
+                      .map((row) => {
+                        const ivrColor = row.ivr === null ? 'text-gray-400' : row.ivr >= 65 ? 'text-red-600 font-bold' : row.ivr <= 30 ? 'text-blue-600 font-bold' : 'text-gray-700 dark:text-zinc-200';
+                        const spreadColor = row.ivHvSpread === null ? 'text-gray-400' : row.ivHvSpread > 5 ? 'text-red-600' : row.ivHvSpread < -3 ? 'text-blue-600' : 'text-gray-600 dark:text-zinc-300';
+                        const setupBadge = row.setupType === 'sell-premium' ? 'bg-blue-100 text-blue-700' : row.setupType === 'buy-options' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500';
+                        const gradeBadge = row.grade === 'A' ? 'bg-green-100 text-green-700' : row.grade === 'B' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500';
+                        return (
+                          <tr
+                            key={row.symbol}
+                            onClick={() => { handleSymbol(row.symbol); setActiveTab('builder'); }}
+                            className="border-b border-gray-50 dark:border-zinc-800/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 cursor-pointer transition-colors"
+                          >
+                            <td className="px-4 py-2.5 font-bold text-gray-900 dark:text-white">{row.symbol}</td>
+                            <td className="px-3 py-2.5 text-right text-gray-700 dark:text-zinc-200">{row.price !== null ? `$${row.price.toFixed(2)}` : '—'}</td>
+                            <td className="px-3 py-2.5 text-right text-gray-600 dark:text-zinc-300">{row.hv20 !== null ? `${row.hv20.toFixed(1)}%` : '—'}</td>
+                            <td className="px-3 py-2.5 text-right text-gray-600 dark:text-zinc-300">{row.avgIV !== null ? `${row.avgIV.toFixed(1)}%` : '—'}</td>
+                            <td className={`px-3 py-2.5 text-right ${ivrColor}`}>{row.ivr !== null ? row.ivr.toFixed(0) : '—'}</td>
+                            <td className={`px-3 py-2.5 text-right ${spreadColor}`}>{row.ivHvSpread !== null ? `${row.ivHvSpread > 0 ? '+' : ''}${row.ivHvSpread.toFixed(1)}%` : '—'}</td>
+                            <td className="px-3 py-2.5 text-right">{row.gexPositive === null ? <span className="text-gray-400">—</span> : <span className={row.gexPositive ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>{row.gexPositive ? '+GEX' : '−GEX'}</span>}</td>
+                            <td className="px-3 py-2.5 text-right text-gray-600 dark:text-zinc-300">{row.maxPainPct !== null ? `${row.maxPainPct > 0 ? '+' : ''}${row.maxPainPct.toFixed(1)}%` : '—'}</td>
+                            <td className="px-3 py-2.5">{row.setupType && <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${setupBadge}`}>{row.setupType === 'sell-premium' ? 'Sell' : row.setupType === 'buy-options' ? 'Buy' : 'Neutral'}</span>}</td>
+                            <td className="px-3 py-2.5 text-center">{row.grade && <span className={`inline-flex w-6 h-6 rounded-full text-xs font-bold items-center justify-center ${gradeBadge}`}>{row.grade}</span>}</td>
+                            <td className="px-3 py-2.5 text-gray-500 dark:text-zinc-400">{row.nearestExpiry ?? '—'}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 px-1">Click any row to load that symbol into the Builder tab.</p>
+          </div>
+        )}
+
+        {/* ── Options Coach Tab ── */}
+        {activeTab === 'coach' && (() => {
+          const optCtx = hvData ? {
+            price: hvData.currentPrice,
+            hv20: hvData.hv20,
+            avgIV: parseFloat(userIV) || null,
+            ivr: optionsAnalytics?.ivr ?? null,
+            ivHvSpread: parseFloat(userIV) && hvData.hv20 > 0
+              ? parseFloat((parseFloat(userIV) - hvData.hv20).toFixed(1))
+              : null,
+            gexPositive: optionsAnalytics ? optionsAnalytics.totalGex >= 0 : null,
+            maxPainPct: hvData.currentPrice > 0 && optionsAnalytics
+              ? parseFloat(((optionsAnalytics.maxPain - hvData.currentPrice) / hvData.currentPrice * 100).toFixed(2))
+              : null,
+            nearestExpiry: optionsAnalytics?.nearestExpiry ?? null,
+            topOIStrike: optionsAnalytics?.gex[0]?.strike ?? null,
+          } : null;
+
+          const trCtx = calcResult && parseFloat(spot) > 0 ? {
+            stratName: strat.name,
+            netCost: calcResult.netCost,
+            maxProfit: calcResult.maxProfit,
+            maxLoss: calcResult.maxLoss,
+            breakevenPrices: calcResult.breakevenPrices,
+            netDelta: calcResult.legs.reduce((s, l) => s + (l.direction === 'long' ? 1 : -1) * l.delta * l.qty, 0),
+            netTheta: calcResult.legs.reduce((s, l) => s + (l.direction === 'long' ? 1 : -1) * l.theta * l.qty * 100, 0),
+            netVega: calcResult.legs.reduce((s, l) => s + (l.direction === 'long' ? 1 : -1) * l.vega * l.qty * 100, 0),
+            spot: parseFloat(spot),
+            dte: parseInt(dte) || 30,
+            iv: parseFloat(iv) || 25,
+          } : null;
+
+          if (!optCtx) {
+            return (
+              <div className="rounded-xl border border-dashed border-gray-200 dark:border-zinc-800 p-10 text-center text-gray-400 text-sm">
+                Switch to the <button onClick={() => setActiveTab('chain')} className="underline text-indigo-500">Chain &amp; Analytics</button> tab first to load IV data, then come back here.
+              </div>
+            );
+          }
+
+          return (
+            <OptionsCoachPanel
+              symbol={symbol}
+              optionsContext={optCtx}
+              tradeContext={trCtx}
+            />
+          );
+        })()}
 
         <p className="text-center text-xs text-gray-400 pb-4">
           Options pricing via Black-Scholes model. For educational purposes only — not financial advice.
