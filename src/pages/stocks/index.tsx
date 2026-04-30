@@ -1273,7 +1273,7 @@ export default function StockScannerPage() {
                 className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                   symbol === t
                     ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-gray-50 text-gray-600 dark:text-gray-300 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
+                    : 'bg-gray-100 dark:bg-zinc-700 text-gray-800 dark:text-zinc-100 border-gray-300 dark:border-zinc-600 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 dark:hover:border-indigo-500'
                 }`}
               >
                 {t}
