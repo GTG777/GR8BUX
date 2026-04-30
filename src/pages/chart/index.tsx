@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import {
   ResponsiveContainer,
   LineChart,
@@ -693,6 +694,7 @@ const QUICK_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'GOOGL', 'AMZN', 
    Page
 ───────────────────────────────────────────── */
 export default function ChartPage() {
+  const router = useRouter();
   const [input, setInput]       = useState('');
   const [symbol, setSymbol]     = useState('AAPL');
   const [interval, setInterval] = useState('1');
@@ -728,6 +730,19 @@ export default function ChartPage() {
 
   // Load on mount and whenever interval changes
   useEffect(() => { fetchCandles(symbol, interval); }, [interval]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Read URL query params on mount (e.g. from dashboard TopMovers click)
+  useEffect(() => {
+    if (!router.isReady) return;
+    const sym = (router.query.symbol as string)?.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
+    const iv  = router.query.interval as string | undefined;
+    const validIntervals = ['1', '5', '15', '60', '240', 'D', 'W'];
+    if (sym) setSymbol(sym);
+    if (iv && validIntervals.includes(iv)) setInterval(iv);
+    if (sym || iv) {
+      fetchCandles(sym || symbol, iv && validIntervals.includes(iv) ? iv : interval);
+    }
+  }, [router.isReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = () => {
     const sym = input.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);

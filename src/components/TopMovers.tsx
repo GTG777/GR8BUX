@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/router';
 import type { MoversData, MoverRow } from '@/pages/api/market/movers';
 
 const REFRESH_MS = 5 * 60 * 1000;
@@ -79,6 +80,7 @@ function SortHeader({
 
 /* ── Single data row ──────────────────────────────────────────── */
 function MoverRowItem({ row }: { row: MoverRow }) {
+  const router   = useRouter();
   const up       = row.changePct >= 0;
   const chgColor = up ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400';
   const rankColor =
@@ -92,8 +94,10 @@ function MoverRowItem({ row }: { row: MoverRow }) {
 
   return (
     <div
-      className="grid items-center gap-x-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors rounded-md"
+      className="grid items-center gap-x-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors rounded-md cursor-pointer"
       style={{ gridTemplateColumns: GRID }}
+      onClick={() => router.push(`/chart?symbol=${row.symbol}&interval=5`)}
+      title={`Open ${row.symbol} 5m chart`}
     >
       <span className={`text-xs text-center tabular-nums ${rankColor}`}>{row.rank}</span>
       <span className="text-xs font-bold text-gray-800 dark:text-zinc-200 truncate">{row.symbol}</span>
