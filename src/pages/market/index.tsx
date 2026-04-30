@@ -63,11 +63,11 @@ function retBar(v: number) {
   const pct    = (capped / 150) * 100;
   const color  = v >= 0 ? 'bg-green-500' : 'bg-red-500';
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-16 h-1.5 rounded-full bg-gray-100 dark:bg-zinc-700 overflow-hidden shrink-0">
+    <div className="flex items-center gap-2 w-36">
+      <div className="w-20 h-1.5 rounded-full bg-gray-100 dark:bg-zinc-700 overflow-hidden shrink-0">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className={`text-xs tabular-nums ${retColor(v)}`}>{v >= 0 ? '+' : ''}{v.toFixed(1)}%</span>
+      <span className={`text-xs tabular-nums w-14 ${retColor(v)}`}>{v >= 0 ? '+' : ''}{v.toFixed(1)}%</span>
     </div>
   );
 }
@@ -594,7 +594,7 @@ export default function StockScreenerPage() {
                             <th
                               key={col}
                               onClick={() => handlePerfSort(col)}
-                              className={`px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap ${
+                              className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap w-36 ${
                                 perfSortKey === col
                                   ? 'text-indigo-600 dark:text-indigo-400'
                                   : 'text-gray-500 dark:text-zinc-400'
@@ -625,10 +625,10 @@ export default function StockScreenerPage() {
                           <td className="px-3 py-2.5 text-right font-mono text-gray-700 dark:text-zinc-200">
                             ${row.price.toFixed(2)}
                           </td>
-                          <td className="px-3 py-2.5 text-right">{retBar(row.ret1m)}</td>
-                          <td className="px-3 py-2.5 text-right">{retBar(row.ret3m)}</td>
-                          <td className="px-3 py-2.5 text-right">{retBar(row.ret6m)}</td>
-                          <td className="px-3 py-2.5 text-right">{retBar(row.ret1y)}</td>
+                          <td className="px-3 py-2.5">{retBar(row.ret1m)}</td>
+                          <td className="px-3 py-2.5">{retBar(row.ret3m)}</td>
+                          <td className="px-3 py-2.5">{retBar(row.ret6m)}</td>
+                          <td className="px-3 py-2.5">{retBar(row.ret1y)}</td>
                         </tr>
                       ))}
                     </tbody>
