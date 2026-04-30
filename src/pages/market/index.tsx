@@ -611,7 +611,7 @@ export default function StockScreenerPage() {
                         <tr
                           key={row.symbol}
                           onClick={() => router.push(`/stocks?symbol=${row.symbol}`)}
-                          className="hover:bg-indigo-50 dark:hover:bg-indigo-950/20 cursor-pointer transition-colors"
+                          className="hover:bg-indigo-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors group"
                         >
                           <td className="px-4 py-2.5 text-center">
                             <MedalBadge rank={row.rank} />
@@ -619,7 +619,7 @@ export default function StockScreenerPage() {
                           <td className="px-4 py-2.5">
                             <div>
                               <span className="font-bold text-gray-900 dark:text-white">{row.symbol}</span>
-                              <span className="ml-2 text-xs text-gray-400 dark:text-zinc-500">{row.name}</span>
+                              <span className="ml-2 text-xs text-gray-500 dark:text-zinc-400 group-hover:text-gray-700 dark:group-hover:text-zinc-200">{row.name}</span>
                             </div>
                           </td>
                           <td className="px-3 py-2.5 text-right font-mono text-gray-700 dark:text-zinc-200">
