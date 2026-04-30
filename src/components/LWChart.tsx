@@ -276,9 +276,11 @@ export default function LWChart({
 
     const totalBars = candles.length;
 
+    // Time-based viewport (more reliable than logical indices across timeframes)
+    const getTime = (idx: number) => toTime(candles[Math.max(0, Math.min(idx, totalBars - 1))].date);
+
     if (showSMC && smcData) {
-      // ── SMC magnified view ─────────────────────────────────────
-      // Collect all SMC event indices to find the earliest signal
+      // ── SMC magnified view: zoom to earliest signal ────────────
       const signalIndices: number[] = [
         ...smcData.structure.map(e => e.index),
         ...smcData.orderBlocks.map(o => o.index),
@@ -286,27 +288,21 @@ export default function LWChart({
         ...smcData.swings.map(s => s.index),
       ];
 
-      if (signalIndices.length > 0) {
-        const earliest = Math.min(...signalIndices);
-        // Add left padding of 8 bars so the first signal isn't at the edge
-        const fromBar = Math.max(0, earliest - 8);
-        chart.timeScale().setVisibleLogicalRange({
-          from: fromBar,
-          to:   totalBars + 2,
-        });
-      } else {
-        // Fallback: last 80 bars if no signals detected yet
-        chart.timeScale().setVisibleLogicalRange({
-          from: Math.max(0, totalBars - 80),
-          to:   totalBars + 2,
-        });
-      }
+      // Cap to last 200 bars max so we never zoom out to old data
+      const fromIdx = signalIndices.length > 0
+        ? Math.max(totalBars - 200, Math.min(...signalIndices) - 8, 0)
+        : Math.max(0, totalBars - 80);
+
+      chart.timeScale().setVisibleRange({
+        from: getTime(fromIdx),
+        to:   getTime(totalBars - 1),
+      });
     } else {
       // ── Default view: last 150 bars ────────────────────────────
-      const visibleBars = Math.min(150, totalBars);
-      chart.timeScale().setVisibleLogicalRange({
-        from: totalBars - visibleBars,
-        to:   totalBars + 2,
+      const fromIdx = Math.max(0, totalBars - 150);
+      chart.timeScale().setVisibleRange({
+        from: getTime(fromIdx),
+        to:   getTime(totalBars - 1),
       });
     }
 

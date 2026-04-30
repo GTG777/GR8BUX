@@ -21,8 +21,8 @@ const TV_TO_MASSIVE: Record<string, {
   '1':   { multiplier: 1,  timespan: 'minute', fromDays: 7,    cacheTTL: 60_000       },
   '5':   { multiplier: 5,  timespan: 'minute', fromDays: 60,   cacheTTL: 5 * 60_000   },
   '15':  { multiplier: 15, timespan: 'minute', fromDays: 60,   cacheTTL: 5 * 60_000   },
-  '60':  { multiplier: 1,  timespan: 'hour',   fromDays: 730,  cacheTTL: 15 * 60_000  },
-  '240': { multiplier: 1,  timespan: 'hour',   fromDays: 730,  cacheTTL: 15 * 60_000  },
+  '60':  { multiplier: 1,  timespan: 'hour',   fromDays: 120,  cacheTTL: 15 * 60_000  },
+  '240': { multiplier: 4,  timespan: 'hour',   fromDays: 365,  cacheTTL: 15 * 60_000  },
   'D':   { multiplier: 1,  timespan: 'day',    fromDays: 730,  cacheTTL: CACHE_TTL    },
   'W':   { multiplier: 1,  timespan: 'week',   fromDays: 1825, cacheTTL: CACHE_TTL    },
 };
