@@ -56,7 +56,10 @@ function theme(dark: boolean) {
 /* ── time conversion ────────────────────────────────────────────── */
 function toTime(date: string): Time {
   if (date.length > 10) {
-    return Math.floor(new Date(date).getTime() / 1000) as UTCTimestamp;
+    // API returns CST datetime strings like "2026-04-30T09:30".
+    // Append 'Z' so the browser treats it as UTC — lightweight-charts then
+    // displays the same HH:mm that the API computed in CST (market time).
+    return Math.floor(new Date(date + 'Z').getTime() / 1000) as UTCTimestamp;
   }
   return date.slice(0, 10) as Time;
 }
