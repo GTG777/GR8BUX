@@ -2,6 +2,7 @@
 import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
 import type { ScreenerRow } from '@/pages/api/market/screener';
+import type { PerfRow } from '@/pages/api/market/top-performers';
 
 // ── Presets ───────────────────────────────────────────────────────
 const PRESETS: Record<string, string[]> = {
@@ -48,6 +49,36 @@ function changeColor(v: number) {
   return v >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400';
 }
 
+function retColor(v: number) {
+  if (v >= 50)  return 'text-emerald-600 dark:text-emerald-400 font-bold';
+  if (v >= 20)  return 'text-green-600 dark:text-green-400 font-semibold';
+  if (v >= 5)   return 'text-green-500 dark:text-green-400';
+  if (v >= 0)   return 'text-gray-600 dark:text-zinc-300';
+  if (v >= -20) return 'text-red-500 dark:text-red-400';
+  return 'text-red-700 dark:text-red-400 font-semibold';
+}
+
+function retBar(v: number) {
+  const capped = Math.min(Math.abs(v), 150);
+  const pct    = (capped / 150) * 100;
+  const color  = v >= 0 ? 'bg-green-500' : 'bg-red-500';
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-16 h-1.5 rounded-full bg-gray-100 dark:bg-zinc-700 overflow-hidden shrink-0">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`text-xs tabular-nums ${retColor(v)}`}>{v >= 0 ? '+' : ''}{v.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+function MedalBadge({ rank }: { rank: number }) {
+  if (rank === 1) return <span title="🥇 #1">🥇</span>;
+  if (rank === 2) return <span title="🥈 #2">🥈</span>;
+  if (rank === 3) return <span title="🥉 #3">🥉</span>;
+  return <span className="text-xs text-gray-400 dark:text-zinc-500 tabular-nums w-6 text-center">{rank}</span>;
+}
+
 // ── Chip button ───────────────────────────────────────────────────
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -83,7 +114,10 @@ function SortTh({ col, label, sortKey, dir, onSort }: {
 export default function StockScreenerPage() {
   const router = useRouter();
 
-  // ── State ────────────────────────────────────────────────────────
+  // ── Tab ──────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'screener' | 'performers'>('screener');
+
+  // ── Screener state ────────────────────────────────────────────────
   const [activePreset, setActivePreset] = useState<string>('Tech');
   const [customInput, setCustomInput]   = useState('');
   const [rows, setRows]                 = useState<ScreenerRow[]>([]);
@@ -100,6 +134,45 @@ export default function StockScreenerPage() {
   // Sort
   const [sortKey, setSortKey] = useState<SortKey>('trendScore');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // ── Top Performers state ──────────────────────────────────────────
+  type PerfSortKey = 'rank' | 'ret1y' | 'ret6m' | 'ret3m' | 'ret1m' | 'price';
+  const [perfRows, setPerfRows]     = useState<PerfRow[]>([]);
+  const [perfLoading, setPerfLoading] = useState(false);
+  const [perfLoaded, setPerfLoaded]   = useState(false);
+  const [perfError, setPerfError]     = useState('');
+  const [perfSortKey, setPerfSortKey] = useState<PerfSortKey>('ret1y');
+  const [perfSortDir, setPerfSortDir] = useState<'asc' | 'desc'>('desc');
+  const [perfCachedAt, setPerfCachedAt] = useState('');
+  const [perfLimit, setPerfLimit]   = useState(30);
+
+  const fetchPerformers = useCallback(async (limit = 30) => {
+    setPerfLoading(true);
+    setPerfError('');
+    try {
+      const res  = await fetch(`/api/market/top-performers?limit=${limit}&sortBy=ret1y`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? 'Failed to load rankings');
+      setPerfRows(json.rows);
+      setPerfLoaded(true);
+      if (json.cachedAt) setPerfCachedAt(json.cachedAt);
+    } catch (e) {
+      setPerfError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setPerfLoading(false);
+    }
+  }, []);
+
+  const handlePerfSort = (key: PerfSortKey) => {
+    if (key === perfSortKey) setPerfSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setPerfSortKey(key); setPerfSortDir(key === 'rank' ? 'asc' : 'desc'); }
+  };
+
+  const sortedPerfRows = [...perfRows].sort((a, b) => {
+    const av = a[perfSortKey] as number;
+    const bv = b[perfSortKey] as number;
+    return perfSortDir === 'asc' ? av - bv : bv - av;
+  });
 
   // ── Scan ─────────────────────────────────────────────────────────
   const scan = useCallback(async () => {
@@ -149,16 +222,38 @@ export default function StockScreenerPage() {
     });
 
   return (
-    <Layout title="Stock Screener">
+    <Layout title="Market">
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
         {/* ── Page header ── */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Stock Screener</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Market</h1>
           <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
-            Trend score · RSI · TSI · Volume · Setup grade — powered by live market data
+            Stock Screener &amp; Top Performers — powered by live market data
           </p>
         </div>
+
+        {/* ── Tab bar ── */}
+        <div className="flex gap-1 border-b border-gray-200 dark:border-zinc-800">
+          {(['screener', 'performers'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg transition-colors border-b-2 -mb-px ${
+                activeTab === tab
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-zinc-900'
+                  : 'border-transparent text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200'
+              }`}
+            >
+              {tab === 'screener' ? '🔍 Stock Screener' : '🏆 Top Performers'}
+            </button>
+          ))}
+        </div>
+
+        {/* ════════════════════════════════════════════════════════
+            TAB: SCREENER
+        ════════════════════════════════════════════════════════ */}
+        {activeTab === 'screener' && (<>
 
         {/* ── Controls ── */}
         <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4 space-y-4">
@@ -384,8 +479,179 @@ export default function StockScreenerPage() {
             </div>
           </div>
         )}
+        </>)}
+
+        {/* ════════════════════════════════════════════════════════
+            TAB: TOP PERFORMERS
+        ════════════════════════════════════════════════════════ */}
+        {activeTab === 'performers' && (
+          <div className="space-y-5">
+            {/* Header + Load */}
+            <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 dark:text-white">Best Performing Stocks</h2>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
+                    Ranked by 1-year price return · ~{UNIVERSE_COUNT} stocks · Cached 4 hours
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {perfLoaded && perfCachedAt && (
+                    <span className="text-xs text-gray-400 dark:text-zinc-500">
+                      Updated {new Date(perfCachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={perfLimit}
+                      onChange={e => setPerfLimit(Number(e.target.value))}
+                      className="rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-gray-700 dark:text-zinc-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    >
+                      <option value={10}>Top 10</option>
+                      <option value={20}>Top 20</option>
+                      <option value={30}>Top 30</option>
+                      <option value={50}>Top 50</option>
+                    </select>
+                    <button
+                      onClick={() => fetchPerformers(perfLimit)}
+                      disabled={perfLoading}
+                      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-1.5 rounded-lg transition-colors text-sm"
+                    >
+                      {perfLoading ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Loading…
+                        </>
+                      ) : perfLoaded ? '🔄 Refresh' : '🏆 Load Rankings'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {!perfLoaded && !perfLoading && (
+                <p className="mt-3 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-lg px-3 py-2">
+                  ⏱ First load takes ~15–30s as it fetches 1 year of data for {UNIVERSE_COUNT} stocks. Results are then cached for 4 hours.
+                </p>
+              )}
+            </div>
+
+            {/* Error */}
+            {perfError && (
+              <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+                {perfError}
+              </div>
+            )}
+
+            {/* Loading skeleton */}
+            {perfLoading && (
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-8 text-center">
+                <span className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin inline-block mb-3" />
+                <p className="text-sm text-gray-500 dark:text-zinc-400">Fetching {UNIVERSE_COUNT} stocks — hang tight…</p>
+                <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">This only runs every 4 hours</p>
+              </div>
+            )}
+
+            {/* Empty prompt */}
+            {!perfLoaded && !perfLoading && !perfError && (
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-12 text-center">
+                <div className="text-4xl mb-3">🏆</div>
+                <p className="text-gray-500 dark:text-zinc-400 text-sm">
+                  Click <strong>Load Rankings</strong> to see the best performing stocks by 1M, 3M, 6M and 1Y returns.
+                </p>
+              </div>
+            )}
+
+            {/* Results table */}
+            {perfLoaded && sortedPerfRows.length > 0 && (
+              <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-zinc-200">
+                    Top {sortedPerfRows.length} stocks — ranked by 1Y return
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-zinc-500">Click any row → Stock Analysis</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-zinc-800/60">
+                      <tr>
+                        <th
+                          onClick={() => handlePerfSort('rank')}
+                          className="px-4 py-2 text-center text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 w-12"
+                        >
+                          #{perfSortKey === 'rank' ? (perfSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">
+                          Symbol
+                        </th>
+                        <th
+                          onClick={() => handlePerfSort('price')}
+                          className="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap"
+                        >
+                          Price{perfSortKey === 'price' ? (perfSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                        </th>
+                        {(['ret1m', 'ret3m', 'ret6m', 'ret1y'] as const).map(col => {
+                          const labels: Record<string, string> = { ret1m: '1M %', ret3m: '3M %', ret6m: '6M %', ret1y: '1Y %' };
+                          return (
+                            <th
+                              key={col}
+                              onClick={() => handlePerfSort(col)}
+                              className={`px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 whitespace-nowrap ${
+                                perfSortKey === col
+                                  ? 'text-indigo-600 dark:text-indigo-400'
+                                  : 'text-gray-500 dark:text-zinc-400'
+                              }`}
+                            >
+                              {labels[col]}{perfSortKey === col ? (perfSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                      {sortedPerfRows.map(row => (
+                        <tr
+                          key={row.symbol}
+                          onClick={() => router.push(`/stocks?symbol=${row.symbol}`)}
+                          className="hover:bg-indigo-50 dark:hover:bg-indigo-950/20 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-2.5 text-center">
+                            <MedalBadge rank={row.rank} />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div>
+                              <span className="font-bold text-gray-900 dark:text-white">{row.symbol}</span>
+                              <span className="ml-2 text-xs text-gray-400 dark:text-zinc-500">{row.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-mono text-gray-700 dark:text-zinc-200">
+                            ${row.price.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">{retBar(row.ret1m)}</td>
+                          <td className="px-3 py-2.5 text-right">{retBar(row.ret3m)}</td>
+                          <td className="px-3 py-2.5 text-right">{retBar(row.ret6m)}</td>
+                          <td className="px-3 py-2.5 text-right">{retBar(row.ret1y)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Legend */}
+                <div className="px-4 py-3 border-t border-gray-100 dark:border-zinc-800 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-400 dark:text-zinc-500">
+                  <span><span className="text-emerald-600 dark:text-emerald-400 font-bold">Bold green</span> = +50%+</span>
+                  <span><span className="text-green-600 dark:text-green-400 font-semibold">Green</span> = +20%+</span>
+                  <span><span className="text-gray-600 dark:text-zinc-300">Grey</span> = 0%–20%</span>
+                  <span><span className="text-red-500">Red</span> = negative</span>
+                  <span>Rank # = by 1Y return · bar width scales to 150% max</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </Layout>
   );
 }
+
+const UNIVERSE_COUNT = 88;
 
