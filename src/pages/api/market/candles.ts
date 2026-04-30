@@ -22,10 +22,41 @@ const TV_TO_MASSIVE: Record<string, {
   '5':   { multiplier: 5,  timespan: 'minute', fromDays: 60,   cacheTTL: 5 * 60_000   },
   '15':  { multiplier: 15, timespan: 'minute', fromDays: 60,   cacheTTL: 5 * 60_000   },
   '60':  { multiplier: 1,  timespan: 'hour',   fromDays: 120,  cacheTTL: 15 * 60_000  },
-  '240': { multiplier: 4,  timespan: 'hour',   fromDays: 365,  cacheTTL: 15 * 60_000  },
+  // 4H: fetch 1H bars from API and aggregate 4:1 server-side (more reliable than multiplier:4)
+  '240': { multiplier: 1,  timespan: 'hour',   fromDays: 365,  cacheTTL: 15 * 60_000  },
   'D':   { multiplier: 1,  timespan: 'day',    fromDays: 730,  cacheTTL: CACHE_TTL    },
   'W':   { multiplier: 1,  timespan: 'week',   fromDays: 1825, cacheTTL: CACHE_TTL    },
 };
+
+/* ────────────────────────────────────────────────────────────────
+   Aggregate 1H candles into 4H candles (4 bars per session group)
+   Groups by the CST 4H session bucket: 08:00, 12:00, 16:00, 20:00
+──────────────────────────────────────────────────────────────── */
+interface Candle1H { date: string; open: number; high: number; low: number; close: number; volume: number; }
+function aggregateTo4H(candles1H: Candle1H[]): Candle1H[] {
+  const buckets = new Map<string, Candle1H[]>();
+  for (const c of candles1H) {
+    // date is 'YYYY-MM-DDTHH:mm' in CST
+    const hour = parseInt(c.date.slice(11, 13), 10);
+    const bucket = hour < 12 ? '08' : hour < 16 ? '12' : hour < 20 ? '16' : '20';
+    const key = c.date.slice(0, 10) + 'T' + bucket + ':00';
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(c);
+  }
+  const result: Candle1H[] = [];
+  for (const [key, bars] of buckets) {
+    if (bars.length === 0) continue;
+    result.push({
+      date:   key,
+      open:   bars[0].open,
+      high:   Math.max(...bars.map(b => b.high)),
+      low:    Math.min(...bars.map(b => b.low)),
+      close:  bars[bars.length - 1].close,
+      volume: bars.reduce((s, b) => s + b.volume, 0),
+    });
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -81,7 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!candles.length) return res.status(404).json({ error: `No candle data found for ${symbol}` });
 
-      const data = { symbol, candles };
+      const data = { symbol, candles: tvInterval === '240' ? aggregateTo4H(candles) : candles };
       cache.set(cacheKey, { data, timestamp: Date.now() });
       return res.status(200).json(data);
     } catch (err) {
