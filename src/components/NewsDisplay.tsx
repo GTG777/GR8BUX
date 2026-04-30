@@ -134,32 +134,32 @@ export const NewsDisplay: React.FC<NewsDisplayProps> = ({
       <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => setFilter('all')}
-          className={`px-3 py-1 rounded text-sm ${
-            filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
+          className={`px-3 py-1 rounded text-sm font-medium ${
+            filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-zinc-100 hover:dark:bg-zinc-600'
           }`}
         >
           All ({articles.length})
         </button>
         <button
           onClick={() => setFilter('positive')}
-          className={`px-3 py-1 rounded text-sm ${
-            filter === 'positive' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
+          className={`px-3 py-1 rounded text-sm font-medium ${
+            filter === 'positive' ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-zinc-100 hover:dark:bg-zinc-600'
           }`}
         >
           Positive ({articles.filter((a) => a.sentiment === 'positive').length})
         </button>
         <button
           onClick={() => setFilter('negative')}
-          className={`px-3 py-1 rounded text-sm ${
-            filter === 'negative' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
+          className={`px-3 py-1 rounded text-sm font-medium ${
+            filter === 'negative' ? 'bg-red-500 text-white' : 'bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-zinc-100 hover:dark:bg-zinc-600'
           }`}
         >
           Negative ({articles.filter((a) => a.sentiment === 'negative').length})
         </button>
         <button
           onClick={() => setFilter('neutral')}
-          className={`px-3 py-1 rounded text-sm ${
-            filter === 'neutral' ? 'bg-gray-500 text-white' : 'bg-gray-200 text-gray-700 dark:text-gray-300'
+          className={`px-3 py-1 rounded text-sm font-medium ${
+            filter === 'neutral' ? 'bg-gray-500 text-white' : 'bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-zinc-100 hover:dark:bg-zinc-600'
           }`}
         >
           Neutral ({articles.filter((a) => a.sentiment === 'neutral').length})
