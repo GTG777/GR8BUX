@@ -274,13 +274,41 @@ export default function LWChart({
       }
     }
 
-    // Show most recent ~150 bars by default instead of fitting all history
     const totalBars = candles.length;
-    const visibleBars = Math.min(150, totalBars);
-    chart.timeScale().setVisibleLogicalRange({
-      from: totalBars - visibleBars,
-      to:   totalBars + 2,
-    });
+
+    if (showSMC && smcData) {
+      // ── SMC magnified view ─────────────────────────────────────
+      // Collect all SMC event indices to find the earliest signal
+      const signalIndices: number[] = [
+        ...smcData.structure.map(e => e.index),
+        ...smcData.orderBlocks.map(o => o.index),
+        ...smcData.fvgs.map(f => f.index),
+        ...smcData.swings.map(s => s.index),
+      ];
+
+      if (signalIndices.length > 0) {
+        const earliest = Math.min(...signalIndices);
+        // Add left padding of 8 bars so the first signal isn't at the edge
+        const fromBar = Math.max(0, earliest - 8);
+        chart.timeScale().setVisibleLogicalRange({
+          from: fromBar,
+          to:   totalBars + 2,
+        });
+      } else {
+        // Fallback: last 80 bars if no signals detected yet
+        chart.timeScale().setVisibleLogicalRange({
+          from: Math.max(0, totalBars - 80),
+          to:   totalBars + 2,
+        });
+      }
+    } else {
+      // ── Default view: last 150 bars ────────────────────────────
+      const visibleBars = Math.min(150, totalBars);
+      chart.timeScale().setVisibleLogicalRange({
+        from: totalBars - visibleBars,
+        to:   totalBars + 2,
+      });
+    }
 
     /* ── Responsive width ─────────────────────────────────────── */
     const ro = new ResizeObserver(entries => {
