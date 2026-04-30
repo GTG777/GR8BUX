@@ -5,10 +5,13 @@ import {
   createChart,
   ColorType,
   CrosshairMode,
+  LineStyle,
   type IChartApi,
   type UTCTimestamp,
   type Time,
+  type SeriesMarker,
 } from 'lightweight-charts';
+import type { SMCData } from '@/lib/smcIndicators';
 
 export interface Candle {
   date: string;
@@ -33,6 +36,9 @@ interface LWChartProps {
   ema21?: number[];
   height?: number;
   showVolume?: boolean;
+  /** SMC Lux Algo style overlay data */
+  smcData?: SMCData | null;
+  showSMC?: boolean;
 }
 
 /* ── theme helpers ─────────────────────────────────────────────── */
@@ -65,6 +71,8 @@ export default function LWChart({
   ema21,
   height = 320,
   showVolume = true,
+  smcData,
+  showSMC = false,
 }: LWChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -164,6 +172,108 @@ export default function LWChart({
       );
     }
 
+    /* ── SMC Overlays ──────────────────────────────────────────── */
+    if (showSMC && smcData) {
+      // Build marker list for BOS / CHoCH + swing H/L
+      const markers: SeriesMarker<Time>[] = [];
+
+      // Swing highs/lows (small grey dots)
+      for (const swing of smcData.swings) {
+        const candle = candles[swing.index];
+        if (!candle) continue;
+        markers.push({
+          time:     toTime(candle.date),
+          position: swing.type === 'high' ? 'aboveBar' : 'belowBar',
+          color:    '#94a3b8',
+          shape:    'circle',
+          text:     swing.type === 'high' ? 'H' : 'L',
+          size:     0.5,
+        });
+      }
+
+      // BOS / CHoCH arrows with labels
+      for (const ev of smcData.structure) {
+        const candle = candles[ev.index];
+        if (!candle) continue;
+        const isBull = ev.direction === 'bullish';
+        const isChoch = ev.type === 'CHoCH';
+        markers.push({
+          time:     toTime(candle.date),
+          position: isBull ? 'belowBar' : 'aboveBar',
+          color:    isChoch
+            ? (isBull ? '#06b6d4' : '#f97316')   // cyan / orange for CHoCH
+            : (isBull ? '#22c55e' : '#ef4444'),   // green / red for BOS
+          shape:    isBull ? 'arrowUp' : 'arrowDown',
+          text:     ev.type,
+          size:     1,
+        });
+      }
+
+      // Sort markers by time (required by lightweight-charts)
+      markers.sort((a, b) => {
+        const ta = typeof a.time === 'number' ? a.time : new Date(a.time as string).getTime();
+        const tb = typeof b.time === 'number' ? b.time : new Date(b.time as string).getTime();
+        return ta - tb;
+      });
+      candleSeries.setMarkers(markers);
+
+      // Order Block zones: dashed top + bottom price lines
+      for (const ob of smcData.orderBlocks) {
+        const color = ob.type === 'bullish' ? '#22c55e' : '#ef4444';
+        const label = ob.type === 'bullish' ? '▲ OB' : '▼ OB';
+        candleSeries.createPriceLine({
+          price:             ob.top,
+          color,
+          lineWidth:         1,
+          lineStyle:         LineStyle.Dashed,
+          axisLabelVisible:  false,
+          title:             label,
+        });
+        candleSeries.createPriceLine({
+          price:             ob.bottom,
+          color,
+          lineWidth:         1,
+          lineStyle:         LineStyle.Dashed,
+          axisLabelVisible:  false,
+          title:             '',
+        });
+      }
+
+      // Fair Value Gap zones: dotted top + bottom price lines
+      for (const fvg of smcData.fvgs) {
+        const color = fvg.type === 'bullish' ? '#4ade80' : '#f87171';
+        const label = fvg.type === 'bullish' ? '↑ FVG' : '↓ FVG';
+        candleSeries.createPriceLine({
+          price:             fvg.top,
+          color,
+          lineWidth:         1,
+          lineStyle:         LineStyle.Dotted,
+          axisLabelVisible:  false,
+          title:             label,
+        });
+        candleSeries.createPriceLine({
+          price:             fvg.bottom,
+          color,
+          lineWidth:         1,
+          lineStyle:         LineStyle.Dotted,
+          axisLabelVisible:  false,
+          title:             '',
+        });
+      }
+
+      // Premium / Discount midline
+      if (smcData.pdZone) {
+        candleSeries.createPriceLine({
+          price:             smcData.pdZone.midpoint,
+          color:             '#a78bfa',
+          lineWidth:         1,
+          lineStyle:         LineStyle.LargeDashed,
+          axisLabelVisible:  true,
+          title:             '— EQ',
+        });
+      }
+    }
+
     chart.timeScale().fitContent();
 
     /* ── Responsive width ─────────────────────────────────────── */
@@ -196,7 +306,7 @@ export default function LWChart({
       chart.remove();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, ema9, ema21, ema20, ema50, ema200, height, showVolume]);
+  }, [candles, ema9, ema21, ema20, ema50, ema200, height, showVolume, smcData, showSMC]);
 
   /* ── Loading state ──────────────────────────────────────────── */
   if (candles.length === 0) {

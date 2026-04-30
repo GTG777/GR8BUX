@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { Layout } from '@/components/Layout';
 import LWChart from '@/components/LWChart';
+import { calcSMC, type SMCData } from '@/lib/smcIndicators';
 
 /* ─────────────────────────────────────────────
    Types
@@ -526,8 +527,155 @@ function StatusBar({ symbol, ind }: { symbol: string; ind: Indicators }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   Timeframe button row
+/* ─────────────────────────────────────────────   SMC Panel
+──────────────────────────────────────────── */
+function SMCPanel({ smc }: { smc: SMCData }) {
+  const trendColor =
+    smc.trend === 'bullish' ? 'text-green-700 bg-green-50 border-green-200'
+    : smc.trend === 'bearish' ? 'text-red-700 bg-red-50 border-red-200'
+    : 'text-yellow-700 bg-yellow-50 border-yellow-200';
+
+  const trendLabel =
+    smc.trend === 'bullish' ? '▲ Bullish'
+    : smc.trend === 'bearish' ? '▼ Bearish'
+    : '≡ Ranging';
+
+  const pdColor =
+    smc.pdZone?.zone === 'premium' ? 'text-red-600'
+    : smc.pdZone?.zone === 'discount' ? 'text-green-600'
+    : 'text-purple-600';
+
+  const pdLabel =
+    smc.pdZone?.zone === 'premium' ? `🔴 Premium Zone (${smc.pdZone.premiumPct}% of range)`
+    : smc.pdZone?.zone === 'discount' ? `🟢 Discount Zone (${smc.pdZone.premiumPct}% of range)`
+    : `⚪ Equilibrium (~50%)`;
+
+  // Last 5 structure events (most recent first)
+  const recentStructure = [...smc.structure].reverse().slice(0, 5);
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-gray-900 dark:text-white">SMC</span>
+          <span className="text-xs text-gray-400 font-normal">Lux Algo Style</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${trendColor}`}>
+            {trendLabel}
+          </span>
+          {smc.pdZone && (
+            <span className={`text-xs font-semibold ${pdColor}`}>{pdLabel}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Structure Events */}
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Recent Structure ({smc.structure.length} events)
+          </h4>
+          {recentStructure.length === 0 ? (
+            <p className="text-xs text-gray-400">No structure detected</p>
+          ) : (
+            <div className="space-y-1.5">
+              {recentStructure.map((ev, i) => {
+                const isBull = ev.direction === 'bullish';
+                const isChoch = ev.type === 'CHoCH';
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                      isChoch
+                        ? (isBull ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700')
+                        : (isBull ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')
+                    }`}>
+                      {ev.type}
+                    </span>
+                    <span className={`text-xs ${isBull ? 'text-green-600' : 'text-red-600'}`}>
+                      {isBull ? '▲' : '▼'} {isBull ? 'Bullish' : 'Bearish'}
+                    </span>
+                    <span className="text-xs text-gray-400 font-mono">
+                      ${fmt(ev.price)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Order Blocks */}
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Active Order Blocks ({smc.orderBlocks.length})
+          </h4>
+          {smc.orderBlocks.length === 0 ? (
+            <p className="text-xs text-gray-400">No active order blocks</p>
+          ) : (
+            <div className="space-y-1.5">
+              {[...smc.orderBlocks].reverse().map((ob, i) => (
+                <div key={i} className="flex items-center justify-between gap-2">
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                    ob.type === 'bullish' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {ob.type === 'bullish' ? '▲' : '▼'} OB
+                  </span>
+                  <span className="text-xs text-gray-500 font-mono">
+                    ${fmt(ob.bottom)} – ${fmt(ob.top)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-2">
+            Chart: dashed lines = OB zone boundaries
+          </p>
+        </div>
+
+        {/* FVGs */}
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Fair Value Gaps ({smc.fvgs.length})
+          </h4>
+          {smc.fvgs.length === 0 ? (
+            <p className="text-xs text-gray-400">No open FVGs</p>
+          ) : (
+            <div className="space-y-1.5">
+              {[...smc.fvgs].reverse().slice(0, 5).map((fvg, i) => (
+                <div key={i} className="flex items-center justify-between gap-2">
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                    fvg.type === 'bullish' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                  }`}>
+                    {fvg.type === 'bullish' ? '↑' : '↓'} FVG
+                  </span>
+                  <span className="text-xs text-gray-500 font-mono">
+                    ${fmt(fvg.bottom)} – ${fmt(fvg.top)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-2">
+            Chart: dotted lines = FVG zone boundaries
+          </p>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="mt-4 pt-3 border-t flex flex-wrap gap-4 text-xs text-gray-500">
+        <span><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />BOS ↑ = trend continuation (bullish)</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />BOS ↓ = trend continuation (bearish)</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-cyan-500 mr-1" />CHoCH ↑ = reversal warning (bullish)</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />CHoCH ↓ = reversal warning (bearish)</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-violet-400 mr-1" />— EQ = equilibrium / fair value midline</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────   Timeframe button row
 ───────────────────────────────────────────── */
 const INTERVALS: { label: string; value: string }[] = [
   { label: '1m',  value: '1'   },
@@ -552,6 +700,8 @@ export default function ChartPage() {
   const [chartEmaArrays, setChartEmaArrays] = useState<{ e9: number[]; e21: number[]; e50: number[]; e200: number[] } | null>(null);
   const [indicators, setIndicators] = useState<Indicators | null>(null);
   const [tsiSeries, setTsiSeries]   = useState<TSIPoint[]>([]);
+  const [smcData, setSmcData]       = useState<SMCData | null>(null);
+  const [showSMC, setShowSMC]       = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
@@ -566,6 +716,7 @@ export default function ChartPage() {
       setCandles(json.candles);
       setIndicators(computeIndicators(json.candles));
       setTsiSeries(calcTSIArr(json.candles));
+      setSmcData(calcSMC(json.candles));
       const cls: number[] = json.candles.map((c: Candle) => c.close);
       setChartEmaArrays({ e9: calcEMAFull(cls, 9), e21: calcEMAFull(cls, 21), e50: calcEMAFull(cls, 50), e200: calcEMAFull(cls, 200) });
     } catch {
@@ -613,8 +764,21 @@ export default function ChartPage() {
               </button>
             </div>
 
-            {/* Interval buttons — pushed to the right */}
-            <div className="flex gap-1 ml-auto">
+            {/* Interval buttons + SMC toggle — pushed to the right */}
+            <div className="flex gap-1 ml-auto flex-wrap items-center">
+              {/* SMC toggle button */}
+              <button
+                onClick={() => setShowSMC(v => !v)}
+                className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${
+                  showSMC
+                    ? 'bg-violet-600 text-white border-violet-600'
+                    : 'bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-300 dark:border-zinc-700 hover:border-violet-400 hover:bg-violet-50'
+                }`}
+                title="Toggle SMC Lux Algo indicator"
+              >
+                {showSMC ? '✓ SMC' : 'SMC'}
+              </button>
+              <span className="text-gray-300 dark:text-zinc-600 text-xs">|</span>
               {INTERVALS.map((iv) => (
               <button
                 key={iv.value}
@@ -659,6 +823,8 @@ export default function ChartPage() {
             ema200={chartEmaArrays?.e200}
             height={560}
             showVolume
+            smcData={smcData}
+            showSMC={showSMC}
           />
         </div>
 
@@ -670,6 +836,9 @@ export default function ChartPage() {
             <div className="h-[180px] bg-gray-100 rounded" />
           </div>
         )}
+
+        {/* ── SMC Panel (shown when SMC toggle is on) ── */}
+        {showSMC && smcData && <SMCPanel smc={smcData} />}
 
         {/* ── Indicator panels ── */}
         {indicators ? (
@@ -692,7 +861,8 @@ export default function ChartPage() {
 
         {/* ── Footer note ── */}
         <p className="text-xs text-gray-400 text-center">
-          Indicators (EMA 9/21/50/200, TSI, Pivots) calculated from historical daily data.
+          Indicators (EMA 9/21/50/200, TSI, Pivots, SMC) calculated from historical data.
+          SMC includes: Swing H/L, BOS, CHoCH, Order Blocks, Fair Value Gaps, Premium/Discount zones.
           For informational purposes only — not financial advice.
         </p>
       </div>
