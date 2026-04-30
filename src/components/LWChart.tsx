@@ -274,7 +274,13 @@ export default function LWChart({
       }
     }
 
-    chart.timeScale().fitContent();
+    // Show most recent ~150 bars by default instead of fitting all history
+    const totalBars = candles.length;
+    const visibleBars = Math.min(150, totalBars);
+    chart.timeScale().setVisibleLogicalRange({
+      from: totalBars - visibleBars,
+      to:   totalBars + 2,
+    });
 
     /* ── Responsive width ─────────────────────────────────────── */
     const ro = new ResizeObserver(entries => {
