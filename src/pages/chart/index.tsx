@@ -821,7 +821,7 @@ export default function ChartPage() {
             ema21={chartEmaArrays?.e21}
             ema50={chartEmaArrays?.e50}
             ema200={chartEmaArrays?.e200}
-            height={560}
+            height={740}
             showVolume
             smcData={smcData}
             showSMC={showSMC}
