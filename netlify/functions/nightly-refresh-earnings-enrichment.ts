@@ -1,9 +1,10 @@
 import type { Handler } from '@netlify/functions';
 
 // Nightly at 11:45 PM ET (04:45 UTC Tue-Sat)
-// Runs after nightly-refresh-market-data so market_data is already fresh.
-const handler: Handler = async () => {
-  const siteUrl = process.env.URL || process.env.DEPLOY_URL || 'http://localhost:3000';
+// Triggers the background function which has a 15-minute timeout so it can
+// process all upcoming earners without hitting the 26s serverless limit.
+const handler: Handler = async (event) => {
+  const siteUrl    = process.env.URL || process.env.DEPLOY_URL || 'http://localhost:3000';
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
@@ -12,21 +13,17 @@ const handler: Handler = async () => {
   }
 
   try {
-    const response = await fetch(`${siteUrl}/api/cron/refresh-earnings-enrichment`, {
-      method: 'GET',
-      headers: {
-        'x-cron-secret': cronSecret,
-        'Content-Type': 'application/json',
-      },
-    });
+    // Trigger background function — it returns 202 immediately and processes
+    // in the background for up to 15 minutes.
+    const response = await fetch(
+      `${siteUrl}/.netlify/functions/earnings-enrichment-background?secret=${encodeURIComponent(cronSecret)}`,
+      { method: 'POST' },
+    );
 
     const body = await response.text();
-    console.log(`[nightly-refresh-earnings-enrichment] Status: ${response.status}, Body: ${body}`);
+    console.log(`[nightly-refresh-earnings-enrichment] Triggered background fn. Status: ${response.status}`);
 
-    return {
-      statusCode: response.ok ? 200 : response.status,
-      body,
-    };
+    return { statusCode: response.ok ? 200 : response.status, body };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[nightly-refresh-earnings-enrichment] Error:', message);
