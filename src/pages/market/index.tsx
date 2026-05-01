@@ -528,7 +528,7 @@ export default function StockScreenerPage() {
                 </div>
               </div>
               {!perfLoaded && !perfLoading && (
-                <p className="mt-3 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-lg px-3 py-2">
+                <p className="mt-3 text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
                   ⏱ First load takes ~15–30s as it fetches 1 year of data for {UNIVERSE_COUNT} stocks. Results are then cached for 4 hours.
                 </p>
               )}
