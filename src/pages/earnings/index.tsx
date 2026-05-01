@@ -471,78 +471,88 @@ function AllEarningsTab() {
         </div>
       )}
 
-      {/* Table — grouped by date */}
-      {!loading && !error && rows.length > 0 && Array.from(grouped.entries()).map(([date, dateRows]) => {
-        const d = dateRows[0].daysOut;
-        const isToday = d === 0;
-        const label = isToday ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`;
-        return (
-          <div key={date} className="bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-zinc-800/60 border-b border-gray-200 dark:border-zinc-700/50">
-              <div className="flex items-center gap-3">
-                <span className="font-semibold text-gray-900 dark:text-white">{fmtDate(date)}</span>
-                {isToday
-                  ? <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/40 animate-pulse">TODAY</span>
-                  : <span className="px-2 py-0.5 rounded-full text-xs text-gray-500 dark:text-zinc-500 border border-gray-300 dark:border-zinc-700">{label}</span>
-                }
-              </div>
-              <span className="text-xs text-gray-500 dark:text-zinc-500">{dateRows.length} reporting</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs whitespace-nowrap">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-zinc-700/40 text-left text-gray-500 dark:text-zinc-500 uppercase tracking-wide">
-                    <th className="px-4 py-2 min-w-[80px]">Symbol</th>
-                    <th className="px-4 py-2 min-w-[160px]">Company</th>
-                    <th className="px-4 py-2 text-right min-w-[80px]">Price</th>
-                    <th className="px-4 py-2 text-right min-w-[70px]">Rel Vol</th>
-                    <th className="px-4 py-2 text-right min-w-[90px]">Exp. Move</th>
-                    <th className="px-4 py-2 text-center min-w-[90px]">Beat Streak</th>
-                    <th className="px-4 py-2 text-center min-w-[80px]">Signal</th>
-                    <th className="px-4 py-2 text-center min-w-[70px]">Trend</th>
-                    <th className="px-4 py-2 text-center min-w-[90px]">Setup</th>
-                    <th className="px-4 py-2 text-right min-w-[80px]">Est. EPS</th>
-                    <th className="px-4 py-2 text-right min-w-[90px]">Fiscal End</th>
-                    <th className="px-4 py-2 text-center min-w-[110px]">Trade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dateRows.map((r, i) => (
-                    <tr key={r.symbol} className={`border-t border-gray-100 dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors ${i % 2 === 0 ? 'bg-gray-50/50 dark:bg-zinc-900/20' : ''}`}>
-                      <td className="px-4 py-2.5">
-                        <span className="font-bold text-gray-900 dark:text-white">{r.symbol}</span>
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[180px] truncate">{r.name}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-gray-800 dark:text-zinc-200">
-                        {r.price != null ? `$${r.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : <span className="text-gray-400 dark:text-zinc-600">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right"><RelVolBadge relVol={r.relVol} /></td>
-                      <td className="px-4 py-2.5 text-right"><ExpectedMoveBadge em={r.expectedMove} isHighVol={r.isHighVolEarner} /></td>
-                      <td className="px-4 py-2.5 text-center"><BeatStreakBadge streak={r.epsBeatStreak} avgSurprise={r.avgSurprisePct} /></td>
-                      <td className="px-4 py-2.5 text-center"><SignalBadge consensus={r.aiConsensus} /></td>
-                      <td className="px-4 py-2.5 text-center"><TrendBadge rsi={r.rsi} /></td>
-                      <td className="px-4 py-2.5 text-center"><SetupBadge setupType={r.setupType} /></td>
-                      <td className="px-4 py-2.5 text-right font-mono">
-                        {r.estimatedEPS != null
-                          ? <span className={r.estimatedEPS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>{r.estimatedEPS >= 0 ? '+' : ''}{r.estimatedEPS.toFixed(2)}</span>
-                          : <span className="text-gray-400 dark:text-zinc-600">—</span>
-                        }
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-gray-500 dark:text-zinc-500">{r.fiscalDateEnding || '—'}</td>
-                      <td className="px-4 py-2.5 text-center">
-                        <div className="flex gap-1.5 justify-center">
-                          <Link href={`/chart?symbol=${r.symbol}`} className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 rounded border border-gray-300 dark:border-zinc-700 transition-colors">Chart</Link>
-                          <Link href={`/stocks?symbol=${r.symbol}`} className="px-2 py-0.5 text-xs bg-indigo-50 hover:bg-indigo-100 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-indigo-600 dark:text-indigo-300 rounded border border-indigo-200 dark:border-zinc-600 transition-colors">Analysis</Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* Table — single table with colspan date-header rows so columns align across all groups */}
+      {!loading && !error && rows.length > 0 && (
+        <div className="bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs whitespace-nowrap">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-zinc-700/40 text-left text-gray-500 dark:text-zinc-500 uppercase tracking-wide">
+                  <th className="px-4 py-2 min-w-[80px]">Symbol</th>
+                  <th className="px-4 py-2 min-w-[160px]">Company</th>
+                  <th className="px-4 py-2 text-right min-w-[80px]">Price</th>
+                  <th className="px-4 py-2 text-right min-w-[70px]">Rel Vol</th>
+                  <th className="px-4 py-2 text-right min-w-[90px]">Exp. Move</th>
+                  <th className="px-4 py-2 text-center min-w-[90px]">Beat Streak</th>
+                  <th className="px-4 py-2 text-center min-w-[80px]">Signal</th>
+                  <th className="px-4 py-2 text-center min-w-[70px]">Trend</th>
+                  <th className="px-4 py-2 text-center min-w-[90px]">Setup</th>
+                  <th className="px-4 py-2 text-right min-w-[80px]">Est. EPS</th>
+                  <th className="px-4 py-2 text-right min-w-[90px]">Fiscal End</th>
+                  <th className="px-4 py-2 text-center min-w-[110px]">Trade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from(grouped.entries()).map(([date, dateRows]) => {
+                  const d = dateRows[0].daysOut;
+                  const isToday = d === 0;
+                  const label = isToday ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`;
+                  return (
+                    <React.Fragment key={date}>
+                      {/* Date group header row */}
+                      <tr className="border-t-2 border-gray-200 dark:border-zinc-700/60 bg-gray-50 dark:bg-zinc-800/60">
+                        <td colSpan={12} className="px-4 py-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold text-gray-900 dark:text-white">{fmtDate(date)}</span>
+                              {isToday
+                                ? <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/40 animate-pulse">TODAY</span>
+                                : <span className="px-2 py-0.5 rounded-full text-xs text-gray-500 dark:text-zinc-500 border border-gray-300 dark:border-zinc-700">{label}</span>
+                              }
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-zinc-500">{dateRows.length} reporting</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Data rows */}
+                      {dateRows.map((r, i) => (
+                        <tr key={r.symbol} className={`border-t border-gray-100 dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors ${i % 2 === 0 ? 'bg-gray-50/50 dark:bg-zinc-900/20' : ''}`}>
+                          <td className="px-4 py-2.5">
+                            <span className="font-bold text-gray-900 dark:text-white">{r.symbol}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[180px] truncate">{r.name}</td>
+                          <td className="px-4 py-2.5 text-right font-mono text-gray-800 dark:text-zinc-200">
+                            {r.price != null ? `$${r.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : <span className="text-gray-400 dark:text-zinc-600">—</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-right"><RelVolBadge relVol={r.relVol} /></td>
+                          <td className="px-4 py-2.5 text-right"><ExpectedMoveBadge em={r.expectedMove} isHighVol={r.isHighVolEarner} /></td>
+                          <td className="px-4 py-2.5 text-center"><BeatStreakBadge streak={r.epsBeatStreak} avgSurprise={r.avgSurprisePct} /></td>
+                          <td className="px-4 py-2.5 text-center"><SignalBadge consensus={r.aiConsensus} /></td>
+                          <td className="px-4 py-2.5 text-center"><TrendBadge rsi={r.rsi} /></td>
+                          <td className="px-4 py-2.5 text-center"><SetupBadge setupType={r.setupType} /></td>
+                          <td className="px-4 py-2.5 text-right font-mono">
+                            {r.estimatedEPS != null
+                              ? <span className={r.estimatedEPS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>{r.estimatedEPS >= 0 ? '+' : ''}{r.estimatedEPS.toFixed(2)}</span>
+                              : <span className="text-gray-400 dark:text-zinc-600">—</span>
+                            }
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-gray-500 dark:text-zinc-500">{r.fiscalDateEnding || '—'}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <div className="flex gap-1.5 justify-center">
+                              <Link href={`/chart?symbol=${r.symbol}`} className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 rounded border border-gray-300 dark:border-zinc-700 transition-colors">Chart</Link>
+                              <Link href={`/stocks?symbol=${r.symbol}`} className="px-2 py-0.5 text-xs bg-indigo-50 hover:bg-indigo-100 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-indigo-600 dark:text-indigo-300 rounded border border-indigo-200 dark:border-zinc-600 transition-colors">Analysis</Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        );
-      })}
+        </div>
+      )}
 
       {/* Pagination — hidden when date filter is active */}
       {!loading && totalPages > 1 && !dateFilter && (
@@ -794,32 +804,39 @@ export default function EarningsCalendarPage() {
           </div>
         )}
 
-        {/* ── Calendar groups ────────────────────────────────────────────── */}
-        {!loading && !error && !sort && Array.from(grouped.entries()).map(([date, dateEvents]) => {
-          const daysOut = dateEvents[0].daysOut;
-          return (
-            <div key={date} className="bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-              {/* Date header */}
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-zinc-800/60 border-b border-gray-200 dark:border-zinc-700/50">
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-gray-900 dark:text-white">{fmtDate(date)}</span>
-                  <UrgencyBadge urgency={dateEvents[0].urgency} daysOut={daysOut} />
-                </div>
-                <span className="text-xs text-gray-500 dark:text-zinc-500">{dateEvents.length} reporting</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs whitespace-nowrap">
-                  <EarningsTableHead sort={sort} onSort={toggleSort} />
-                  <tbody>
-                    {dateEvents.map((e, i) => (
-                      <EarningsTableRow key={e.symbol} e={e} i={i} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        {/* ── Calendar groups — single table with colspan date headers ─── */}
+        {!loading && !error && !sort && grouped.size > 0 && (
+          <div className="bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs whitespace-nowrap">
+                <EarningsTableHead sort={sort} onSort={toggleSort} />
+                <tbody>
+                  {Array.from(grouped.entries()).map(([date, dateEvents]) => {
+                    const daysOut = dateEvents[0].daysOut;
+                    return (
+                      <React.Fragment key={date}>
+                        <tr className="border-t-2 border-gray-200 dark:border-zinc-700/60 bg-gray-50 dark:bg-zinc-800/60">
+                          <td colSpan={13} className="px-4 py-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="font-semibold text-gray-900 dark:text-white">{fmtDate(date)}</span>
+                                <UrgencyBadge urgency={dateEvents[0].urgency} daysOut={daysOut} />
+                              </div>
+                              <span className="text-xs text-gray-500 dark:text-zinc-500">{dateEvents.length} reporting</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {dateEvents.map((e, i) => (
+                          <EarningsTableRow key={e.symbol} e={e} i={i} />
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          );
-        })}
+          </div>
+        )}
 
         {/* ── Legend ─────────────────────────────────────────────────────── */}
         {!loading && filtered.length > 0 && (
