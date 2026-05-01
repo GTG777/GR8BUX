@@ -239,6 +239,17 @@ function TrendBadge({ rsi }: { rsi: number | null }) {
   return <span className="text-gray-500 dark:text-zinc-500 text-[11px] font-medium">Neutral</span>;
 }
 
+function RelVolBadge({ relVol }: { relVol: number | null }) {
+  if (relVol == null) return <span className="text-gray-400 dark:text-zinc-600">—</span>;
+  const cls =
+    relVol >= 2.0 ? 'text-red-500    dark:text-red-400    font-bold' :
+    relVol >= 1.5 ? 'text-orange-500 dark:text-orange-400 font-semibold' :
+    relVol >= 1.2 ? 'text-yellow-600 dark:text-yellow-400 font-medium' :
+    relVol <= 0.5 ? 'text-blue-400   dark:text-blue-400' :
+    'text-gray-500 dark:text-zinc-500';
+  return <span className={`font-mono text-xs ${cls}`}>{relVol.toFixed(2)}x</span>;
+}
+
 function AllEarningsTab() {
   const [rows, setRows]           = useState<AllEarningsRow[]>([]);
   const [total, setTotal]         = useState(0);
@@ -374,6 +385,7 @@ function AllEarningsTab() {
                     <th className="px-4 py-2">Symbol</th>
                     <th className="px-4 py-2">Company</th>
                     <th className="px-4 py-2 text-right">Price</th>
+                    <th className="px-4 py-2 text-right">Rel Vol</th>
                     <th className="px-4 py-2 text-center">Signal</th>
                     <th className="px-4 py-2 text-center">Trend</th>
                     <th className="px-4 py-2 text-center">Setup</th>
@@ -392,6 +404,7 @@ function AllEarningsTab() {
                       <td className="px-4 py-2.5 text-right font-mono text-gray-800 dark:text-zinc-200">
                         {r.price != null ? `$${r.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : <span className="text-gray-400 dark:text-zinc-600">—</span>}
                       </td>
+                      <td className="px-4 py-2.5 text-right"><RelVolBadge relVol={r.relVol} /></td>
                       <td className="px-4 py-2.5 text-center"><SignalBadge consensus={r.aiConsensus} /></td>
                       <td className="px-4 py-2.5 text-center"><TrendBadge rsi={r.rsi} /></td>
                       <td className="px-4 py-2.5 text-center"><SetupBadge setupType={r.setupType} /></td>

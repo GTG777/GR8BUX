@@ -13,6 +13,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase';
+import { getMultipleStockSnapshots } from '@/lib/massive';
 
 export interface AllEarningsRow {
   symbol: string;
@@ -28,6 +29,7 @@ export interface AllEarningsRow {
   ivRank: number | null;
   aiConsensus: string | null;
   setupType: string | null;
+  relVol: number | null;  // today's volume / prev-day volume
 }
 
 interface CacheEntry { rows: AllEarningsRow[]; fetchedAt: number }
@@ -78,6 +80,24 @@ async function fetchAndCache(): Promise<AllEarningsRow[]> {
     // enrichment optional — continue without it
   }
 
+  // ── Batch-fetch volume snapshots for tracked symbols ──────────────────
+  const relVolMap: Record<string, number | null> = {};
+  const trackedSymbols = Object.keys(enrichMap);
+  if (trackedSymbols.length > 0) {
+    try {
+      const snaps = await getMultipleStockSnapshots(trackedSymbols);
+      for (const [sym, snap] of snaps) {
+        const dayVol  = snap.day?.v;
+        const prevVol = snap.prevDay?.v;
+        relVolMap[sym] = (dayVol != null && prevVol != null && prevVol > 0)
+          ? Math.round((dayVol / prevVol) * 100) / 100
+          : null;
+      }
+    } catch {
+      // relVol optional — continue without it
+    }
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -108,6 +128,7 @@ async function fetchAndCache(): Promise<AllEarningsRow[]> {
       ivRank: enrich?.ivRank ?? null,
       aiConsensus: enrich?.aiConsensus ?? null,
       setupType: enrich?.setupType ?? null,
+      relVol: relVolMap[symbol] ?? null,
     });
   }
 
