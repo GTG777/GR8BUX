@@ -184,7 +184,7 @@ export default function OptionsCoachPanel({ symbol, optionsContext, tradeContext
 
       {/* IV snapshot bar (when data loaded) */}
       {optionsContext && (
-        <div className="flex gap-4 px-4 py-2 bg-gray-50 dark:bg-zinc-900/50 border-b border-gray-100 dark:border-zinc-800 text-[11px] text-gray-500 dark:text-zinc-400 shrink-0 overflow-x-auto">
+        <div className="flex gap-4 px-4 py-2 bg-gray-50 dark:bg-zinc-800 border-b border-gray-100 dark:border-zinc-700 text-[11px] text-gray-500 dark:text-zinc-400 shrink-0 overflow-x-auto">
           <span>HV20: <strong className="text-gray-700 dark:text-white">{optionsContext.hv20 !== null ? optionsContext.hv20.toFixed(1) + '%' : '—'}</strong></span>
           <span>Avg IV: <strong className="text-gray-700 dark:text-white">{optionsContext.avgIV !== null ? optionsContext.avgIV.toFixed(1) + '%' : '—'}</strong></span>
           {optionsContext.ivHvSpread !== null && (
@@ -232,7 +232,7 @@ export default function OptionsCoachPanel({ symbol, optionsContext, tradeContext
                   key={s}
                   onClick={() => sendMessage(s)}
                   disabled={isLoading}
-                  className="text-left text-xs px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-100 dark:border-violet-900 hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors"
+                  className="text-left text-xs px-3 py-2 rounded-lg bg-violet-50 dark:bg-zinc-700 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-zinc-600 hover:bg-violet-100 dark:hover:bg-zinc-600 transition-colors"
                 >
                   {s}
                 </button>
@@ -263,7 +263,7 @@ export default function OptionsCoachPanel({ symbol, optionsContext, tradeContext
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/50 shrink-0">
+      <div className="px-4 py-3 border-t border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
             value={input}
