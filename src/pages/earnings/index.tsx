@@ -79,7 +79,7 @@ function IVRBar({ ivr }: { ivr: number | null }) {
   const color = ivr >= 65 ? 'bg-violet-500' : ivr >= 40 ? 'bg-yellow-500' : 'bg-emerald-500';
   const textColor = ivr >= 65 ? 'text-violet-600 dark:text-violet-400' : ivr >= 40 ? 'text-yellow-600 dark:text-yellow-400' : 'text-emerald-600 dark:text-emerald-400';
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-center gap-1.5">
       <div className="w-14 h-1.5 rounded-full bg-gray-200 dark:bg-zinc-700">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(ivr, 100)}%` }} />
       </div>
@@ -181,20 +181,20 @@ function EarningsTableHead({ sort, onSort, showDate = false }: {
   return (
     <thead>
       <tr className="border-b border-gray-200 dark:border-zinc-700/40">
-        {showDate && <SortTh col="date" sort={sort} onSort={onSort} className="text-left">Date</SortTh>}
-        <SortTh col="symbol" sort={sort} onSort={onSort} className="text-left">Symbol</SortTh>
-        <SortTh col="company" sort={sort} onSort={onSort} className="text-left">Company</SortTh>
-        <SortTh col="sector" sort={sort} onSort={onSort} className="text-left">Sector</SortTh>
-        <SortTh col="price" sort={sort} onSort={onSort} className="text-right">Price</SortTh>
-        <SortTh col="eps" sort={sort} onSort={onSort} className="text-right">Est. EPS</SortTh>
-        <SortTh col="fiscalEnd" sort={sort} onSort={onSort} className="text-right">Fiscal End</SortTh>
-        <SortTh col="ivr" sort={sort} onSort={onSort} className="text-center">IVR</SortTh>
-        <SortTh col="rsi" sort={sort} onSort={onSort} className="text-right">RSI</SortTh>
-        <SortTh col="em" sort={sort} onSort={onSort} className="text-right">Exp. Move</SortTh>
-        <SortTh col="beatStreak" sort={sort} onSort={onSort} className="text-center">Beat Streak</SortTh>
-        <SortTh col="verdict" sort={sort} onSort={onSort} className="text-center">AI Verdict</SortTh>
-        <SortTh col="strategy" sort={sort} onSort={onSort} className="text-center">Strategy</SortTh>
-        <th className="px-4 py-2 text-center text-gray-500 dark:text-zinc-500">Trade</th>
+        {showDate && <SortTh col="date" sort={sort} onSort={onSort} className="text-left min-w-[100px]">Date</SortTh>}
+        <SortTh col="symbol"    sort={sort} onSort={onSort} className="text-left  min-w-[80px]">Symbol</SortTh>
+        <SortTh col="company"   sort={sort} onSort={onSort} className="text-left  min-w-[140px]">Company</SortTh>
+        <SortTh col="sector"    sort={sort} onSort={onSort} className="text-left  min-w-[100px]">Sector</SortTh>
+        <SortTh col="price"     sort={sort} onSort={onSort} className="text-right min-w-[80px]">Price</SortTh>
+        <SortTh col="eps"       sort={sort} onSort={onSort} className="text-right min-w-[80px]">Est. EPS</SortTh>
+        <SortTh col="fiscalEnd" sort={sort} onSort={onSort} className="text-right min-w-[90px]">Fiscal End</SortTh>
+        <SortTh col="ivr"       sort={sort} onSort={onSort} className="text-center min-w-[100px]">IVR</SortTh>
+        <SortTh col="rsi"       sort={sort} onSort={onSort} className="text-right min-w-[50px]">RSI</SortTh>
+        <SortTh col="em"        sort={sort} onSort={onSort} className="text-right min-w-[90px]">Exp. Move</SortTh>
+        <SortTh col="beatStreak" sort={sort} onSort={onSort} className="text-center min-w-[90px]">Beat Streak</SortTh>
+        <SortTh col="verdict"   sort={sort} onSort={onSort} className="text-center min-w-[100px]">AI Verdict</SortTh>
+        <SortTh col="strategy"  sort={sort} onSort={onSort} className="text-center min-w-[120px]">Strategy</SortTh>
+        <th className="px-4 py-2 text-center min-w-[110px] text-gray-500 dark:text-zinc-500">Trade</th>
       </tr>
     </thead>
   );
@@ -223,7 +223,7 @@ function EarningsTableRow({ e, i, showDate = false }: { e: EarningsEvent; i: num
         ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
       </td>
       <td className="px-4 py-2.5 text-right text-gray-500 dark:text-zinc-500">{e.fiscalDateEnding || '—'}</td>
-      <td className="px-4 py-2.5"><IVRBar ivr={e.ivRank} /></td>
+      <td className="px-4 py-2.5 text-center"><IVRBar ivr={e.ivRank} /></td>
       <td className="px-4 py-2.5 text-right">
         {e.rsi != null ? (
           <span className={e.rsi > 70 ? 'text-red-500 dark:text-red-400' : e.rsi < 35 ? 'text-blue-500 dark:text-blue-400' : 'text-gray-600 dark:text-zinc-400'}>
@@ -492,18 +492,18 @@ function AllEarningsTab() {
               <table className="w-full text-xs whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-zinc-700/40 text-left text-gray-500 dark:text-zinc-500 uppercase tracking-wide">
-                    <th className="px-4 py-2">Symbol</th>
-                    <th className="px-4 py-2">Company</th>
-                    <th className="px-4 py-2 text-right">Price</th>
-                    <th className="px-4 py-2 text-right">Rel Vol</th>
-                    <th className="px-4 py-2 text-right">Exp. Move</th>
-                    <th className="px-4 py-2 text-center">Beat Streak</th>
-                    <th className="px-4 py-2 text-center">Signal</th>
-                    <th className="px-4 py-2 text-center">Trend</th>
-                    <th className="px-4 py-2 text-center">Setup</th>
-                    <th className="px-4 py-2 text-right">Est. EPS</th>
-                    <th className="px-4 py-2 text-right">Fiscal End</th>
-                    <th className="px-4 py-2 text-center">Trade</th>
+                    <th className="px-4 py-2 min-w-[80px]">Symbol</th>
+                    <th className="px-4 py-2 min-w-[160px]">Company</th>
+                    <th className="px-4 py-2 text-right min-w-[80px]">Price</th>
+                    <th className="px-4 py-2 text-right min-w-[70px]">Rel Vol</th>
+                    <th className="px-4 py-2 text-right min-w-[90px]">Exp. Move</th>
+                    <th className="px-4 py-2 text-center min-w-[90px]">Beat Streak</th>
+                    <th className="px-4 py-2 text-center min-w-[80px]">Signal</th>
+                    <th className="px-4 py-2 text-center min-w-[70px]">Trend</th>
+                    <th className="px-4 py-2 text-center min-w-[90px]">Setup</th>
+                    <th className="px-4 py-2 text-right min-w-[80px]">Est. EPS</th>
+                    <th className="px-4 py-2 text-right min-w-[90px]">Fiscal End</th>
+                    <th className="px-4 py-2 text-center min-w-[110px]">Trade</th>
                   </tr>
                 </thead>
                 <tbody>
