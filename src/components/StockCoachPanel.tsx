@@ -245,7 +245,7 @@ export default function StockCoachPanel({ symbol, indicators, setups }: StockCoa
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/50 shrink-0">
+      <div className="px-4 py-3 border-t border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
             value={input}
