@@ -337,7 +337,9 @@ export default function LWChart({
       // ── SMC magnified view: zoom to earliest signal ────────────
       const signalIndices: number[] = [
         ...smcData.structure.map(e => e.index),
+        ...smcData.internalStructure.map(e => e.index),
         ...smcData.orderBlocks.map(o => o.index),
+        ...smcData.internalOrderBlocks.map(o => o.index),
         ...smcData.fvgs.map(f => f.index),
         ...smcData.swings.map(s => s.index),
       ];

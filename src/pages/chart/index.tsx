@@ -576,15 +576,13 @@ function StatusBar({ symbol, ind }: { symbol: string; ind: Indicators }) {
 /* ─────────────────────────────────────────────   SMC Panel
 ──────────────────────────────────────────── */
 function SMCPanel({ smc }: { smc: SMCData }) {
-  const trendColor =
-    smc.trend === 'bullish' ? 'text-green-700 bg-green-50 border-green-200'
-    : smc.trend === 'bearish' ? 'text-red-700 bg-red-50 border-red-200'
-    : 'text-yellow-700 bg-yellow-50 border-yellow-200';
+  const trendBadge = (trend: string) =>
+    trend === 'bullish' ? 'bg-green-100 text-green-700 border-green-200'
+    : trend === 'bearish' ? 'bg-red-100 text-red-700 border-red-200'
+    : 'bg-yellow-100 text-yellow-700 border-yellow-200';
 
-  const trendLabel =
-    smc.trend === 'bullish' ? '▲ Bullish'
-    : smc.trend === 'bearish' ? '▼ Bearish'
-    : '≡ Ranging';
+  const trendLabel = (trend: string) =>
+    trend === 'bullish' ? '▲ Bullish' : trend === 'bearish' ? '▼ Bearish' : '≡ Ranging';
 
   const pdColor =
     smc.pdZone?.zone === 'premium' ? 'text-red-600'
@@ -592,59 +590,70 @@ function SMCPanel({ smc }: { smc: SMCData }) {
     : 'text-purple-600';
 
   const pdLabel =
-    smc.pdZone?.zone === 'premium' ? `🔴 Premium Zone (${smc.pdZone.premiumPct}% of range)`
-    : smc.pdZone?.zone === 'discount' ? `🟢 Discount Zone (${smc.pdZone.premiumPct}% of range)`
+    smc.pdZone?.zone === 'premium' ? `🔴 Premium (${smc.pdZone.premiumPct}%)`
+    : smc.pdZone?.zone === 'discount' ? `🟢 Discount (${smc.pdZone.premiumPct}%)`
     : `⚪ Equilibrium (~50%)`;
 
-  // Last 5 structure events (most recent first)
-  const recentStructure = [...smc.structure].reverse().slice(0, 5);
+  const recentSwing   = [...smc.structure].reverse().slice(0, 4);
+  const recentInternal = [...smc.internalStructure].reverse().slice(0, 4);
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-gray-900 dark:text-white">SMC</span>
-          <span className="text-xs text-gray-400 font-normal">Lux Algo Style</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${trendColor}`}>
-            {trendLabel}
-          </span>
-          {smc.pdZone && (
-            <span className={`text-xs font-semibold ${pdColor}`}>{pdLabel}</span>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-sm font-bold text-gray-900 dark:text-white">SMC</span>
+        <span className="text-xs text-gray-400 font-normal">Enhanced · Two-tier</span>
+        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${trendBadge(smc.trend)}`}>
+          Swing: {trendLabel(smc.trend)}
+        </span>
+        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${trendBadge(smc.internalTrend)}`}>
+          Internal: {trendLabel(smc.internalTrend)}
+        </span>
+        {smc.pdZone && (
+          <span className={`text-xs font-semibold ml-auto ${pdColor}`}>{pdLabel}</span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Structure Events */}
+      {/* Strong / Weak High / Low */}
+      {smc.trailingExtreme && (
+        <div className="flex flex-wrap gap-4 mb-4 p-2 bg-gray-50 dark:bg-zinc-800 rounded text-xs">
+          <span className={smc.trailingExtreme.strongHigh ? 'text-red-600 font-bold' : 'text-red-400'}>
+            {smc.trailingExtreme.strongHigh ? '🔴 Strong High' : '🟠 Weak High'}: ${fmt(smc.trailingExtreme.high)}
+          </span>
+          <span className={smc.trailingExtreme.strongLow ? 'text-green-600 font-bold' : 'text-green-400'}>
+            {smc.trailingExtreme.strongLow ? '🟢 Strong Low' : '🟡 Weak Low'}: ${fmt(smc.trailingExtreme.low)}
+          </span>
+          {smc.equalLevels.length > 0 && (
+            <span className="text-violet-600 font-semibold">
+              ◆ {smc.equalLevels.filter(e => e.type === 'EQH').length} EQH &nbsp;
+              ◆ {smc.equalLevels.filter(e => e.type === 'EQL').length} EQL
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Swing Structure */}
         <div>
           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Recent Structure ({smc.structure.length} events)
+            Swing Structure ({smc.structure.length})
           </h4>
-          {recentStructure.length === 0 ? (
-            <p className="text-xs text-gray-400">No structure detected</p>
+          {recentSwing.length === 0 ? (
+            <p className="text-xs text-gray-400">No swing structure</p>
           ) : (
             <div className="space-y-1.5">
-              {recentStructure.map((ev, i) => {
+              {recentSwing.map((ev, i) => {
                 const isBull = ev.direction === 'bullish';
                 const isChoch = ev.type === 'CHoCH';
                 return (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={i} className="flex items-center gap-1.5">
                     <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                       isChoch
                         ? (isBull ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700')
                         : (isBull ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')
-                    }`}>
-                      {ev.type}
-                    </span>
-                    <span className={`text-xs ${isBull ? 'text-green-600' : 'text-red-600'}`}>
-                      {isBull ? '▲' : '▼'} {isBull ? 'Bullish' : 'Bearish'}
-                    </span>
-                    <span className="text-xs text-gray-400 font-mono">
-                      ${fmt(ev.price)}
-                    </span>
+                    }`}>{ev.type}</span>
+                    <span className={`text-xs ${isBull ? 'text-green-600' : 'text-red-600'}`}>{isBull ? '▲' : '▼'}</span>
+                    <span className="text-xs text-gray-400 font-mono">${fmt(ev.price)}</span>
                   </div>
                 );
               })}
@@ -652,32 +661,61 @@ function SMCPanel({ smc }: { smc: SMCData }) {
           )}
         </div>
 
-        {/* Order Blocks */}
+        {/* Internal Structure */}
         <div>
           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Active Order Blocks ({smc.orderBlocks.length})
+            Internal Structure ({smc.internalStructure.length})
           </h4>
-          {smc.orderBlocks.length === 0 ? (
-            <p className="text-xs text-gray-400">No active order blocks</p>
+          {recentInternal.length === 0 ? (
+            <p className="text-xs text-gray-400">No internal structure</p>
+          ) : (
+            <div className="space-y-1.5">
+              {recentInternal.map((ev, i) => {
+                const isBull = ev.direction === 'bullish';
+                const isChoch = ev.type === 'CHoCH';
+                return (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded opacity-75 ${
+                      isChoch
+                        ? (isBull ? 'bg-cyan-50 text-cyan-600' : 'bg-orange-50 text-orange-600')
+                        : (isBull ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600')
+                    }`}>{ev.type}</span>
+                    <span className={`text-xs ${isBull ? 'text-green-500' : 'text-red-500'}`}>{isBull ? '▲' : '▼'}</span>
+                    <span className="text-xs text-gray-400 font-mono">${fmt(ev.price)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Order Blocks (both tiers) */}
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Order Blocks ({smc.orderBlocks.length + smc.internalOrderBlocks.length})
+          </h4>
+          {smc.orderBlocks.length === 0 && smc.internalOrderBlocks.length === 0 ? (
+            <p className="text-xs text-gray-400">No active OBs</p>
           ) : (
             <div className="space-y-1.5">
               {[...smc.orderBlocks].reverse().map((ob, i) => (
-                <div key={i} className="flex items-center justify-between gap-2">
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                    ob.type === 'bullish' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
+                <div key={`s${i}`} className="flex items-center justify-between gap-1.5">
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${ob.type === 'bullish' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                     {ob.type === 'bullish' ? '▲' : '▼'} OB
                   </span>
-                  <span className="text-xs text-gray-500 font-mono">
-                    ${fmt(ob.bottom)} – ${fmt(ob.top)}
+                  <span className="text-xs text-gray-500 font-mono">${fmt(ob.bottom)}–${fmt(ob.top)}</span>
+                </div>
+              ))}
+              {[...smc.internalOrderBlocks].reverse().slice(0, 3).map((ob, i) => (
+                <div key={`i${i}`} className="flex items-center justify-between gap-1.5 opacity-70">
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${ob.type === 'bullish' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'}`}>
+                    {ob.type === 'bullish' ? '▲' : '▼'} iOB
                   </span>
+                  <span className="text-xs text-gray-400 font-mono">${fmt(ob.bottom)}–${fmt(ob.top)}</span>
                 </div>
               ))}
             </div>
           )}
-          <p className="text-xs text-gray-400 mt-2">
-            Chart: dashed lines = OB zone boundaries
-          </p>
         </div>
 
         {/* FVGs */}
@@ -690,32 +728,43 @@ function SMCPanel({ smc }: { smc: SMCData }) {
           ) : (
             <div className="space-y-1.5">
               {[...smc.fvgs].reverse().slice(0, 5).map((fvg, i) => (
-                <div key={i} className="flex items-center justify-between gap-2">
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                    fvg.type === 'bullish' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
-                  }`}>
+                <div key={i} className="flex items-center justify-between gap-1.5">
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${fvg.type === 'bullish' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
                     {fvg.type === 'bullish' ? '↑' : '↓'} FVG
                   </span>
-                  <span className="text-xs text-gray-500 font-mono">
-                    ${fmt(fvg.bottom)} – ${fmt(fvg.top)}
-                  </span>
+                  <span className="text-xs text-gray-500 font-mono">${fmt(fvg.bottom)}–${fmt(fvg.top)}</span>
                 </div>
               ))}
             </div>
           )}
-          <p className="text-xs text-gray-400 mt-2">
-            Chart: dotted lines = FVG zone boundaries
-          </p>
         </div>
       </div>
 
+      {/* Equal Levels */}
+      {smc.equalLevels.length > 0 && (
+        <div className="mt-3 pt-3 border-t">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Equal Highs / Lows — Liquidity Zones
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {[...smc.equalLevels].reverse().slice(0, 6).map((eq, i) => (
+              <span key={i} className="text-xs px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-700 font-mono">
+                {eq.type} ${fmt(eq.price)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Legend */}
-      <div className="mt-4 pt-3 border-t flex flex-wrap gap-4 text-xs text-gray-500">
-        <span><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />BOS ↑ = trend continuation (bullish)</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />BOS ↓ = trend continuation (bearish)</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-cyan-500 mr-1" />CHoCH ↑ = reversal warning (bullish)</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />CHoCH ↓ = reversal warning (bearish)</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-violet-400 mr-1" />— EQ = equilibrium / fair value midline</span>
+      <div className="mt-3 pt-3 border-t flex flex-wrap gap-3 text-xs text-gray-500">
+        <span><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />BOS ↑ = swing continuation</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />BOS ↓ = swing continuation</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-cyan-500 mr-1" />CHoCH ↑ = reversal warning</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />CHoCH ↓ = reversal warning</span>
+        <span><span className="inline-block w-2 h-2 bg-blue-400 mr-1" />iOB = internal order block</span>
+        <span><span className="inline-block w-2 h-2 bg-violet-400 mr-1" />EQH/EQL = equal levels (liquidity)</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-violet-400 mr-1" />— EQ = equilibrium midline</span>
       </div>
     </div>
   );
@@ -939,7 +988,7 @@ export default function ChartPage() {
         {/* ── Footer note ── */}
         <p className="text-xs text-gray-400 text-center">
           Indicators (EMA 9/21/50/200, TSI, Pivots, SMC) calculated from historical data.
-          SMC includes: Swing H/L, BOS, CHoCH, Order Blocks, Fair Value Gaps, Premium/Discount zones.
+          SMC: Swing &amp; Internal structure (BOS/CHoCH), Order Blocks with ATR filter, Fair Value Gaps, Equal Highs/Lows, Strong/Weak High/Low, Premium/Discount zones.
           For informational purposes only — not financial advice.
         </p>
       </div>
