@@ -27,6 +27,12 @@ function groupByDate(events: EarningsEvent[]): Map<string, EarningsEvent[]> {
   return map;
 }
 
+function localDateStr(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // ── Badges ────────────────────────────────────────────────────────────────
 function UrgencyBadge({ urgency, daysOut }: { urgency: EarningsEvent['urgency']; daysOut: number }) {
   if (urgency === 'today') {
@@ -312,7 +318,10 @@ function AllEarningsTab() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [cachedAt, setCachedAt]   = useState('');
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
   const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const todayStr    = localDateStr(0);
+  const tomorrowStr = localDateStr(1);
 
   const fetch_ = useCallback(async (pg: number, d: number, query: string) => {
     setLoading(true);
@@ -338,15 +347,26 @@ function AllEarningsTab() {
 
   const handleDays = (d: number) => { setDays(d); setPage(1); fetch_(1, d, q); };
   const handlePage = (p: number) => { setPage(p); fetch_(p, days, q); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const handleDateFilter = (iso: string | null) => {
+    setDateFilter(iso);
+    if (iso) {
+      // expand horizon if picked date is beyond current window
+      const target   = new Date(iso + 'T12:00:00');
+      const today    = new Date(); today.setHours(12, 0, 0, 0);
+      const daysOut  = Math.round((target.getTime() - today.getTime()) / 86400000);
+      if (daysOut > days) handleDays(Math.min(daysOut + 7, 90));
+    }
+  };
   const handleQ    = (v: string) => {
     setQ(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => { setPage(1); fetch_(1, days, v); }, 300);
   };
 
-  // Group by date
+  // Group by date — apply date filter if active
+  const displayRows = dateFilter ? rows.filter(r => r.reportDate === dateFilter) : rows;
   const grouped = new Map<string, AllEarningsRow[]>();
-  for (const r of rows) {
+  for (const r of displayRows) {
     if (!grouped.has(r.reportDate)) grouped.set(r.reportDate, []);
     grouped.get(r.reportDate)!.push(r);
   }
@@ -365,6 +385,36 @@ function AllEarningsTab() {
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Date quick-filters */}
+          <button
+            onClick={() => handleDateFilter(dateFilter === todayStr ? null : todayStr)}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+              dateFilter === todayStr
+                ? 'bg-rose-600 text-white'
+                : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-700'
+            }`}
+          >Today</button>
+          <button
+            onClick={() => handleDateFilter(dateFilter === tomorrowStr ? null : tomorrowStr)}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+              dateFilter === tomorrowStr
+                ? 'bg-orange-500 text-white'
+                : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-700'
+            }`}
+          >Tomorrow</button>
+          <input
+            type="date"
+            value={dateFilter ?? ''}
+            onChange={(e) => handleDateFilter(e.target.value || null)}
+            className="px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-600"
+          />
+          {dateFilter && (
+            <button
+              onClick={() => setDateFilter(null)}
+              className="px-2 py-1 rounded-lg text-xs bg-gray-200 dark:bg-zinc-700 text-gray-600 dark:text-zinc-300 hover:bg-gray-300 dark:hover:bg-zinc-600 transition-colors"
+            >✕ Clear</button>
+          )}
+          <span className="text-xs text-gray-300 dark:text-zinc-700 select-none">|</span>
           <span className="text-xs text-gray-500 dark:text-zinc-500">Horizon:</span>
           {DAYS_OPTIONS.map((d) => (
             <button key={d} onClick={() => handleDays(d)}
@@ -386,9 +436,13 @@ function AllEarningsTab() {
       {/* Summary */}
       {!loading && !error && (
         <p className="text-sm text-gray-500 dark:text-zinc-500">
-          <span className="font-semibold text-gray-900 dark:text-white">{total.toLocaleString()}</span> upcoming earnings in the next {days} days
-          {q && <> matching <span className="font-semibold text-indigo-500">&ldquo;{q}&rdquo;</span></>}
-          {' · '}Page {page} of {totalPages}
+          {dateFilter ? (
+            <><span className="font-semibold text-gray-900 dark:text-white">{displayRows.length}</span> reporting on <span className="font-semibold text-indigo-500">{fmtDate(dateFilter)}</span></>
+          ) : (
+            <><span className="font-semibold text-gray-900 dark:text-white">{total.toLocaleString()}</span> upcoming earnings in the next {days} days
+            {q && <> matching <span className="font-semibold text-indigo-500">&ldquo;{q}&rdquo;</span></>}
+            {' · '}Page {page} of {totalPages}</>
+          )}
         </p>
       )}
 
@@ -486,8 +540,8 @@ function AllEarningsTab() {
         );
       })}
 
-      {/* Pagination */}
-      {!loading && totalPages > 1 && (
+      {/* Pagination — hidden when date filter is active */}
+      {!loading && totalPages > 1 && !dateFilter && (
         <div className="flex items-center justify-center gap-2 pt-2">
           <button onClick={() => handlePage(page - 1)} disabled={page === 1}
             className="px-3 py-1.5 rounded-lg text-sm bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors">
