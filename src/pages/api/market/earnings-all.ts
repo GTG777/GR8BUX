@@ -37,6 +37,8 @@ export interface AllEarningsRow {
   relVol: number | null;         // today's volume / prev-day volume
   expectedMove: number | null;   // % move implied by HV20 × √(daysOut/252)
   isHighVolEarner: boolean;      // expectedMove ≥ 10%
+  epsBeatStreak: number | null;  // consecutive quarterly EPS beats
+  avgSurprisePct: number | null; // avg absolute EPS surprise % last 8Q
 }
 
 // â”€â”€ Base row (AV CSV only â€” no enrichment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -66,6 +68,8 @@ type EnrichEntry = {
   hv20: number | null;
   aiConsensus: string | null;
   setupType: string | null;
+  epsBeatStreak: number | null;
+  avgSurprisePct: number | null;
 };
 
 function parseCSV(csv: string): Array<Record<string, string>> {
@@ -131,15 +135,24 @@ async function getEnrichMap(): Promise<Record<string, EnrichEntry>> {
     const supabase = getSupabaseServiceRoleClient();
     if (!supabase) return map;
 
-    const [mdRes, aiRes] = await Promise.all([
+    const [mdRes, aiRes, enrichRes] = await Promise.all([
       supabase.from('market_data').select('symbol, price, rsi, ivr, hv20'),
       supabase.from('ai_analyses').select('symbol, consensus, setup_type'),
+      supabase.from('earnings_enrichment').select('symbol, hv20, eps_beat_streak, avg_surprise_pct'),
     ]);
     for (const r of mdRes.data ?? []) {
-      map[r.symbol] = { price: r.price ?? null, rsi: r.rsi ?? null, ivRank: r.ivr ?? null, hv20: r.hv20 ?? null, aiConsensus: null, setupType: null };
+      map[r.symbol] = { price: r.price ?? null, rsi: r.rsi ?? null, ivRank: r.ivr ?? null, hv20: r.hv20 ?? null, aiConsensus: null, setupType: null, epsBeatStreak: null, avgSurprisePct: null };
+    }
+    // earnings_enrichment has HV20 for ALL symbols (not just LEAPS universe)
+    for (const r of enrichRes.data ?? []) {
+      if (!map[r.symbol]) map[r.symbol] = { price: null, rsi: null, ivRank: null, hv20: null, aiConsensus: null, setupType: null, epsBeatStreak: null, avgSurprisePct: null };
+      // earnings_enrichment HV20 takes precedence for non-LEAPS symbols; market_data wins for LEAPS (fresher)
+      if (map[r.symbol].hv20 == null && r.hv20 != null) map[r.symbol].hv20 = r.hv20;
+      map[r.symbol].epsBeatStreak  = r.eps_beat_streak  ?? null;
+      map[r.symbol].avgSurprisePct = r.avg_surprise_pct ?? null;
     }
     for (const r of aiRes.data ?? []) {
-      if (!map[r.symbol]) map[r.symbol] = { price: null, rsi: null, ivRank: null, hv20: null, aiConsensus: null, setupType: null };
+      if (!map[r.symbol]) map[r.symbol] = { price: null, rsi: null, ivRank: null, hv20: null, aiConsensus: null, setupType: null, epsBeatStreak: null, avgSurprisePct: null };
       map[r.symbol].aiConsensus = r.consensus ?? null;
       map[r.symbol].setupType   = r.setup_type ?? null;
     }
@@ -210,6 +223,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         relVol:         relVolMap[r.symbol] ?? null,
         expectedMove,
         isHighVolEarner: expectedMove != null && expectedMove >= 10,
+        epsBeatStreak:  e?.epsBeatStreak  ?? null,
+        avgSurprisePct: e?.avgSurprisePct ?? null,
       };
     });
 
@@ -246,7 +261,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const e = enrichMap[r.symbol] ?? null;
           const hv20e = e?.hv20 ?? null;
           const em = (hv20e != null && r.daysOut > 0) ? Math.round(hv20e * Math.sqrt(r.daysOut / 252) * 10) / 10 : null;
-          return { ...r, price: e?.price ?? null, rsi: e?.rsi ?? null, ivRank: e?.ivRank ?? null, aiConsensus: e?.aiConsensus ?? null, setupType: e?.setupType ?? null, relVol: relVolMap[r.symbol] ?? null, expectedMove: em, isHighVolEarner: em != null && em >= 10 };
+          return { ...r, price: e?.price ?? null, rsi: e?.rsi ?? null, ivRank: e?.ivRank ?? null, aiConsensus: e?.aiConsensus ?? null, setupType: e?.setupType ?? null, relVol: relVolMap[r.symbol] ?? null, expectedMove: em, isHighVolEarner: em != null && em >= 10, epsBeatStreak: e?.epsBeatStreak ?? null, avgSurprisePct: e?.avgSurprisePct ?? null };
         });
       return res.status(200).json({ success: true, rows: enriched.slice(0, 50), total: enriched.length, page: 1, totalPages: 1, cachedAt: new Date(_avCache.at).toISOString(), enrichedAt: _enrichCache ? new Date(_enrichCache.at).toISOString() : null, stale: true });
     }

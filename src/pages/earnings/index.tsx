@@ -439,6 +439,7 @@ function AllEarningsTab() {
                     <th className="px-4 py-2 text-right">Price</th>
                     <th className="px-4 py-2 text-right">Rel Vol</th>
                     <th className="px-4 py-2 text-right">Exp. Move</th>
+                    <th className="px-4 py-2 text-center">Beat Streak</th>
                     <th className="px-4 py-2 text-center">Signal</th>
                     <th className="px-4 py-2 text-center">Trend</th>
                     <th className="px-4 py-2 text-center">Setup</th>
@@ -459,6 +460,7 @@ function AllEarningsTab() {
                       </td>
                       <td className="px-4 py-2.5 text-right"><RelVolBadge relVol={r.relVol} /></td>
                       <td className="px-4 py-2.5 text-right"><ExpectedMoveBadge em={r.expectedMove} isHighVol={r.isHighVolEarner} /></td>
+                      <td className="px-4 py-2.5 text-center"><BeatStreakBadge streak={r.epsBeatStreak} avgSurprise={r.avgSurprisePct} /></td>
                       <td className="px-4 py-2.5 text-center"><SignalBadge consensus={r.aiConsensus} /></td>
                       <td className="px-4 py-2.5 text-center"><TrendBadge rsi={r.rsi} /></td>
                       <td className="px-4 py-2.5 text-center"><SetupBadge setupType={r.setupType} /></td>

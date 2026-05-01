@@ -37,6 +37,11 @@
   # Nightly at 11:30 PM ET (04:30 UTC Tue-Sat)
   schedule = "30 4 * * 2-6"
 
+[functions."nightly-refresh-earnings-enrichment"]
+  # Nightly at 11:45 PM ET (04:45 UTC Tue-Sat)
+  # Enriches ALL upcoming earnings with HV20 + EPS beat streak
+  schedule = "45 4 * * 2-6"
+
 # Security headers
 [[headers]]
   for = "/*"
