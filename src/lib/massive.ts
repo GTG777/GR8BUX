@@ -301,14 +301,20 @@ export async function getOptionsChainPaged(
 
 // ── Date helpers ───────────────────────────────────────────────────
 
-/** Returns today's date as YYYY-MM-DD (UTC). */
+/** Returns today's date as YYYY-MM-DD in US/Eastern (market timezone). */
 export function todayDateStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
 }
 
-/** Returns a date N days ago as YYYY-MM-DD (UTC). */
+/** Returns a date N calendar days ago as YYYY-MM-DD in US/Eastern. */
 export function daysAgoDateStr(days: number): string {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() - days);
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
 }
