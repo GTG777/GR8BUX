@@ -73,58 +73,107 @@ type EnrichEntry = {
   avgSurprisePct: number | null;
 };
 
-function parseCSV(csv: string): Array<Record<string, string>> {
-  const lines = csv.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map((h) => h.trim());
-  return lines.slice(1).map((line) => {
-    const vals = line.split(',');
-    const obj: Record<string, string> = {};
-    headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').trim(); });
-    return obj;
-  });
+// ── Nasdaq earnings calendar helpers ──────────────────────────────────────
+// Official Nasdaq earnings calendar — no API key required, real-time data.
+// Endpoint: https://api.nasdaq.com/api/calendar/earnings?date=YYYY-MM-DD
+// Returns one trading day at a time; we fan out in parallel batches.
+
+const NASDAQ_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://www.nasdaq.com',
+  'Referer': 'https://www.nasdaq.com/',
+};
+
+interface NasdaqEarningsRow {
+  symbol: string;
+  name: string;
+  marketCap?: string;
+  fiscalQuarterEnding?: string;
+  epsForecast?: string;
+  noOfEsts?: string;
+  lastYearRptDt?: string;
+  lastYearEPS?: string;
+  time?: string;
 }
 
-// Fetch + cache Alpha Vantage CSV (4-hour TTL)
+// Convert "Mar/2026" → "2026-03-31"
+function fiscalQuarterToDate(q: string): string {
+  const months: Record<string, string> = {
+    Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+    Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+  };
+  const parts = (q ?? '').split('/');
+  if (parts.length < 2) return '';
+  const [mon, yr] = parts;
+  const m = months[mon?.trim()];
+  if (!m || !yr?.trim()) return '';
+  const lastDay = new Date(parseInt(yr.trim()), parseInt(m), 0).getDate();
+  return `${yr.trim()}-${m}-${String(lastDay).padStart(2, '0')}`;
+}
+
+async function fetchNasdaqDay(dateStr: string, todayMs: number): Promise<BaseRow[]> {
+  try {
+    const url = `https://api.nasdaq.com/api/calendar/earnings?date=${dateStr}`;
+    const res = await fetch(url, {
+      headers: NASDAQ_HEADERS,
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const json = await res.json() as { data?: { rows?: NasdaqEarningsRow[] | null } };
+    const rows = json?.data?.rows ?? [];
+    const daysOut = Math.floor((new Date(dateStr + 'T00:00:00').getTime() - todayMs) / 86_400_000);
+    return rows
+      .filter(r => r?.symbol?.trim())
+      .map(r => {
+        const eps = r.epsForecast?.trim() ?? '';
+        return {
+          symbol:           r.symbol.trim().toUpperCase(),
+          name:             r.name?.trim() ?? r.symbol.trim(),
+          reportDate:       dateStr,
+          daysOut,
+          fiscalDateEnding: fiscalQuarterToDate(r.fiscalQuarterEnding ?? ''),
+          estimatedEPS:     eps !== '' && eps !== 'N/A' && !isNaN(Number(eps)) ? parseFloat(eps) : null,
+          currency:         'USD',
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
+// Fetch + cache Nasdaq earnings calendar (4-hour TTL)
+// Fans out across next 90 weekdays in parallel batches of 10.
 async function getBaseRows(): Promise<BaseRow[]> {
   if (_avCache && Date.now() - _avCache.at < AV_TTL) return _avCache.rows;
 
-  const avKey = process.env.ALPHAVANTAGE_API_KEY ?? '';
-  if (!avKey) throw new Error('ALPHAVANTAGE_API_KEY not configured');
-
-  const url = `https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${avKey}`;
-  const avRes = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!avRes.ok) throw new Error(`Alpha Vantage ${avRes.status}`);
-  const csv = await avRes.text();
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
 
-  const rows: BaseRow[] = [];
-  for (const r of parseCSV(csv)) {
-    const symbol = (r['symbol'] ?? '').trim().toUpperCase();
-    const reportDate = (r['reportDate'] ?? '').trim();
-    if (!symbol || !reportDate) continue;
-
-    const reportDay = new Date(reportDate + 'T00:00:00');
-    const daysOut = Math.floor((reportDay.getTime() - today.getTime()) / 86_400_000);
-    if (daysOut < 0 || daysOut > 90) continue;
-
-    const raw = r['estimate'] ?? '';
-    rows.push({
-      symbol,
-      name: (r['name'] ?? symbol).trim(),
-      reportDate,
-      daysOut,
-      fiscalDateEnding: (r['fiscalDateEnding'] ?? '').trim(),
-      estimatedEPS: raw !== '' && !isNaN(Number(raw)) ? parseFloat(raw) : null,
-      currency: (r['currency'] ?? 'USD').trim(),
-    });
+  // Collect weekday dates for the next 90 calendar days
+  const dates: string[] = [];
+  for (let i = 0; i <= 90; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) dates.push(d.toISOString().slice(0, 10));
   }
 
-  rows.sort((a, b) => a.daysOut - b.daysOut || a.symbol.localeCompare(b.symbol));
-  _avCache = { rows, at: Date.now() };
-  return rows;
+  // Parallel batches of 10 to stay well within the serverless timeout
+  const BATCH = 10;
+  const allRows: BaseRow[] = [];
+  for (let i = 0; i < dates.length; i += BATCH) {
+    const results = await Promise.all(
+      dates.slice(i, i + BATCH).map(d => fetchNasdaqDay(d, todayMs))
+    );
+    for (const dayRows of results) allRows.push(...dayRows);
+  }
+
+  allRows.sort((a, b) => a.daysOut - b.daysOut || a.symbol.localeCompare(b.symbol));
+  _avCache = { rows: allRows, at: Date.now() };
+  return allRows;
 }
 
 // Fetch + cache Supabase enrichment (15-min TTL)
