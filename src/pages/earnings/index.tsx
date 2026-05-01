@@ -41,7 +41,17 @@ function UrgencyBadge({ urgency, daysOut }: { urgency: EarningsEvent['urgency'];
   return <span className="px-2 py-0.5 rounded-full text-xs text-gray-500 dark:text-zinc-500 border border-gray-300 dark:border-zinc-700">{daysLabel(daysOut)}</span>;
 }
 
-function StrategyBadge({ strategy, ivCrush }: { strategy: EarningsEvent['strategy']; ivCrush: boolean }) {
+function StrategyBadge({ strategy, ivCrush, isHighVolEarner }: { strategy: EarningsEvent['strategy']; ivCrush: boolean; isHighVolEarner?: boolean }) {
+  if (isHighVolEarner && strategy === 'watch') {
+    return (
+      <span
+        className="px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-500/30"
+        title="High expected move — take a directional position, do NOT sell premium"
+      >
+        🔥 Directional
+      </span>
+    );
+  }
   if (strategy === 'avoid') {
     return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/30">Avoid</span>;
   }
@@ -72,6 +82,38 @@ function IVRBar({ ivr }: { ivr: number | null }) {
   );
 }
 
+function ExpectedMoveBadge({ em, isHighVol }: { em: number | null; isHighVol: boolean }) {
+  if (em == null) return <span className="text-gray-400 dark:text-zinc-600">—</span>;
+  const cls = isHighVol
+    ? 'text-orange-600 dark:text-orange-400 font-bold'
+    : em >= 7
+    ? 'text-yellow-600 dark:text-yellow-400 font-semibold'
+    : 'text-gray-600 dark:text-zinc-400';
+  return (
+    <span className={`font-mono text-xs ${cls}`}>
+      ±{em.toFixed(1)}%{isHighVol && <span className="ml-1 text-[10px]">🔥</span>}
+    </span>
+  );
+}
+
+function BeatStreakBadge({ streak, avgSurprise }: { streak: number | null; avgSurprise: number | null }) {
+  if (streak == null) return <span className="text-gray-400 dark:text-zinc-600">—</span>;
+  const cls =
+    streak >= 6 ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40' :
+    streak >= 3 ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-500/40' :
+    streak >= 1 ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-500/40' :
+    'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border-red-300 dark:border-red-500/40';
+  const tipText = avgSurprise != null ? `Avg EPS surprise: +${avgSurprise.toFixed(1)}% last 8Q` : undefined;
+  return (
+    <span
+      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${cls}`}
+      title={tipText}
+    >
+      {streak > 0 ? `${streak}Q Beat` : 'Miss'}
+    </span>
+  );
+}
+
 const CONSENSUS_COLOR: Record<string, string> = {
   STRONG_BUY: 'text-emerald-600 dark:text-emerald-400',
   BUY: 'text-green-600 dark:text-green-400',
@@ -81,26 +123,28 @@ const CONSENSUS_COLOR: Record<string, string> = {
 };
 
 // ── Filter tabs ───────────────────────────────────────────────────────────
-type FilterTab = 'all' | 'this-week' | 'next-week' | 'iv-crush' | 'leaps-opp';
+type FilterTab = 'all' | 'this-week' | 'next-week' | 'iv-crush' | 'leaps-opp' | 'high-vol';
 
 const TABS: { id: FilterTab; label: string }[] = [
   { id: 'all',       label: 'All Upcoming' },
   { id: 'this-week', label: '⚡ This Week' },
   { id: 'next-week', label: '📅 Next 2 Weeks' },
-  { id: 'iv-crush',  label: '🔥 IV Crush Plays' },
+  { id: 'high-vol',  label: '🔥 High Vol Earners' },
+  { id: 'iv-crush',  label: '💥 IV Crush Plays' },
   { id: 'leaps-opp', label: '🚀 LEAPS Opportunities' },
 ];
 
 // ── Strategy legend ───────────────────────────────────────────────────────
 const LEGEND = [
-  { color: 'bg-violet-500', label: 'IV Crush Play — IVR ≥ 65: sell straddle/strangle before earnings, IV collapses after' },
+  { color: 'bg-orange-500', label: '🔥 High Vol Earner — Exp. Move ≥10%: take a directional position, do NOT sell premium' },
+  { color: 'bg-violet-500', label: 'IV Crush Play — IVR ≥65 on stable stock: sell straddle/strangle before earnings, IV collapses after' },
   { color: 'bg-emerald-500', label: 'LEAPS Opp — IVR < 35: cheap IV, buy calls after earnings if bullish' },
   { color: 'bg-yellow-500', label: 'Watch — moderate IV, no clear edge yet' },
   { color: 'bg-red-500', label: 'Avoid — AI consensus is bearish or avoid' },
 ];
 
 // ── Sorting ───────────────────────────────────────────────────────────────
-type SortCol = 'date' | 'symbol' | 'company' | 'sector' | 'price' | 'eps' | 'fiscalEnd' | 'ivr' | 'rsi' | 'verdict' | 'strategy';
+type SortCol = 'date' | 'symbol' | 'company' | 'sector' | 'price' | 'eps' | 'fiscalEnd' | 'ivr' | 'rsi' | 'verdict' | 'strategy' | 'em' | 'beatStreak';
 type SortDir = 'asc' | 'desc';
 interface SortState { col: SortCol; dir: SortDir; }
 
@@ -140,6 +184,8 @@ function EarningsTableHead({ sort, onSort, showDate = false }: {
         <SortTh col="fiscalEnd" sort={sort} onSort={onSort} className="text-right">Fiscal End</SortTh>
         <SortTh col="ivr" sort={sort} onSort={onSort} className="text-center">IVR</SortTh>
         <SortTh col="rsi" sort={sort} onSort={onSort} className="text-right">RSI</SortTh>
+        <SortTh col="em" sort={sort} onSort={onSort} className="text-right">Exp. Move</SortTh>
+        <SortTh col="beatStreak" sort={sort} onSort={onSort} className="text-center">Beat Streak</SortTh>
         <SortTh col="verdict" sort={sort} onSort={onSort} className="text-center">AI Verdict</SortTh>
         <SortTh col="strategy" sort={sort} onSort={onSort} className="text-center">Strategy</SortTh>
         <th className="px-4 py-2 text-center text-gray-500 dark:text-zinc-500">Trade</th>
@@ -179,13 +225,19 @@ function EarningsTableRow({ e, i, showDate = false }: { e: EarningsEvent; i: num
           </span>
         ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
       </td>
+      <td className="px-4 py-2.5 text-right">
+        <ExpectedMoveBadge em={e.expectedMove} isHighVol={e.isHighVolEarner} />
+      </td>
+      <td className="px-4 py-2.5 text-center">
+        <BeatStreakBadge streak={e.epsBeatStreak} avgSurprise={e.avgSurprisePct} />
+      </td>
       <td className="px-4 py-2.5 text-center">
         {e.aiConsensus ? (
           <span className={`font-semibold ${CONSENSUS_COLOR[e.aiConsensus] ?? 'text-zinc-400'}`}>{e.aiConsensus.replace('_', ' ')}</span>
         ) : <span className="text-gray-400 dark:text-zinc-600">—</span>}
       </td>
       <td className="px-4 py-2.5 text-center">
-        <StrategyBadge strategy={e.strategy} ivCrush={e.ivCrush} />
+        <StrategyBadge strategy={e.strategy} ivCrush={e.ivCrush} isHighVolEarner={e.isHighVolEarner} />
       </td>
       <td className="px-4 py-2.5 text-center">
         <div className="flex gap-1.5 justify-center">
@@ -386,6 +438,7 @@ function AllEarningsTab() {
                     <th className="px-4 py-2">Company</th>
                     <th className="px-4 py-2 text-right">Price</th>
                     <th className="px-4 py-2 text-right">Rel Vol</th>
+                    <th className="px-4 py-2 text-right">Exp. Move</th>
                     <th className="px-4 py-2 text-center">Signal</th>
                     <th className="px-4 py-2 text-center">Trend</th>
                     <th className="px-4 py-2 text-center">Setup</th>
@@ -405,6 +458,7 @@ function AllEarningsTab() {
                         {r.price != null ? `$${r.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : <span className="text-gray-400 dark:text-zinc-600">—</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right"><RelVolBadge relVol={r.relVol} /></td>
+                      <td className="px-4 py-2.5 text-right"><ExpectedMoveBadge em={r.expectedMove} isHighVol={r.isHighVolEarner} /></td>
                       <td className="px-4 py-2.5 text-center"><SignalBadge consensus={r.aiConsensus} /></td>
                       <td className="px-4 py-2.5 text-center"><TrendBadge rsi={r.rsi} /></td>
                       <td className="px-4 py-2.5 text-center"><SetupBadge setupType={r.setupType} /></td>
@@ -490,6 +544,7 @@ export default function EarningsCalendarPage() {
   const filtered = events.filter((e) => {
     if (tab === 'this-week')  return e.daysOut <= 7;
     if (tab === 'next-week')  return e.daysOut <= 14;
+    if (tab === 'high-vol')   return e.isHighVolEarner;
     if (tab === 'iv-crush')   return e.ivCrush;
     if (tab === 'leaps-opp')  return e.strategy === 'leaps-opportunity';
     return true;
@@ -520,6 +575,8 @@ export default function EarningsCalendarPage() {
       case 'rsi':       cmp = (a.rsi ?? -1) - (b.rsi ?? -1); break;
       case 'verdict':   cmp = (a.aiConsensus ?? '').localeCompare(b.aiConsensus ?? ''); break;
       case 'strategy':  cmp = (a.strategy ?? '').localeCompare(b.strategy ?? ''); break;
+      case 'em':         cmp = (a.expectedMove ?? -Infinity) - (b.expectedMove ?? -Infinity); break;
+      case 'beatStreak': cmp = (a.epsBeatStreak ?? -1) - (b.epsBeatStreak ?? -1); break;
     }
     return sort.dir === 'asc' ? cmp : -cmp;
   }) : null;
@@ -528,6 +585,7 @@ export default function EarningsCalendarPage() {
   const thisWeekCount  = events.filter((e) => e.daysOut <= 7).length;
   const ivCrushCount   = events.filter((e) => e.ivCrush).length;
   const leapsOppCount  = events.filter((e) => e.strategy === 'leaps-opportunity').length;
+  const highVolCount   = events.filter((e) => e.isHighVolEarner).length;
 
   return (
     <Layout>
@@ -583,9 +641,10 @@ export default function EarningsCalendarPage() {
         {pageTab === 'leaps' && (<>
 
         {/* ── Summary cards ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
             { label: 'This Week',       value: thisWeekCount,   color: 'text-orange-400' },
+            { label: '🔥 High Vol Earners', value: highVolCount,     color: 'text-orange-500' },
             { label: 'IV Crush Plays',  value: ivCrushCount,    color: 'text-violet-400' },
             { label: 'LEAPS Opps',      value: leapsOppCount,   color: 'text-emerald-400' },
             { label: 'Total (45d)',     value: events.length,   color: 'text-zinc-300' },
@@ -715,7 +774,7 @@ export default function EarningsCalendarPage() {
               ))}
             </div>
             <p className="text-xs text-gray-400 dark:text-zinc-700 mt-3">
-              IVR = Implied Volatility Rank (0–100). IV Crush: IV peaks before earnings, collapses after. Data: Alpha Vantage + Massive.com. Not financial advice.
+              IVR = Implied Volatility Rank (0–100). Exp. Move = HV20 × √(daysOut/252) — estimated 1-std earnings move. Beat Streak from Alpha Vantage quarterly EPS history. IV Crush: IV peaks before earnings, collapses after. Data: Alpha Vantage + Massive.com. Not financial advice.
             </p>
           </div>
         )}

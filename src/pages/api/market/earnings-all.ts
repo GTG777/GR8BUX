@@ -34,7 +34,9 @@ export interface AllEarningsRow {
   ivRank: number | null;
   aiConsensus: string | null;
   setupType: string | null;
-  relVol: number | null;  // today's volume / prev-day volume
+  relVol: number | null;         // today's volume / prev-day volume
+  expectedMove: number | null;   // % move implied by HV20 × √(daysOut/252)
+  isHighVolEarner: boolean;      // expectedMove ≥ 10%
 }
 
 // â”€â”€ Base row (AV CSV only â€” no enrichment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -61,6 +63,7 @@ type EnrichEntry = {
   price: number | null;
   rsi: number | null;
   ivRank: number | null;
+  hv20: number | null;
   aiConsensus: string | null;
   setupType: string | null;
 };
@@ -129,11 +132,11 @@ async function getEnrichMap(): Promise<Record<string, EnrichEntry>> {
     if (!supabase) return map;
 
     const [mdRes, aiRes] = await Promise.all([
-      supabase.from('market_data').select('symbol, price, rsi, ivr'),
+      supabase.from('market_data').select('symbol, price, rsi, ivr, hv20'),
       supabase.from('ai_analyses').select('symbol, consensus, setup_type'),
     ]);
     for (const r of mdRes.data ?? []) {
-      map[r.symbol] = { price: r.price ?? null, rsi: r.rsi ?? null, ivRank: r.ivr ?? null, aiConsensus: null, setupType: null };
+      map[r.symbol] = { price: r.price ?? null, rsi: r.rsi ?? null, ivRank: r.ivr ?? null, hv20: r.hv20 ?? null, aiConsensus: null, setupType: null };
     }
     for (const r of aiRes.data ?? []) {
       if (!map[r.symbol]) map[r.symbol] = { price: null, rsi: null, ivRank: null, aiConsensus: null, setupType: null };
@@ -193,14 +196,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Merge enrichment into rows
     const enrichedRows: AllEarningsRow[] = baseRows.map((r) => {
       const e = enrichMap[r.symbol] ?? null;
+      const hv20 = e?.hv20 ?? null;
+      const expectedMove = (hv20 != null && r.daysOut > 0)
+        ? Math.round(hv20 * Math.sqrt(r.daysOut / 252) * 10) / 10
+        : null;
       return {
         ...r,
-        price:       e?.price       ?? null,
-        rsi:         e?.rsi         ?? null,
-        ivRank:      e?.ivRank      ?? null,
-        aiConsensus: e?.aiConsensus ?? null,
-        setupType:   e?.setupType   ?? null,
-        relVol:      relVolMap[r.symbol] ?? null,
+        price:          e?.price       ?? null,
+        rsi:            e?.rsi         ?? null,
+        ivRank:         e?.ivRank      ?? null,
+        aiConsensus:    e?.aiConsensus ?? null,
+        setupType:      e?.setupType   ?? null,
+        relVol:         relVolMap[r.symbol] ?? null,
+        expectedMove,
+        isHighVolEarner: expectedMove != null && expectedMove >= 10,
       };
     });
 
@@ -235,7 +244,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .filter((r) => r.daysOut <= days)
         .map((r) => {
           const e = enrichMap[r.symbol] ?? null;
-          return { ...r, price: e?.price ?? null, rsi: e?.rsi ?? null, ivRank: e?.ivRank ?? null, aiConsensus: e?.aiConsensus ?? null, setupType: e?.setupType ?? null, relVol: relVolMap[r.symbol] ?? null };
+          const hv20e = e?.hv20 ?? null;
+          const em = (hv20e != null && r.daysOut > 0) ? Math.round(hv20e * Math.sqrt(r.daysOut / 252) * 10) / 10 : null;
+          return { ...r, price: e?.price ?? null, rsi: e?.rsi ?? null, ivRank: e?.ivRank ?? null, aiConsensus: e?.aiConsensus ?? null, setupType: e?.setupType ?? null, relVol: relVolMap[r.symbol] ?? null, expectedMove: em, isHighVolEarner: em != null && em >= 10 };
         });
       return res.status(200).json({ success: true, rows: enriched.slice(0, 50), total: enriched.length, page: 1, totalPages: 1, cachedAt: new Date(_avCache.at).toISOString(), enrichedAt: _enrichCache ? new Date(_enrichCache.at).toISOString() : null, stale: true });
     }
