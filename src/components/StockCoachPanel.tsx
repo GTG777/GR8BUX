@@ -212,7 +212,7 @@ export default function StockCoachPanel({ symbol, indicators, setups }: StockCoa
                   key={s}
                   onClick={() => sendMessage(s)}
                   disabled={isLoading}
-                  className="text-left text-xs px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 transition-colors"
+                  className="text-left text-xs px-3 py-2 rounded-lg bg-indigo-50 dark:bg-zinc-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-zinc-600 hover:bg-indigo-100 dark:hover:bg-zinc-600 transition-colors"
                 >
                   {s}
                 </button>
