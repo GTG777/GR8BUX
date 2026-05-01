@@ -139,7 +139,7 @@ async function getEnrichMap(): Promise<Record<string, EnrichEntry>> {
       map[r.symbol] = { price: r.price ?? null, rsi: r.rsi ?? null, ivRank: r.ivr ?? null, hv20: r.hv20 ?? null, aiConsensus: null, setupType: null };
     }
     for (const r of aiRes.data ?? []) {
-      if (!map[r.symbol]) map[r.symbol] = { price: null, rsi: null, ivRank: null, aiConsensus: null, setupType: null };
+      if (!map[r.symbol]) map[r.symbol] = { price: null, rsi: null, ivRank: null, hv20: null, aiConsensus: null, setupType: null };
       map[r.symbol].aiConsensus = r.consensus ?? null;
       map[r.symbol].setupType   = r.setup_type ?? null;
     }
