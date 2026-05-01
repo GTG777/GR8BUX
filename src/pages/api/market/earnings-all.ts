@@ -12,6 +12,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 
 export interface AllEarningsRow {
   symbol: string;
@@ -21,6 +22,12 @@ export interface AllEarningsRow {
   fiscalDateEnding: string;
   estimatedEPS: number | null;
   currency: string;
+  // Supabase enrichment (null when not in our universe)
+  price: number | null;
+  rsi: number | null;
+  ivRank: number | null;
+  aiConsensus: string | null;
+  setupType: string | null;
 }
 
 interface CacheEntry { rows: AllEarningsRow[]; fetchedAt: number }
@@ -48,6 +55,29 @@ async function fetchAndCache(): Promise<AllEarningsRow[]> {
   if (!avRes.ok) throw new Error(`Alpha Vantage ${avRes.status}`);
   const csv = await avRes.text();
 
+  // ── Load Supabase enrichment ───────────────────────────────────────────
+  type EnrichEntry = { price: number | null; rsi: number | null; ivRank: number | null; aiConsensus: string | null; setupType: string | null };
+  const enrichMap: Record<string, EnrichEntry> = {};
+  try {
+    const supabase = getSupabaseServiceRoleClient();
+    if (supabase) {
+      const [mdRes, aiRes] = await Promise.all([
+        supabase.from('market_data').select('symbol, price, rsi, ivr'),
+        supabase.from('ai_analyses').select('symbol, consensus, setup_type'),
+      ]);
+      for (const r of mdRes.data ?? []) {
+        enrichMap[r.symbol] = { price: r.price ?? null, rsi: r.rsi ?? null, ivRank: r.ivr ?? null, aiConsensus: null, setupType: null };
+      }
+      for (const r of aiRes.data ?? []) {
+        if (!enrichMap[r.symbol]) enrichMap[r.symbol] = { price: null, rsi: null, ivRank: null, aiConsensus: null, setupType: null };
+        enrichMap[r.symbol].aiConsensus = r.consensus ?? null;
+        enrichMap[r.symbol].setupType = r.setup_type ?? null;
+      }
+    }
+  } catch {
+    // enrichment optional — continue without it
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -63,6 +93,7 @@ async function fetchAndCache(): Promise<AllEarningsRow[]> {
 
     const raw = r['estimate'] ?? '';
     const estimatedEPS = raw !== '' && !isNaN(Number(raw)) ? parseFloat(raw) : null;
+    const enrich = enrichMap[symbol] ?? null;
 
     rows.push({
       symbol,
@@ -72,6 +103,11 @@ async function fetchAndCache(): Promise<AllEarningsRow[]> {
       fiscalDateEnding: (r['fiscalDateEnding'] ?? '').trim(),
       estimatedEPS,
       currency: (r['currency'] ?? 'USD').trim(),
+      price: enrich?.price ?? null,
+      rsi: enrich?.rsi ?? null,
+      ivRank: enrich?.ivRank ?? null,
+      aiConsensus: enrich?.aiConsensus ?? null,
+      setupType: enrich?.setupType ?? null,
     });
   }
 

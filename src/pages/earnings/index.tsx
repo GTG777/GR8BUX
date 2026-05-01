@@ -201,6 +201,44 @@ function EarningsTableRow({ e, i, showDate = false }: { e: EarningsEvent; i: num
 const DAYS_OPTIONS = [7, 14, 30, 45, 90];
 const PAGE_SIZE = 50;
 
+const CONSENSUS_STYLE: Record<string, { label: string; cls: string }> = {
+  STRONG_BUY: { label: 'Strong Buy', cls: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40' },
+  BUY:        { label: 'Buy',        cls: 'bg-green-100  dark:bg-green-500/20  text-green-700  dark:text-green-300  border-green-300  dark:border-green-500/40'  },
+  NEUTRAL:    { label: 'Neutral',    cls: 'bg-gray-100   dark:bg-zinc-700      text-gray-600   dark:text-zinc-300   border-gray-300   dark:border-zinc-600'      },
+  WAIT:       { label: 'Wait',       cls: 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-500/40' },
+  AVOID:      { label: 'Avoid',      cls: 'bg-red-100    dark:bg-red-500/20    text-red-700    dark:text-red-300    border-red-300    dark:border-red-500/40'    },
+};
+
+const SETUP_STYLE: Record<string, { label: string; cls: string }> = {
+  COILING:           { label: 'Coiling',        cls: 'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-500/40' },
+  BREAKOUT:          { label: 'Breakout',        cls: 'bg-sky-100    dark:bg-sky-500/20    text-sky-700    dark:text-sky-300    border-sky-300    dark:border-sky-500/40'    },
+  LEAPS_CANDIDATE:   { label: 'LEAPS Opp',       cls: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-500/40' },
+  SELL_PREMIUM:      { label: 'Sell Premium',    cls: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-500/40' },
+  MOMENTUM:          { label: 'Momentum',        cls: 'bg-lime-100   dark:bg-lime-500/20   text-lime-700   dark:text-lime-300   border-lime-300   dark:border-lime-500/40'   },
+};
+
+function SignalBadge({ consensus }: { consensus: string | null }) {
+  if (!consensus) return <span className="text-gray-400 dark:text-zinc-600">—</span>;
+  const s = CONSENSUS_STYLE[consensus];
+  if (!s) return <span className="text-gray-400 dark:text-zinc-600 text-xs">{consensus}</span>;
+  return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border whitespace-nowrap ${s.cls}`}>{s.label}</span>;
+}
+
+function SetupBadge({ setupType }: { setupType: string | null }) {
+  if (!setupType) return <span className="text-gray-400 dark:text-zinc-600">—</span>;
+  const s = SETUP_STYLE[setupType];
+  const label = s?.label ?? setupType.replace(/_/g, ' ');
+  const cls   = s?.cls   ?? 'bg-gray-100 dark:bg-zinc-700 text-gray-600 dark:text-zinc-300 border-gray-300 dark:border-zinc-600';
+  return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border whitespace-nowrap ${cls}`}>{label}</span>;
+}
+
+function TrendBadge({ rsi }: { rsi: number | null }) {
+  if (rsi == null) return <span className="text-gray-400 dark:text-zinc-600">—</span>;
+  if (rsi >= 55) return <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]"><span>▲</span>Bullish</span>;
+  if (rsi <= 45) return <span className="inline-flex items-center gap-1 text-red-500 dark:text-red-400 font-semibold text-[11px]"><span>▼</span>Bearish</span>;
+  return <span className="text-gray-500 dark:text-zinc-500 text-[11px] font-medium">Neutral</span>;
+}
+
 function AllEarningsTab() {
   const [rows, setRows]           = useState<AllEarningsRow[]>([]);
   const [total, setTotal]         = useState(0);
@@ -335,6 +373,10 @@ function AllEarningsTab() {
                   <tr className="border-b border-gray-200 dark:border-zinc-700/40 text-left text-gray-500 dark:text-zinc-500 uppercase tracking-wide">
                     <th className="px-4 py-2">Symbol</th>
                     <th className="px-4 py-2">Company</th>
+                    <th className="px-4 py-2 text-right">Price</th>
+                    <th className="px-4 py-2 text-center">Signal</th>
+                    <th className="px-4 py-2 text-center">Trend</th>
+                    <th className="px-4 py-2 text-center">Setup</th>
                     <th className="px-4 py-2 text-right">Est. EPS</th>
                     <th className="px-4 py-2 text-right">Fiscal End</th>
                     <th className="px-4 py-2 text-center">Trade</th>
@@ -346,7 +388,13 @@ function AllEarningsTab() {
                       <td className="px-4 py-2.5">
                         <span className="font-bold text-gray-900 dark:text-white">{r.symbol}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[220px] truncate">{r.name}</td>
+                      <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[180px] truncate">{r.name}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-gray-800 dark:text-zinc-200">
+                        {r.price != null ? `$${r.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : <span className="text-gray-400 dark:text-zinc-600">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-center"><SignalBadge consensus={r.aiConsensus} /></td>
+                      <td className="px-4 py-2.5 text-center"><TrendBadge rsi={r.rsi} /></td>
+                      <td className="px-4 py-2.5 text-center"><SetupBadge setupType={r.setupType} /></td>
                       <td className="px-4 py-2.5 text-right font-mono">
                         {r.estimatedEPS != null
                           ? <span className={r.estimatedEPS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>{r.estimatedEPS >= 0 ? '+' : ''}{r.estimatedEPS.toFixed(2)}</span>
