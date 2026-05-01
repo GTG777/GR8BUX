@@ -886,9 +886,9 @@ export default function ChartPage() {
                     ? 'bg-amber-500 text-white border-amber-500'
                     : 'bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-300 dark:border-zinc-700 hover:border-amber-400 hover:bg-amber-50'
                 }`}
-                title="Toggle VWAP + standard deviation bands"
+                title="Toggle RAMA (VWAP + standard deviation bands)"
               >
-                {showVWAP ? '\u2713 VWAP' : 'VWAP'}
+                {showVWAP ? '\u2713 RAMA' : 'RAMA'}
               </button>
               {/* SMC toggle button */}
               <button
@@ -898,9 +898,9 @@ export default function ChartPage() {
                     ? 'bg-violet-600 text-white border-violet-600'
                     : 'bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-300 dark:border-zinc-700 hover:border-violet-400 hover:bg-violet-50'
                 }`}
-                title="Toggle SMC Lux Algo indicator"
+                title="Toggle DAS (Smart Money Concepts indicator)"
               >
-                {showSMC ? '✓ SMC' : 'SMC'}
+                {showSMC ? '✓ DAS' : 'DAS'}
               </button>
               <span className="text-gray-300 dark:text-zinc-600 text-xs">|</span>
               {INTERVALS.map((iv) => (
