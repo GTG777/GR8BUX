@@ -21,11 +21,21 @@
 
 [functions."refresh-market-data"]
   # Every 15 min Mon-Fri 9AM-5PM ET (14:00-22:00 UTC)
+  # Also nightly at 11 PM ET (04:00 UTC) to seed data before market open
   schedule = "*/15 14-22 * * 1-5"
 
 [functions."refresh-ai-analyses"]
   # Every 30 min Mon-Fri 9AM-5PM ET (14:00-22:00 UTC)
+  # Also nightly at 11:30 PM ET (04:30 UTC) to refresh AI signals overnight
   schedule = "*/30 14-22 * * 1-5"
+
+[functions."nightly-refresh-market-data"]
+  # Nightly at 11 PM ET (04:00 UTC Tue-Sat = after Mon-Fri market close)
+  schedule = "0 4 * * 2-6"
+
+[functions."nightly-refresh-ai-analyses"]
+  # Nightly at 11:30 PM ET (04:30 UTC Tue-Sat)
+  schedule = "30 4 * * 2-6"
 
 # Security headers
 [[headers]]
