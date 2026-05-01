@@ -13,6 +13,14 @@ import {
 } from 'lightweight-charts';
 import type { SMCData } from '@/lib/smcIndicators';
 
+export interface VWAPArrays {
+  vwap: number[];
+  band1Upper: number[];
+  band1Lower: number[];
+  band2Upper: number[];
+  band2Lower: number[];
+}
+
 export interface Candle {
   date: string;
   open: number;
@@ -39,6 +47,9 @@ interface LWChartProps {
   /** SMC Lux Algo style overlay data */
   smcData?: SMCData | null;
   showSMC?: boolean;
+  /** VWAP + standard deviation bands (intraday only) */
+  vwapArrays?: VWAPArrays | null;
+  showVWAP?: boolean;
 }
 
 /* ── theme helpers ─────────────────────────────────────────────── */
@@ -76,6 +87,8 @@ export default function LWChart({
   showVolume = true,
   smcData,
   showSMC = false,
+  vwapArrays,
+  showVWAP = false,
 }: LWChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -155,6 +168,44 @@ export default function LWChart({
     addEMA(ema20,  '#3b82f6'); // blue-500
     addEMA(ema50,  '#f97316'); // orange-500
     addEMA(ema200, '#ef4444'); // red-500
+
+    /* ── VWAP + Standard Deviation Bands ─────────────────────── */
+    if (showVWAP && vwapArrays) {
+      const addVWAPLine = (
+        values: number[],
+        color: string,
+        lineStyle: LineStyle = LineStyle.Solid,
+        lineWidth: 1 | 2 | 3 | 4 = 1,
+      ) => {
+        if (!values.length) return;
+        const offset = candles.length - values.length;
+        const series = chart.addLineSeries({
+          color,
+          lineWidth,
+          lineStyle,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        series.setData(
+          values
+            .map((v, i) => {
+              const candle = candles[offset + i];
+              return candle ? { time: toTime(candle.date), value: v } : null;
+            })
+            .filter(Boolean) as { time: Time; value: number }[],
+        );
+      };
+
+      // 2σ bands (outer) — dashed, muted
+      addVWAPLine(vwapArrays.band2Upper, '#16a34a88', LineStyle.Dashed, 1);
+      addVWAPLine(vwapArrays.band2Lower, '#dc262688', LineStyle.Dashed, 1);
+      // 1σ bands (inner) — dotted
+      addVWAPLine(vwapArrays.band1Upper, '#4ade8099', LineStyle.Dotted, 1);
+      addVWAPLine(vwapArrays.band1Lower, '#f8717199', LineStyle.Dotted, 1);
+      // VWAP anchor line — solid amber, slightly thicker
+      addVWAPLine(vwapArrays.vwap, '#f59e0b', LineStyle.Solid, 2);
+    }
 
     /* ── Volume histogram (separate price scale) ──────────────── */
     if (showVolume) {
@@ -339,7 +390,7 @@ export default function LWChart({
       chart.remove();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, ema9, ema21, ema20, ema50, ema200, height, showVolume, smcData, showSMC]);
+  }, [candles, ema9, ema21, ema20, ema50, ema200, height, showVolume, smcData, showSMC, vwapArrays, showVWAP]);
 
   /* ── Loading state ──────────────────────────────────────────── */
   if (candles.length === 0) {

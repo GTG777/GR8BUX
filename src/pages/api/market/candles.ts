@@ -92,7 +92,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const from = daysAgoDateStr(mapping.fromDays);
       const isIntraday = mapping.timespan === 'minute' || mapping.timespan === 'hour';
-      const bars = await getAggBars(symbol, mapping.multiplier, mapping.timespan, from, today, { limit: 50000 });
+      // Fetch newest-first so that if the API tier caps results we always get the
+      // most recent bars, then reverse to ascending order for chart rendering.
+      const bars = await getAggBars(symbol, mapping.multiplier, mapping.timespan, from, today, { limit: 50000, sort: 'desc' });
+      bars.reverse();
 
       if (!bars.length) return res.status(404).json({ error: `No candle data found for ${symbol}` });
 

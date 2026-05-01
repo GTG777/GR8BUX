@@ -14,6 +14,7 @@ import {
 import { Layout } from '@/components/Layout';
 import LWChart from '@/components/LWChart';
 import { calcSMC, type SMCData } from '@/lib/smcIndicators';
+import type { VWAPArrays } from '@/components/LWChart';
 
 /* ─────────────────────────────────────────────
    Types
@@ -135,6 +136,50 @@ function calcTSIArr(candles: Candle[], fast = 13, slow = 25): { date: string; ts
       signal: sigIdx >= 0 ? parseFloat(signalArr[sigIdx].toFixed(2)) : tsiRaw[i],
     };
   }).filter((d) => d.date);
+}
+
+function calcVWAPArrays(candles: Candle[]): VWAPArrays | null {
+  if (!candles.length) return null;
+  // VWAP is an intraday-only indicator — requires timestamped bars
+  if (candles[0].date.length <= 10) return null;
+
+  const vwap: number[] = [];
+  const band1Upper: number[] = [];
+  const band1Lower: number[] = [];
+  const band2Upper: number[] = [];
+  const band2Lower: number[] = [];
+
+  let cumTPV = 0;   // Σ(TP × vol)
+  let cumTPV2 = 0;  // Σ(TP² × vol)
+  let cumVol = 0;
+  let currentDay = '';
+
+  for (const c of candles) {
+    const day = c.date.slice(0, 10);
+    if (day !== currentDay) {
+      // Reset at each session boundary
+      cumTPV = 0;
+      cumTPV2 = 0;
+      cumVol = 0;
+      currentDay = day;
+    }
+    const tp = (c.high + c.low + c.close) / 3;
+    const vol = c.volume || 0;
+    cumTPV  += tp * vol;
+    cumTPV2 += tp * tp * vol;
+    cumVol  += vol;
+
+    const v  = cumVol > 0 ? cumTPV / cumVol : tp;
+    const sd = Math.sqrt(Math.max(0, cumVol > 0 ? cumTPV2 / cumVol - v * v : 0));
+
+    vwap.push(v);
+    band1Upper.push(v + sd);
+    band1Lower.push(v - sd);
+    band2Upper.push(v + 2 * sd);
+    band2Lower.push(v - 2 * sd);
+  }
+
+  return { vwap, band1Upper, band1Lower, band2Upper, band2Lower };
 }
 
 function calcPivots(h: number, l: number, c: number) {
@@ -704,6 +749,8 @@ export default function ChartPage() {
   const [tsiSeries, setTsiSeries]   = useState<TSIPoint[]>([]);
   const [smcData, setSmcData]       = useState<SMCData | null>(null);
   const [showSMC, setShowSMC]       = useState(false);
+  const [vwapArrays, setVwapArrays] = useState<VWAPArrays | null>(null);
+  const [showVWAP, setShowVWAP]     = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
@@ -719,6 +766,7 @@ export default function ChartPage() {
       setIndicators(computeIndicators(json.candles));
       setTsiSeries(calcTSIArr(json.candles));
       setSmcData(calcSMC(json.candles));
+      setVwapArrays(calcVWAPArrays(json.candles));
       const cls: number[] = json.candles.map((c: Candle) => c.close);
       setChartEmaArrays({ e9: calcEMAFull(cls, 9), e21: calcEMAFull(cls, 21), e50: calcEMAFull(cls, 50), e200: calcEMAFull(cls, 200) });
     } catch {
@@ -781,6 +829,18 @@ export default function ChartPage() {
 
             {/* Interval buttons + SMC toggle — pushed to the right */}
             <div className="flex gap-1 ml-auto flex-wrap items-center">
+              {/* VWAP toggle button */}
+              <button
+                onClick={() => setShowVWAP(v => !v)}
+                className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${
+                  showVWAP
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-300 dark:border-zinc-700 hover:border-amber-400 hover:bg-amber-50'
+                }`}
+                title="Toggle VWAP + standard deviation bands"
+              >
+                {showVWAP ? '\u2713 VWAP' : 'VWAP'}
+              </button>
               {/* SMC toggle button */}
               <button
                 onClick={() => setShowSMC(v => !v)}
@@ -840,6 +900,8 @@ export default function ChartPage() {
             showVolume
             smcData={smcData}
             showSMC={showSMC}
+            vwapArrays={vwapArrays}
+            showVWAP={showVWAP}
           />
         </div>
 
