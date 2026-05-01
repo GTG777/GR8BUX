@@ -886,7 +886,7 @@ export default function ChartPage() {
                     ? 'bg-amber-500 text-white border-amber-500'
                     : 'bg-white dark:bg-zinc-800 text-gray-600 dark:text-zinc-300 border-gray-300 dark:border-zinc-700 hover:border-amber-400 hover:bg-amber-50'
                 }`}
-                title="Toggle RAMA (VWAP + standard deviation bands)"
+                title="Toggle RAMA zones"
               >
                 {showVWAP ? '\u2713 RAMA' : 'RAMA'}
               </button>
