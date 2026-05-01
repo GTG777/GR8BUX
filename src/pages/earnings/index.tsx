@@ -323,11 +323,12 @@ function AllEarningsTab() {
   const todayStr    = localDateStr(0);
   const tomorrowStr = localDateStr(1);
 
-  const fetch_ = useCallback(async (pg: number, d: number, query: string) => {
+  const fetch_ = useCallback(async (pg: number, d: number, query: string, date: string | null = null) => {
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({ days: String(d), page: String(pg), limit: String(PAGE_SIZE), q: query });
+      if (date) params.set('date', date);
       const res  = await fetch(`/api/market/earnings-all?${params}`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error ?? `HTTP ${res.status}`);
@@ -345,26 +346,29 @@ function AllEarningsTab() {
   // Initial load
   useEffect(() => { fetch_(1, days, q); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDays = (d: number) => { setDays(d); setPage(1); fetch_(1, d, q); };
-  const handlePage = (p: number) => { setPage(p); fetch_(p, days, q); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const handleDays = (d: number) => { setDays(d); setPage(1); fetch_(1, d, q, dateFilter); };
+  const handlePage = (p: number) => { setPage(p); fetch_(p, days, q, dateFilter); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const handleDateFilter = (iso: string | null) => {
     setDateFilter(iso);
     if (iso) {
-      // expand horizon if picked date is beyond current window
-      const target   = new Date(iso + 'T12:00:00');
-      const today    = new Date(); today.setHours(12, 0, 0, 0);
-      const daysOut  = Math.round((target.getTime() - today.getTime()) / 86400000);
-      if (daysOut > days) handleDays(Math.min(daysOut + 7, 90));
+      const target  = new Date(iso + 'T12:00:00');
+      const today   = new Date(); today.setHours(12, 0, 0, 0);
+      const daysOut = Math.round((target.getTime() - today.getTime()) / 86400000);
+      const newDays = daysOut > days ? Math.min(daysOut + 7, 90) : days;
+      if (newDays !== days) setDays(newDays);
+      fetch_(1, newDays, q, iso);
+    } else {
+      fetch_(1, days, q, null);
     }
   };
   const handleQ    = (v: string) => {
     setQ(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setPage(1); fetch_(1, days, v); }, 300);
+    debounceRef.current = setTimeout(() => { setPage(1); fetch_(1, days, v, dateFilter); }, 300);
   };
 
-  // Group by date — apply date filter if active
-  const displayRows = dateFilter ? rows.filter(r => r.reportDate === dateFilter) : rows;
+  // Group by date — rows are already filtered server-side when dateFilter is active
+  const displayRows = rows;
   const grouped = new Map<string, AllEarningsRow[]>();
   for (const r of displayRows) {
     if (!grouped.has(r.reportDate)) grouped.set(r.reportDate, []);

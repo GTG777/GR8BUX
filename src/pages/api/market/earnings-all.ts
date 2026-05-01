@@ -1,19 +1,20 @@
 ﻿/**
- * GET /api/market/earnings-all?days=45&page=1&limit=50&q=AAPL
+ * GET /api/market/earnings-all?days=45&page=1&limit=50&q=AAPL&date=YYYY-MM-DD
  *
- * Returns upcoming earnings for ALL stocks from Alpha Vantage â€”
+ * Returns upcoming earnings for ALL stocks from Alpha Vantage —
  * no universe filter. Paginated. Optionally filtered by symbol/name query.
  *
  * Caching strategy:
- *   - Alpha Vantage CSV   â†’ 4 hours  (rate-limited external source)
- *   - Supabase enrichment â†’ 15 min   (updated by cron every 15 min)
- *   - Massive relVol      â†’ 15 min   (intraday snapshot)
+ *   - Alpha Vantage CSV   → 4 hours  (rate-limited external source)
+ *   - Supabase enrichment → 15 min   (updated by cron every 15 min)
+ *   - Massive relVol      → 15 min   (intraday snapshot)
  *
  * Query params:
- *   ?days=45      â€“ look-forward window (default 45, max 90)
- *   ?page=1       â€“ 1-based page index
- *   ?limit=50     â€“ results per page (max 100)
- *   ?q=           â€“ symbol or company name substring search (case-insensitive)
+ *   ?days=45           – look-forward window (default 45, max 90)
+ *   ?page=1            – 1-based page index
+ *   ?limit=50          – results per page (max 100)
+ *   ?q=                – symbol or company name substring search (case-insensitive)
+ *   ?date=YYYY-MM-DD   – filter to exact report date (ignores pagination, returns up to 500)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -196,6 +197,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const page  = Math.max(Number(req.query.page)  || 1, 1);
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const q     = ((req.query.q as string) ?? '').trim().toLowerCase();
+    const dateFilter = ((req.query.date as string) ?? '').trim(); // YYYY-MM-DD exact match
 
     // Fetch all three caches in parallel â€” each refreshes independently
     const [baseRows, enrichMap, relVolMap] = await Promise.all([
@@ -228,12 +230,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     });
 
-    // Apply days + search filters
-    let filtered = enrichedRows.filter((r) => r.daysOut <= days);
+    // Apply days + search + date filters
+    let filtered = enrichedRows.filter((r) => dateFilter ? r.reportDate === dateFilter : r.daysOut <= days);
     if (q) {
       filtered = filtered.filter(
         (r) => r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
       );
+    }
+
+    // When date filter is active, return all matching rows (no pagination)
+    if (dateFilter) {
+      return res.status(200).json({
+        success: true,
+        rows: filtered,
+        total: filtered.length,
+        page: 1,
+        totalPages: 1,
+        cachedAt:   _avCache ? new Date(_avCache.at).toISOString() : null,
+        enrichedAt: _enrichCache ? new Date(_enrichCache.at).toISOString() : null,
+      });
     }
 
     const total      = filtered.length;
