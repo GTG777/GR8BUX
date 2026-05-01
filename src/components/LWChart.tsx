@@ -197,14 +197,14 @@ export default function LWChart({
         );
       };
 
-      // 2σ bands (outer) — dashed, muted
-      addVWAPLine(vwapArrays.band2Upper, '#16a34a88', LineStyle.Dashed, 1);
-      addVWAPLine(vwapArrays.band2Lower, '#dc262688', LineStyle.Dashed, 1);
+      // 2σ bands (outer) — dashed
+      addVWAPLine(vwapArrays.band2Upper, '#facc15', LineStyle.Dashed, 2);
+      addVWAPLine(vwapArrays.band2Lower, '#facc15', LineStyle.Dashed, 2);
       // 1σ bands (inner) — dotted
-      addVWAPLine(vwapArrays.band1Upper, '#4ade8099', LineStyle.Dotted, 1);
-      addVWAPLine(vwapArrays.band1Lower, '#f8717199', LineStyle.Dotted, 1);
-      // VWAP anchor line — solid amber, slightly thicker
-      addVWAPLine(vwapArrays.vwap, '#f59e0b', LineStyle.Solid, 2);
+      addVWAPLine(vwapArrays.band1Upper, '#facc15', LineStyle.Dotted, 2);
+      addVWAPLine(vwapArrays.band1Lower, '#facc15', LineStyle.Dotted, 2);
+      // VWAP anchor line — solid
+      addVWAPLine(vwapArrays.vwap, '#facc15', LineStyle.Solid, 2);
     }
 
     /* ── Volume histogram (separate price scale) ──────────────── */
