@@ -318,10 +318,10 @@ function AllEarningsTab() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [cachedAt, setCachedAt]   = useState('');
-  const [dateFilter, setDateFilter] = useState<string | null>(null);
-  const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null);
   const todayStr    = localDateStr(0);
   const tomorrowStr = localDateStr(1);
+  const [dateFilter, setDateFilter] = useState<string | null>(todayStr);
+  const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetch_ = useCallback(async (pg: number, d: number, query: string, date: string | null = null) => {
     setLoading(true);
@@ -343,8 +343,8 @@ function AllEarningsTab() {
     }
   }, []);
 
-  // Initial load
-  useEffect(() => { fetch_(1, days, q); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Initial load — default to today's earnings
+  useEffect(() => { fetch_(1, days, q, todayStr); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDays = (d: number) => { setDays(d); setPage(1); fetch_(1, d, q, dateFilter); };
   const handlePage = (p: number) => { setPage(p); fetch_(p, days, q, dateFilter); window.scrollTo({ top: 0, behavior: 'smooth' }); };
@@ -367,10 +367,47 @@ function AllEarningsTab() {
     debounceRef.current = setTimeout(() => { setPage(1); fetch_(1, days, v, dateFilter); }, 300);
   };
 
+  // Sort state
+  const [sortKey, setSortKey]   = useState<string>('symbol');
+  const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const sortArrow = (key: string) =>
+    sortKey !== key ? <span className="ml-0.5 text-gray-300 dark:text-zinc-700">⇅</span>
+    : sortDir === 'asc' ? <span className="ml-0.5 text-indigo-500">↑</span>
+    : <span className="ml-0.5 text-indigo-500">↓</span>;
+
+  // Sort rows within each date group
+  function sortRows(arr: AllEarningsRow[]): AllEarningsRow[] {
+    return [...arr].sort((a, b) => {
+      let av: number | string | null, bv: number | string | null;
+      switch (sortKey) {
+        case 'symbol':    av = a.symbol;          bv = b.symbol;          break;
+        case 'name':      av = a.name;            bv = b.name;            break;
+        case 'price':     av = a.price;           bv = b.price;           break;
+        case 'relVol':    av = a.relVol;          bv = b.relVol;          break;
+        case 'expMove':   av = a.expectedMove;    bv = b.expectedMove;    break;
+        case 'streak':    av = a.epsBeatStreak;   bv = b.epsBeatStreak;   break;
+        case 'signal':    av = a.aiConsensus;     bv = b.aiConsensus;     break;
+        case 'rsi':       av = a.rsi;             bv = b.rsi;             break;
+        case 'eps':       av = a.estimatedEPS;    bv = b.estimatedEPS;    break;
+        default:          av = a.symbol;          bv = b.symbol;
+      }
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === 'string' ? av.localeCompare(bv as string) : (av as number) - (bv as number);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+
   // Group by date — rows are already filtered server-side when dateFilter is active
-  const displayRows = rows;
   const grouped = new Map<string, AllEarningsRow[]>();
-  for (const r of displayRows) {
+  for (const r of rows) {
     if (!grouped.has(r.reportDate)) grouped.set(r.reportDate, []);
     grouped.get(r.reportDate)!.push(r);
   }
@@ -478,22 +515,19 @@ function AllEarningsTab() {
             <table className="w-full text-xs whitespace-nowrap">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-zinc-700/40 text-left text-gray-500 dark:text-zinc-500 uppercase tracking-wide">
-                  <th className="px-4 py-2 min-w-[80px]">Symbol</th>
-                  <th className="px-4 py-2 min-w-[160px]">Company</th>
-                  <th className="px-4 py-2 text-right min-w-[80px]">Price</th>
-                  <th className="px-4 py-2 text-right min-w-[70px]">Rel Vol</th>
-                  <th className="px-4 py-2 text-right min-w-[90px]">Exp. Move</th>
-                  <th className="px-4 py-2 text-center min-w-[90px]">Beat Streak</th>
-                  <th className="px-4 py-2 text-center min-w-[80px]">Signal</th>
-                  <th className="px-4 py-2 text-center min-w-[70px]">Trend</th>
+                  {([['symbol','Symbol','left','min-w-[80px]'],['name','Company','left','min-w-[160px]'],['price','Price','right','min-w-[80px]'],['relVol','Rel Vol','right','min-w-[70px]'],['expMove','Exp. Move','right','min-w-[90px]'],['streak','Beat Streak','center','min-w-[90px]'],['signal','Signal','center','min-w-[80px]'],['rsi','Trend','center','min-w-[70px]'],['eps','Est. EPS','right','min-w-[80px]']] as const).map(([key, label, align, minW]) => (
+                    <th key={key} className={`px-4 py-2 ${minW} text-${align} cursor-pointer select-none hover:text-gray-700 dark:hover:text-zinc-300 transition-colors`} onClick={() => handleSort(key)}>
+                      {label}{sortArrow(key)}
+                    </th>
+                  ))}
                   <th className="px-4 py-2 text-center min-w-[90px]">Setup</th>
-                  <th className="px-4 py-2 text-right min-w-[80px]">Est. EPS</th>
                   <th className="px-4 py-2 text-right min-w-[90px]">Fiscal End</th>
                   <th className="px-4 py-2 text-center min-w-[110px]">Trade</th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from(grouped.entries()).map(([date, dateRows]) => {
+                  const sortedRows = sortRows(dateRows);
                   const d = dateRows[0].daysOut;
                   const isToday = d === 0;
                   const label = isToday ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`;
@@ -515,7 +549,7 @@ function AllEarningsTab() {
                         </td>
                       </tr>
                       {/* Data rows */}
-                      {dateRows.map((r, i) => (
+                      {sortedRows.map((r, i) => (
                         <tr key={r.symbol} className={`border-t border-gray-100 dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors ${i % 2 === 0 ? 'bg-gray-50/50 dark:bg-zinc-900/20' : ''}`}>
                           <td className="px-4 py-2.5">
                             <span className="font-bold text-gray-900 dark:text-white">{r.symbol}</span>
