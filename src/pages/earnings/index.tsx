@@ -478,7 +478,7 @@ function AllEarningsTab() {
       {!loading && !error && (
         <p className="text-sm text-gray-500 dark:text-zinc-500">
           {dateFilter ? (
-            <><span className="font-semibold text-gray-900 dark:text-white">{displayRows.length}</span> reporting on <span className="font-semibold text-indigo-500">{fmtDate(dateFilter)}</span></>
+            <><span className="font-semibold text-gray-900 dark:text-white">{rows.length}</span> reporting on <span className="font-semibold text-indigo-500">{fmtDate(dateFilter)}</span></>
           ) : (
             <><span className="font-semibold text-gray-900 dark:text-white">{total.toLocaleString()}</span> upcoming earnings in the next {days} days
             {q && <> matching <span className="font-semibold text-indigo-500">&ldquo;{q}&rdquo;</span></>}
