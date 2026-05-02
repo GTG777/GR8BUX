@@ -313,14 +313,14 @@ function AllEarningsTab() {
   const [total, setTotal]         = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage]           = useState(1);
-  const [days, setDays]           = useState(45);
+  const [days, setDays]           = useState(7);
   const [q, setQ]                 = useState('');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [cachedAt, setCachedAt]   = useState('');
   const todayStr    = localDateStr(0);
   const tomorrowStr = localDateStr(1);
-  const [dateFilter, setDateFilter] = useState<string | null>(todayStr);
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
   const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetch_ = useCallback(async (pg: number, d: number, query: string, date: string | null = null) => {
@@ -343,8 +343,8 @@ function AllEarningsTab() {
     }
   }, []);
 
-  // Initial load — default to today's earnings
-  useEffect(() => { fetch_(1, days, q, todayStr); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Initial load — default to 7d horizon
+  useEffect(() => { fetch_(1, 7, q, null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDays = (d: number) => { setDays(d); setPage(1); fetch_(1, d, q, dateFilter); };
   const handlePage = (p: number) => { setPage(p); fetch_(p, days, q, dateFilter); window.scrollTo({ top: 0, behavior: 'smooth' }); };
