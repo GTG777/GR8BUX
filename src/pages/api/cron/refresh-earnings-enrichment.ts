@@ -61,30 +61,37 @@ async function fetchHv20(symbol: string): Promise<number | null> {
   }
 }
 
-// ── Beat streak from AV EARNINGS endpoint ─────────────────────────────────
+// ── Beat streak from Yahoo Finance ──────────────────────────────────────
 async function fetchBeatStreak(
   symbol: string,
-  avKey: string,
 ): Promise<{ epsBeatStreak: number; avgSurprisePct: number } | null> {
   try {
-    const url = `https://www.alphavantage.co/query?function=EARNINGS&symbol=${encodeURIComponent(symbol)}&apikey=${avKey}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=earningsHistory`;
+    const res = await fetch(url, { headers: YAHOO_HEADERS, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const data = await res.json() as {
-      quarterlyEarnings?: Array<{ surprisePercentage: string }>;
+      quoteSummary?: {
+        result?: Array<{
+          earningsHistory?: {
+            history?: Array<{ surprisePercent?: { raw: number } }>;
+          };
+        }>;
+      };
     };
-    const last8 = (data.quarterlyEarnings ?? []).slice(0, 8);
+    const history = data?.quoteSummary?.result?.[0]?.earningsHistory?.history ?? [];
+    const last8 = [...history].reverse().slice(0, 8);
     if (last8.length === 0) return null;
 
     let streak = 0;
     for (const q of last8) {
-      const s = parseFloat(q.surprisePercentage ?? 'NaN');
-      if (!isNaN(s) && isFinite(s) && s > 0) streak++;
+      const s = q.surprisePercent?.raw;
+      if (s != null && isFinite(s) && s > 0) streak++;
       else break;
     }
     const valids = last8
-      .map(q => Math.abs(parseFloat(q.surprisePercentage ?? 'NaN')))
-      .filter(v => !isNaN(v) && isFinite(v));
+      .map(q => q.surprisePercent?.raw)
+      .filter((v): v is number => v != null && isFinite(v))
+      .map(Math.abs);
     const avg = valids.length > 0
       ? Math.round(valids.reduce((a, b) => a + b, 0) / valids.length * 10) / 10
       : 0;
@@ -93,19 +100,6 @@ async function fetchBeatStreak(
   } catch {
     return null;
   }
-}
-
-// ── CSV parser ─────────────────────────────────────────────────────────────
-function parseCSV(csv: string): Array<Record<string, string>> {
-  const lines = csv.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(h => h.trim());
-  return lines.slice(1).map(line => {
-    const vals = line.split(',');
-    const obj: Record<string, string> = {};
-    headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').trim(); });
-    return obj;
-  });
 }
 
 // ── Batch helper ──────────────────────────────────────────────────────────
@@ -122,10 +116,6 @@ async function processBatch<T, R>(
   return results;
 }
 
-function sleep(ms: number) {
-  return new Promise<void>(resolve => setTimeout(resolve, ms));
-}
-
 // ── Handler ────────────────────────────────────────────────────────────────
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -135,8 +125,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const provided = req.headers['x-cron-secret'] ?? req.query.secret;
     if (provided !== CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   }
-
-  const avKey = process.env.ALPHAVANTAGE_API_KEY ?? ''; // kept for any other AV use
 
   const supabase = getSupabaseServiceRoleClient();
   if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
