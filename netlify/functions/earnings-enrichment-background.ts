@@ -40,6 +40,28 @@ const NASDAQ_HEADERS = {
   'Referer': 'https://www.nasdaq.com/',
 };
 
+interface NasdaqCalendarRow {
+  symbol?: string;
+  name?: string;
+  fiscalQuarterEnding?: string;
+  epsForecast?: string;
+}
+
+// Convert "Mar/2026" → "2026-03-31"
+function fiscalQuarterToDate(q: string): string | null {
+  const months: Record<string, string> = {
+    Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+    Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+  };
+  const parts = (q ?? '').split('/');
+  if (parts.length < 2) return null;
+  const [mon, yr] = parts;
+  const m = months[mon?.trim()];
+  if (!m || !yr?.trim()) return null;
+  const lastDay = new Date(parseInt(yr.trim()), parseInt(m), 0).getDate();
+  return `${yr.trim()}-${m}-${String(lastDay).padStart(2, '0')}`;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function sleep(ms: number) {
   return new Promise<void>(r => setTimeout(r, ms));
@@ -179,23 +201,59 @@ const handler: Handler = async (event) => {
     if (dow !== 0 && dow !== 6) dates.push(d.toISOString().slice(0, 10));
   }
 
+  // calendarRows accumulates full row data for earnings_calendar upsert
+  const calendarRows: Array<{
+    symbol: string; report_date: string; name: string;
+    fiscal_date_ending: string | null; estimated_eps: number | null; currency: string;
+  }> = [];
   const symbolSet = new Set<string>();
+
   await processBatch(dates, 10, async (dateStr) => {
     try {
       const res = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${dateStr}`, {
         headers: NASDAQ_HEADERS, signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) return;
-      const json = await res.json() as { data?: { rows?: Array<{ symbol?: string }> | null } };
+      const json = await res.json() as { data?: { rows?: NasdaqCalendarRow[] | null } };
       for (const r of json?.data?.rows ?? []) {
         const sym = r?.symbol?.trim().toUpperCase();
-        if (sym) symbolSet.add(sym);
+        if (!sym) continue;
+        symbolSet.add(sym);
+        const eps = r.epsForecast?.trim() ?? '';
+        calendarRows.push({
+          symbol:              sym,
+          report_date:         dateStr,
+          name:                r.name?.trim() ?? sym,
+          fiscal_date_ending:  fiscalQuarterToDate(r.fiscalQuarterEnding ?? ''),
+          estimated_eps:       eps !== '' && eps !== 'N/A' && !isNaN(Number(eps)) ? parseFloat(eps) : null,
+          currency:            'USD',
+        });
       }
     } catch { /* skip day on error */ }
   });
 
   const allSymbols = [...symbolSet];
   console.log(`[earnings-enrichment-background] ${allSymbols.length} symbols for next ${CALENDAR_DAYS}d`);
+
+  // ── 1b. Upsert calendar rows into earnings_calendar ──────────────────
+  const calendarRefreshedAt = new Date().toISOString();
+  const calendarUpserts = calendarRows.map(r => ({ ...r, refreshed_at: calendarRefreshedAt }));
+  if (calendarUpserts.length > 0) {
+    // Upsert in chunks of 500 to stay within Supabase payload limits
+    for (let i = 0; i < calendarUpserts.length; i += 500) {
+      const chunk = calendarUpserts.slice(i, i + 500);
+      const { error } = await supabase
+        .from('earnings_calendar')
+        .upsert(chunk, { onConflict: 'symbol,report_date' });
+      if (error) console.error('[earnings-enrichment-background] calendar upsert error:', error.message);
+    }
+    // Prune rows older than today to keep the table lean
+    await supabase
+      .from('earnings_calendar')
+      .delete()
+      .lt('report_date', today.toISOString().slice(0, 10));
+    console.log(`[earnings-enrichment-background] earnings_calendar upserted: ${calendarUpserts.length} rows`);
+  }
 
   // ── 2. Load existing enrichment timestamps ────────────────────────────
   const { data: existing } = await supabase
@@ -275,8 +333,9 @@ const handler: Handler = async (event) => {
   return {
     statusCode: 202,
     body: JSON.stringify({
-      success:      true,
-      symbols:      allSymbols.length,
+      success:         true,
+      symbols:         allSymbols.length,
+      calendarUpserted: calendarUpserts.length,
       hv20Updated,
       streakUpdated,
       elapsed:      `${elapsed}s`,

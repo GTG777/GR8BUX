@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import useSWR from 'swr';
 import { Layout } from '@/components/Layout';
 import type { EarningsEvent } from '../api/market/earnings';
 import type { AllEarningsRow } from '../api/market/earnings-all';
@@ -308,63 +309,59 @@ function RelVolBadge({ relVol }: { relVol: number | null }) {
   return <span className={`font-mono text-xs ${cls}`}>{relVol.toFixed(2)}x</span>;
 }
 
+// SWR fetcher — throws on non-success so SWR surfaces it as an error
+async function swrFetcher(url: string) {
+  const res  = await fetch(url);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json as { rows: AllEarningsRow[]; total: number; totalPages: number; cachedAt: string };
+}
+
 function AllEarningsTab() {
-  const [rows, setRows]           = useState<AllEarningsRow[]>([]);
-  const [total, setTotal]         = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [page, setPage]           = useState(1);
   const [days, setDays]           = useState(7);
   const [q, setQ]                 = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
-  const [cachedAt, setCachedAt]   = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const todayStr    = localDateStr(0);
   const tomorrowStr = localDateStr(1);
   const [dateFilter, setDateFilter] = useState<string | null>(null);
   const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetch_ = useCallback(async (pg: number, d: number, query: string, date: string | null = null) => {
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams({ days: String(d), page: String(pg), limit: String(PAGE_SIZE), q: query });
-      if (date) params.set('date', date);
-      const res  = await fetch(`/api/market/earnings-all?${params}`);
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setRows(json.rows ?? []);
-      setTotal(json.total ?? 0);
-      setTotalPages(json.totalPages ?? 1);
-      if (json.cachedAt) setCachedAt(json.cachedAt);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Build SWR key — changing any param triggers a fresh fetch
+  const swrParams = new URLSearchParams({ days: String(days), page: String(page), limit: String(PAGE_SIZE), q: debouncedQ });
+  if (dateFilter) swrParams.set('date', dateFilter);
+  const swrKey = `/api/market/earnings-all?${swrParams}`;
 
-  // Initial load — default to 7d horizon
-  useEffect(() => { fetch_(1, 7, q, null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data, error: swrError, isLoading } = useSWR(swrKey, swrFetcher, {
+    revalidateOnFocus:  false,
+    dedupingInterval:   5 * 60 * 1000,  // serve cached data for 5 min on revisit
+    keepPreviousData:   true,            // show previous page while next-page loads
+  });
 
-  const handleDays = (d: number) => { setDays(d); setPage(1); fetch_(1, d, q, dateFilter); };
-  const handlePage = (p: number) => { setPage(p); fetch_(p, days, q, dateFilter); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const rows       = data?.rows       ?? [];
+  const total      = data?.total      ?? 0;
+  const totalPages = data?.totalPages ?? 1;
+  const cachedAt   = data?.cachedAt   ?? '';
+  const loading    = isLoading;
+  const error      = swrError instanceof Error ? swrError.message : swrError ? 'Failed to load' : '';
+
+  const handleDays = (d: number) => { setDays(d); setPage(1); };
+  const handlePage = (p: number) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const handleDateFilter = (iso: string | null) => {
     setDateFilter(iso);
+    setPage(1);
     if (iso) {
       const target  = new Date(iso + 'T12:00:00');
       const today   = new Date(); today.setHours(12, 0, 0, 0);
       const daysOut = Math.round((target.getTime() - today.getTime()) / 86400000);
       const newDays = daysOut > days ? Math.min(daysOut + 7, 90) : days;
       if (newDays !== days) setDays(newDays);
-      fetch_(1, newDays, q, iso);
-    } else {
-      fetch_(1, days, q, null);
     }
   };
   const handleQ    = (v: string) => {
     setQ(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setPage(1); fetch_(1, days, v, dateFilter); }, 300);
+    debounceRef.current = setTimeout(() => { setPage(1); setDebouncedQ(v); }, 300);
   };
 
   // Sort state
