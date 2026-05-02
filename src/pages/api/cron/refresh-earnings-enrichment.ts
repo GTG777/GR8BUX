@@ -22,11 +22,24 @@ import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { getAggBars, todayDateStr, daysAgoDateStr } from '@/lib/massive';
 
 const CRON_SECRET        = process.env.CRON_SECRET;
-const HV20_TTL_MS        = 24 * 60 * 60 * 1000;   // 24 hours
-const STREAK_TTL_MS      = 90 * 24 * 60 * 60 * 1000; // 90 days
-const BATCH_HV20         = 8;   // parallel Massive calls
-const MAX_STREAK_PER_RUN = 20;  // AV EARNINGS calls per run (free tier: 25/day)
-const AV_CALL_DELAY_MS   = 1200; // ~1 call/sec for AV
+const HV20_TTL_MS        = 24 * 60 * 60 * 1000;
+const STREAK_TTL_MS      = 90 * 24 * 60 * 60 * 1000;
+const BATCH_HV20         = 8;
+const BATCH_STREAK       = 5;  // parallel Yahoo Finance calls
+
+const YAHOO_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
+const NASDAQ_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://www.nasdaq.com',
+  'Referer': 'https://www.nasdaq.com/',
+};
 
 // ── HV20 from daily candles ────────────────────────────────────────────────
 async function fetchHv20(symbol: string): Promise<number | null> {
@@ -123,8 +136,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (provided !== CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const avKey = process.env.ALPHAVANTAGE_API_KEY ?? '';
-  if (!avKey) return res.status(500).json({ error: 'ALPHAVANTAGE_API_KEY not configured' });
+  const avKey = process.env.ALPHAVANTAGE_API_KEY ?? ''; // kept for any other AV use
 
   const supabase = getSupabaseServiceRoleClient();
   if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
@@ -132,24 +144,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const startTime = Date.now();
 
   try {
-    // ── 1. Fetch upcoming symbols from AV EARNINGS_CALENDAR ─────────────
-    const calUrl = `https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${avKey}`;
-    const calRes = await fetch(calUrl, { signal: AbortSignal.timeout(12_000) });
-    if (!calRes.ok) throw new Error(`AV calendar ${calRes.status}`);
-    const csv = await calRes.text();
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const cutoff = 45; // only care about next 45 days
-
-    const symbolSet = new Set<string>();
-    for (const r of parseCSV(csv)) {
-      const sym = (r['symbol'] ?? '').trim().toUpperCase();
-      const rd  = (r['reportDate'] ?? '').trim();
-      if (!sym || !rd) continue;
-      const daysOut = Math.floor((new Date(rd + 'T00:00:00').getTime() - today.getTime()) / 86_400_000);
-      if (daysOut >= 0 && daysOut <= cutoff) symbolSet.add(sym);
+    // ── 1. Fetch upcoming symbols from Nasdaq calendar ───────────────────
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const cutoff = 45;
+    const dates: string[] = [];
+    for (let i = 0; i <= cutoff; i++) {
+      const d = new Date(today); d.setDate(d.getDate() + i);
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) dates.push(d.toISOString().slice(0, 10));
     }
+    const symbolSet = new Set<string>();
+    await processBatch(dates, 10, async (dateStr) => {
+      try {
+        const res2 = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${dateStr}`, {
+          headers: NASDAQ_HEADERS, signal: AbortSignal.timeout(8000),
+        });
+        if (!res2.ok) return;
+        const json = await res2.json() as { data?: { rows?: Array<{ symbol?: string }> | null } };
+        for (const r of json?.data?.rows ?? []) {
+          const sym = r?.symbol?.trim().toUpperCase();
+          if (sym) symbolSet.add(sym);
+        }
+      } catch { /* skip */ }
+    });
     const allSymbols = [...symbolSet];
 
     // ── 2. Load existing enrichment from Supabase ────────────────────────
@@ -193,28 +210,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       hv20Updated = hv20Upserts.length;
     }
 
-    // ── 4. Beat streak: refresh up to MAX_STREAK_PER_RUN stale symbols ──
-    const streakStale = allSymbols
-      .filter(sym => {
-        const e = existingMap.get(sym);
-        return !e?.streakAt || (now - e.streakAt.getTime() > STREAK_TTL_MS);
-      })
-      .slice(0, MAX_STREAK_PER_RUN);
+    // ── 4. Beat streak: refresh stale symbols via Yahoo Finance ─────────
+    const streakStale = allSymbols.filter(sym => {
+      const e = existingMap.get(sym);
+      return !e?.streakAt || (now - e.streakAt.getTime() > STREAK_TTL_MS);
+    });
 
     let streakUpdated = 0;
-    for (const sym of streakStale) {
-      const result = await fetchBeatStreak(sym, avKey);
-      if (result) {
-        await supabase.from('earnings_enrichment').upsert({
-          symbol: sym,
-          eps_beat_streak:   result.epsBeatStreak,
-          avg_surprise_pct:  result.avgSurprisePct,
-          streak_refreshed_at: new Date().toISOString(),
-          refreshed_at: new Date().toISOString(),
-        }, { onConflict: 'symbol' });
-        streakUpdated++;
-      }
-      await sleep(AV_CALL_DELAY_MS);
+    const streakResults = await processBatch(streakStale, BATCH_STREAK, async (sym) => ({
+      sym, result: await fetchBeatStreak(sym),
+    }));
+    const streakUpserts = streakResults
+      .filter(r => r.result != null)
+      .map(r => ({
+        symbol: r.sym,
+        eps_beat_streak:   r.result!.epsBeatStreak,
+        avg_surprise_pct:  r.result!.avgSurprisePct,
+        streak_refreshed_at: new Date().toISOString(),
+        refreshed_at: new Date().toISOString(),
+      }));
+    if (streakUpserts.length > 0) {
+      await supabase.from('earnings_enrichment').upsert(streakUpserts, { onConflict: 'symbol' });
+      streakUpdated = streakUpserts.length;
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

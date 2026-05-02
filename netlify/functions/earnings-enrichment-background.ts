@@ -23,8 +23,22 @@ const MASSIVE_BASE    = 'https://api.massive.com';
 const HV20_TTL_MS     = 24 * 60 * 60 * 1000;        // 24 hours
 const STREAK_TTL_MS   = 90 * 24 * 60 * 60 * 1000;   // 90 days
 const BATCH_HV20      = 8;   // parallel Massive calls
-const AV_CALL_DELAY   = 1200; // ms between AV EARNINGS calls
+const BATCH_STREAK    = 5;   // parallel Yahoo Finance calls (no rate limit)
 const CALENDAR_DAYS   = 45;  // look-ahead window
+
+const YAHOO_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
+const NASDAQ_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://www.nasdaq.com',
+  'Referer': 'https://www.nasdaq.com/',
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function sleep(ms: number) {
@@ -86,30 +100,39 @@ async function fetchHv20(symbol: string, massiveKey: string): Promise<number | n
   }
 }
 
-// ── Beat streak from AV EARNINGS ──────────────────────────────────────────
+// ── Beat streak from Yahoo Finance earningsHistory ────────────────────────
+// No API key required. Returns last 4 quarters with actual/estimate/surprise.
 async function fetchBeatStreak(
   symbol: string,
-  avKey: string,
 ): Promise<{ epsBeatStreak: number; avgSurprisePct: number } | null> {
   try {
-    const url = `https://www.alphavantage.co/query?function=EARNINGS&symbol=${encodeURIComponent(symbol)}&apikey=${avKey}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=earningsHistory`;
+    const res = await fetch(url, { headers: YAHOO_HEADERS, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const data = await res.json() as {
-      quarterlyEarnings?: Array<{ surprisePercentage: string }>;
+      quoteSummary?: {
+        result?: Array<{
+          earningsHistory?: {
+            history?: Array<{ surprisePercent?: { raw: number } }>;
+          };
+        }>;
+      };
     };
-    const last8 = (data.quarterlyEarnings ?? []).slice(0, 8);
+    const history = data?.quoteSummary?.result?.[0]?.earningsHistory?.history ?? [];
+    // Yahoo returns oldest-first; reverse to get most-recent first
+    const last8 = [...history].reverse().slice(0, 8);
     if (last8.length === 0) return null;
 
     let streak = 0;
     for (const q of last8) {
-      const s = parseFloat(q.surprisePercentage ?? 'NaN');
-      if (!isNaN(s) && isFinite(s) && s > 0) streak++;
+      const s = q.surprisePercent?.raw;
+      if (s != null && isFinite(s) && s > 0) streak++;
       else break;
     }
     const valids = last8
-      .map(q => Math.abs(parseFloat(q.surprisePercentage ?? 'NaN')))
-      .filter(v => !isNaN(v) && isFinite(v));
+      .map(q => q.surprisePercent?.raw)
+      .filter((v): v is number => v != null && isFinite(v))
+      .map(Math.abs);
     const avg = valids.length > 0
       ? Math.round(valids.reduce((a, b) => a + b, 0) / valids.length * 10) / 10
       : 0;
@@ -130,14 +153,12 @@ const handler: Handler = async (event) => {
   }
 
   const massiveKey = process.env.MASSIVE_API_KEY ?? '';
-  const avKey      = process.env.ALPHAVANTAGE_API_KEY ?? '';
   const sbUrl      = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const sbKey      = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
-  if (!massiveKey || !avKey || !sbUrl || !sbKey) {
+  if (!massiveKey || !sbUrl || !sbKey) {
     const missing = [
       !massiveKey && 'MASSIVE_API_KEY',
-      !avKey      && 'ALPHAVANTAGE_API_KEY',
       !sbUrl      && 'NEXT_PUBLIC_SUPABASE_URL',
       !sbKey      && 'SUPABASE_SERVICE_ROLE_KEY',
     ].filter(Boolean).join(', ');
@@ -147,24 +168,33 @@ const handler: Handler = async (event) => {
   const supabase = createClient(sbUrl, sbKey);
   const start    = Date.now();
 
-  // ── 1. Fetch upcoming earners from AV EARNINGS_CALENDAR ──────────────
-  const calUrl = `https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${avKey}`;
-  const calRes = await fetch(calUrl, { signal: AbortSignal.timeout(15_000) });
-  if (!calRes.ok) {
-    return { statusCode: 502, body: JSON.stringify({ error: `AV calendar ${calRes.status}` }) };
+  // ── 1. Fetch upcoming earners from Nasdaq earnings calendar ─────────
+  // Fan out across weekday dates for the next CALENDAR_DAYS days
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+  const dates: string[] = [];
+  for (let i = 0; i <= CALENDAR_DAYS; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) dates.push(d.toISOString().slice(0, 10));
   }
-  const csv = await calRes.text();
 
-  const today  = new Date(); today.setHours(0, 0, 0, 0);
-  const symbols = new Set<string>();
-  for (const r of parseCSV(csv)) {
-    const sym = (r['symbol'] ?? '').trim().toUpperCase();
-    const rd  = (r['reportDate'] ?? '').trim();
-    if (!sym || !rd) continue;
-    const daysOut = Math.floor((new Date(rd + 'T00:00:00').getTime() - today.getTime()) / 86_400_000);
-    if (daysOut >= 0 && daysOut <= CALENDAR_DAYS) symbols.add(sym);
-  }
-  const allSymbols = [...symbols];
+  const symbolSet = new Set<string>();
+  await processBatch(dates, 10, async (dateStr) => {
+    try {
+      const res = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${dateStr}`, {
+        headers: NASDAQ_HEADERS, signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return;
+      const json = await res.json() as { data?: { rows?: Array<{ symbol?: string }> | null } };
+      for (const r of json?.data?.rows ?? []) {
+        const sym = r?.symbol?.trim().toUpperCase();
+        if (sym) symbolSet.add(sym);
+      }
+    } catch { /* skip day on error */ }
+  });
+
+  const allSymbols = [...symbolSet];
   console.log(`[earnings-enrichment-background] ${allSymbols.length} symbols for next ${CALENDAR_DAYS}d`);
 
   // ── 2. Load existing enrichment timestamps ────────────────────────────
@@ -210,7 +240,7 @@ const handler: Handler = async (event) => {
     else hv20Updated = hv20Upserts.length;
   }
 
-  // ── 4. Beat streak: refresh stale symbols (sequential, AV rate limit) ─
+  // ── 4. Beat streak: refresh stale symbols in parallel (Yahoo Finance) ─
   const streakStale = allSymbols.filter(sym => {
     const e = existingMap.get(sym);
     return !e?.streakAt || (now - e.streakAt.getTime() > STREAK_TTL_MS);
@@ -218,19 +248,25 @@ const handler: Handler = async (event) => {
   console.log(`[earnings-enrichment-background] Streak stale: ${streakStale.length}`);
 
   let streakUpdated = 0;
-  for (const sym of streakStale) {
-    const result = await fetchBeatStreak(sym, avKey);
-    if (result) {
-      await supabase.from('earnings_enrichment').upsert({
-        symbol:              sym,
-        eps_beat_streak:     result.epsBeatStreak,
-        avg_surprise_pct:    result.avgSurprisePct,
-        streak_refreshed_at: new Date().toISOString(),
-        refreshed_at:        new Date().toISOString(),
-      }, { onConflict: 'symbol' });
-      streakUpdated++;
-    }
-    await sleep(AV_CALL_DELAY);
+  const streakResults = await processBatch(streakStale, BATCH_STREAK, async (sym) => ({
+    sym,
+    result: await fetchBeatStreak(sym),
+  }));
+
+  const streakUpserts = streakResults
+    .filter(r => r.result != null)
+    .map(r => ({
+      symbol:              r.sym,
+      eps_beat_streak:     r.result!.epsBeatStreak,
+      avg_surprise_pct:    r.result!.avgSurprisePct,
+      streak_refreshed_at: new Date().toISOString(),
+      refreshed_at:        new Date().toISOString(),
+    }));
+
+  if (streakUpserts.length > 0) {
+    const { error } = await supabase.from('earnings_enrichment').upsert(streakUpserts, { onConflict: 'symbol' });
+    if (error) console.error('[earnings-enrichment-background] streak upsert error:', error.message);
+    else streakUpdated = streakUpserts.length;
   }
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
