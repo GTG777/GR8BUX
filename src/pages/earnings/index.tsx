@@ -207,7 +207,7 @@ function EarningsTableRow({ e, i, showDate = false }: { e: EarningsEvent; i: num
         <td className="px-4 py-2.5 text-gray-500 dark:text-zinc-500 whitespace-nowrap">{fmtDate(e.reportDate)}</td>
       )}
       <td className="px-4 py-2.5">
-        <span className="font-bold text-gray-900 dark:text-white text-sm">{e.symbol}</span>
+        <Link href={`/chart?symbol=${encodeURIComponent(e.symbol)}`} className="font-bold text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 text-sm transition-colors">{e.symbol}</Link>
         {e.urgency === 'today' && <span className="ml-2 text-red-400 text-xs font-semibold animate-pulse">TODAY</span>}
       </td>
       <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[160px] truncate">{e.name}</td>
@@ -552,7 +552,7 @@ function AllEarningsTab() {
                       {sortedRows.map((r, i) => (
                         <tr key={r.symbol} className={`border-t border-gray-100 dark:border-zinc-700/20 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors ${i % 2 === 0 ? 'bg-gray-50/50 dark:bg-zinc-900/20' : ''}`}>
                           <td className="px-4 py-2.5">
-                            <span className="font-bold text-gray-900 dark:text-white">{r.symbol}</span>
+                            <Link href={`/chart?symbol=${encodeURIComponent(r.symbol)}`} className="font-bold text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">{r.symbol}</Link>
                           </td>
                           <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-300 max-w-[180px] truncate">{r.name}</td>
                           <td className="px-4 py-2.5 text-right font-mono text-gray-800 dark:text-zinc-200">
