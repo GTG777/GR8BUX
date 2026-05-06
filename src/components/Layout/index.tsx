@@ -451,7 +451,7 @@ export function Layout({ children, title }: LayoutProps) {
                   {(!isClosed || collapsed) && (
                     <div className={`space-y-0.5 ${!collapsed ? 'mt-0.5 mb-1' : 'mb-2'}`}>
                       {group.items.filter((item) => !('adminOnly' in item) || isAdmin()).map(({ href, label, icon: Icon }) => {
-                        const active = router.pathname.startsWith(href);
+                        const active = router.pathname === href || (router.pathname.startsWith(href + '/') && !group.items.some(i => i.href !== href && router.pathname.startsWith(i.href)));
                         return (
                           <Link
                             key={href}

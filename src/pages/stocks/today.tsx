@@ -356,7 +356,7 @@ function ScannerTable({ setups, loading }: { setups: Setup[]; loading: boolean }
 function RegimeBanner({ regime, count }: { regime: Regime; count: number }) {
   if (regime === 'risk-on') {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium">
         <span>✅</span>
         <span>Risk-On — {count} high-confidence setup{count !== 1 ? 's' : ''} found across S&P 500</span>
       </div>
@@ -364,14 +364,14 @@ function RegimeBanner({ regime, count }: { regime: Regime; count: number }) {
   }
   if (regime === 'risk-off') {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300 text-xs font-medium">
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
         <span>⚠️</span>
         <span>Risk-Off — Only {count} high-confidence setup{count !== 1 ? 's' : ''} passed the filter today. Market conditions are defensive.</span>
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 text-xs font-medium">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs font-medium">
       <span>⚙️</span>
       <span>Neutral conditions — {count} setup{count !== 1 ? 's' : ''} found. Trade selectively.</span>
     </div>
