@@ -229,6 +229,8 @@ function SetupDetail({ setup }: { setup: Setup }) {
 function ScannerTable({ setups, loading }: { setups: Setup[]; loading: boolean }) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
+  const toggle = (rank: number) => setExpanded(prev => prev === rank ? null : rank);
+
   if (loading) {
     return (
       <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
@@ -259,69 +261,91 @@ function ScannerTable({ setups, loading }: { setups: Setup[]; loading: boolean }
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-      {/* Table header */}
-      <div className="hidden md:grid grid-cols-[28px_1fr_120px_90px_90px_90px_60px_100px_44px] gap-3 px-4 py-2.5 bg-gray-50 dark:bg-zinc-800/60 border-b border-gray-200 dark:border-zinc-700 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">
-        <span>#</span>
-        <span>Symbol</span>
-        <span>Catalyst</span>
-        <span>Entry</span>
-        <span>Stop</span>
-        <span>Target</span>
-        <span>R:R</span>
-        <span>AI Score</span>
-        <span />
-      </div>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-gray-50 dark:bg-zinc-800/60 border-b border-gray-200 dark:border-zinc-700">
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500 w-8">#</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">Symbol</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">Setup</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">Catalyst</th>
+            <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">Entry</th>
+            <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">Stop</th>
+            <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">Target</th>
+            <th className="px-4 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">R:R</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500 w-32">AI Score</th>
+            <th className="w-12" />
+          </tr>
+        </thead>
+        <tbody>
+          {setups.map((s) => (
+            <React.Fragment key={s.symbol}>
+              <tr
+                className="border-b border-gray-100 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                onClick={() => toggle(s.rank)}
+              >
+                <td className="px-4 py-3.5 text-xs font-bold text-gray-400 dark:text-zinc-500">{s.rank}</td>
 
-      {setups.map((s) => (
-        <div key={s.symbol}>
-          {/* Main row */}
-          <button
-            onClick={() => setExpanded(expanded === s.rank ? null : s.rank)}
-            className="w-full text-left grid grid-cols-1 md:grid-cols-[28px_1fr_120px_90px_90px_90px_60px_100px_44px] gap-3 items-center px-4 py-3.5 border-b border-gray-100 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors"
-          >
-            {/* Rank */}
-            <span className="hidden md:block text-xs font-bold text-gray-400 dark:text-zinc-500">{s.rank}</span>
-
-            {/* Symbol + company */}
-            <div className="flex items-center gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-gray-900 dark:text-white text-sm">{s.symbol}</span>
-                  <span className={`text-xs font-semibold tabular-nums ${changeColor(s.changePct)}`}>
-                    {s.changePct >= 0 ? '+' : ''}{fmt(s.changePct)}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
+                {/* Symbol + price change */}
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-900 dark:text-white text-sm">{s.symbol}</span>
+                    <span className={`text-xs font-semibold tabular-nums ${changeColor(s.changePct)}`}>
+                      {s.changePct >= 0 ? '+' : ''}{fmt(s.changePct)}%
+                    </span>
+                  </div>
                   <span className="text-xs text-gray-500 dark:text-zinc-400">{s.company}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${setupBadgeClass(s.setupType)}`}>{s.setupType}</span>
-                </div>
-              </div>
-            </div>
+                </td>
 
-            {/* Catalyst */}
-            <div>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${catalystBadgeClass(s.catalyst)}`}>{s.catalyst}</span>
-            </div>
+                {/* Setup type */}
+                <td className="px-4 py-3.5">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${setupBadgeClass(s.setupType)}`}>{s.setupType}</span>
+                </td>
 
-            {/* Levels */}
-            <span className="hidden md:block text-xs font-mono text-gray-700 dark:text-zinc-200">${fmt(s.entry)}</span>
-            <span className="hidden md:block text-xs font-mono text-red-600 dark:text-red-400">${fmt(s.stop)}</span>
-            <span className="hidden md:block text-xs font-mono text-emerald-600 dark:text-emerald-400">${fmt(s.target)}</span>
+                {/* Catalyst */}
+                <td className="px-4 py-3.5">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${catalystBadgeClass(s.catalyst)}`}>{s.catalyst}</span>
+                </td>
 
-            {/* R:R */}
-            <span className="hidden md:block text-xs font-semibold text-gray-700 dark:text-zinc-200">{s.rr}</span>
+                {/* Levels */}
+                <td className="px-4 py-3.5 text-right text-xs font-mono text-gray-700 dark:text-zinc-200">${fmt(s.entry)}</td>
+                <td className="px-4 py-3.5 text-right text-xs font-mono text-red-500 dark:text-red-400">${fmt(s.stop)}</td>
+                <td className="px-4 py-3.5 text-right text-xs font-mono text-emerald-600 dark:text-emerald-400">${fmt(s.target)}</td>
 
-            {/* Score */}
-            <div className="hidden md:block"><ScoreBar score={s.score} /></div>
+                {/* R:R */}
+                <td className="px-4 py-3.5 text-center text-xs font-semibold text-gray-700 dark:text-zinc-200">{s.rr}</td>
 
-            {/* Expand arrow */}
-            <span className="hidden md:block text-gray-400 dark:text-zinc-500 text-sm">{expanded === s.rank ? '▲' : '▼'}</span>
-          </button>
+                {/* Score */}
+                <td className="px-4 py-3.5"><ScoreBar score={s.score} /></td>
 
-          {/* Expanded detail */}
-          {expanded === s.rank && <SetupDetail setup={s} />}
-        </div>
-      ))}
+                {/* Chevron */}
+                <td className="px-3 py-3.5 text-center">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggle(s.rank); }}
+                    className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-400 dark:text-zinc-400 transition-colors"
+                    aria-label={expanded === s.rank ? 'Collapse' : 'Expand'}
+                  >
+                    <svg
+                      className={`w-4 h-4 transition-transform duration-200 ${expanded === s.rank ? 'rotate-180' : ''}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+
+              {/* Expanded detail row */}
+              {expanded === s.rank && (
+                <tr className="bg-gray-50 dark:bg-zinc-800/60">
+                  <td colSpan={10} className="p-0 border-b border-gray-200 dark:border-zinc-700">
+                    <SetupDetail setup={s} />
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
