@@ -60,18 +60,18 @@ function catalystBadgeClass(c: CatalystType) {
 
 function setupBadgeClass(s: SetupType) {
   switch (s) {
-    case 'Breakout':     return 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300';
-    case 'Pullback':     return 'bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300';
-    case 'Earnings Play': return 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300';
-    case 'VWAP Reclaim': return 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300';
-    case 'Gap + Hold':   return 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300';
+    case 'Breakout':      return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    case 'Pullback':      return 'bg-sky-500/20 text-sky-300 border border-sky-500/30';
+    case 'Earnings Play': return 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
+    case 'VWAP Reclaim':  return 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
+    case 'Gap + Hold':    return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
   }
 }
 
 function impactBadge(impact: MacroEvent['impact']) {
-  if (impact === 'high')   return 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-500/40';
-  if (impact === 'medium') return 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-500/40';
-  return 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400 border border-gray-200 dark:border-zinc-700';
+  if (impact === 'high')   return 'bg-red-500/20 text-red-300 border border-red-500/40';
+  if (impact === 'medium') return 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40';
+  return 'bg-zinc-800 text-zinc-400 border border-zinc-700';
 }
 
 /* ── Market Pulse bar ─────────────────────────────────────────── */
