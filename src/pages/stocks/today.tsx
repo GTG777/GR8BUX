@@ -356,11 +356,6 @@ function ScannerTable({ setups, loading }: { setups: Setup[]; loading: boolean }
   );
 }
 
-      </table>
-    </div>
-  );
-}
-
 /* ── Signal pill (pre-breakout) ─────────────────────────────────── */
 const SIGNAL_STYLES: Record<string, string> = {
   'NR7':             'bg-violet-500/20 text-violet-300 border border-violet-500/30',
