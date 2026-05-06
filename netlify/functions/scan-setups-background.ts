@@ -26,38 +26,76 @@ import Anthropic from '@anthropic-ai/sdk';
 const MASSIVE_BASE     = 'https://api.massive.com';
 const BATCH_SNAPSHOT   = 200;   // tickers per Massive snapshot call
 const BATCH_BARS       = 8;     // parallel daily-bars fetches
-const TIER1_COUNT      = 40;    // candidates after change% filter
-const TIER2_COUNT      = 12;    // setups after scoring
-const FINAL_COUNT      = 8;     // rows written to DB (displayed in UI)
+const TIER1_COUNT      = 50;    // candidates after change% filter
+const TIER2_COUNT      = 15;    // setups after scoring
+const FINAL_COUNT      = 12;    // rows written to DB (displayed in UI)
 const BARS_LOOKBACK    = 30;    // days of daily OHLCV for RSI + vol avg
 
-// ── S&P 500 Representative Universe (~120 highly-liquid names) ──────────────
+// ── Full S&P 500 Universe ────────────────────────────────────────────────────
 const SP500_UNIVERSE = [
-  // Mega-cap Tech
-  'AAPL','MSFT','NVDA','META','GOOGL','AMZN','TSLA','AVGO','AMD','ORCL',
-  'CRM','ADBE','NOW','QCOM','TXN','INTC','MU','AMAT','LRCX','KLAC',
-  'PANW','CRWD','SNOW','PLTR','ARM','MRVL','FTNT','NET','ZS','DDOG',
+  // Information Technology
+  'AAPL','MSFT','NVDA','AVGO','AMD','ORCL','CRM','ADBE','NOW','QCOM',
+  'TXN','INTC','MU','AMAT','LRCX','KLAC','PANW','CRWD','FTNT','MRVL',
+  'PLTR','CDNS','SNPS','APH','IT','CTSH','GLW','HPQ','HPE','CDW',
+  'JNPR','NTAP','STX','WDC','KEYS','ANSS','TDY','TER','MCHP','NXPI',
+  'SWKS','QRVO','MPWR','ON','ENPH','FSLR','GEN','PTC','ROP','TRMB',
+  'ZBRA','FFIV','AKAM','JKHY','FIS','FI','PYPL','PAYX','ADP','EPAM',
+  // Communication Services
+  'META','GOOGL','GOOG','AMZN','NFLX','DIS','CMCSA','T','VZ','TMUS',
+  'TTWO','EA','MTCH','WBD','PARA','NWSA','NWS','LYV','IPG','OMC',
+  'FOX','FOXA',
+  // Consumer Discretionary
+  'TSLA','HD','MCD','NKE','LOW','BKNG','TGT','SBUX','TJX','ROST',
+  'UBER','AMZN','ABNB','GM','F','ORLY','AZO','KMX','LEN','DHI',
+  'PHM','NVR','LVS','WYNN','MGM','CZR','RCL','CCL','NCLH','HLT',
+  'MAR','LVS','YUM','CMG','DRI','MKC','GPC','RL','TPR','DECK',
+  'LULU','BBY','DG','DLTR','ULTA','APTV','BWA','LKQ','MHK',
+  // Consumer Staples
+  'WMT','COST','PG','KO','PEP','PM','MO','MDLZ','CL','GIS',
+  'K','KDP','KHC','HSY','SJM','CPB','HRL','TSN','ADM','BG',
+  'MOS','CF','FMC','CAG','KVUE','CHD','CLX','EL',
+  // Energy
+  'XOM','CVX','COP','EOG','SLB','MPC','VLO','OXY','PSX','HES',
+  'BKR','HAL','DVN','FANG','APA','MRO','TRGP','OKE','WMB','KMI',
+  'NRG','VST','CEG',
   // Financials
-  'JPM','BAC','WFC','GS','MS','C','BLK','SCHW','AXP','V','MA','COF',
+  'JPM','BAC','WFC','GS','MS','C','BLK','SCHW','AXP','V',
+  'MA','COF','USB','PNC','TFC','FI','SPGI','MCO','ICE','CME',
+  'CBOE','NDAQ','BX','BK','STT','NTRS','RF','HBAN','KEY','CFG',
+  'MTB','FITB','CMA','ZION','L','AIG','MET','PRU','AFL','ALL',
+  'PGR','CB','TRV','HIG','CINF','GL','AJG','MMC','AON','WTW',
+  'BEN','IVZ','TROW','AMG','FDS','MSCI','RJF','AMP','PFG','LNC',
+  'ACGL','EG','AIZ','SYF','DFS','PAYC','CPAY','FLT','BR','PNC',
+  'BRK.B',
   // Healthcare
   'UNH','JNJ','LLY','ABBV','MRK','PFE','AMGN','GILD','ISRG','BMY',
-  'VRTX','REGN','ZBH','EW','DXCM',
-  // Consumer Discretionary
-  'COST','WMT','HD','MCD','SBUX','NKE','TGT','LOW','BKNG','ABNB',
-  'UBER','LYFT','DASH','ROST','TJX',
-  // Consumer Staples
-  'PG','KO','PEP','PM','MO','MDLZ','CL','GIS','K',
-  // Energy
-  'XOM','CVX','SLB','COP','EOG','MPC','VLO','OXY','PSX',
+  'VRTX','REGN','ZBH','EW','DXCM','MDT','BSX','BDX','SYK','ABT',
+  'DHR','TMO','IQV','MTD','A','IDXX','PODD','HOLX','BAX','CAH',
+  'MCK','COR','CVS','CI','ELV','HUM','MOH','CNC','HSIC','TECH',
+  'BIIB','MRNA','INCY','RVTY','CTLT','VTRS','ZTS','ALGN','DXCM',
+  'PKG','RMD','STE','TFX','WST','WAT','CRL',
   // Industrials
   'CAT','HON','UPS','BA','RTX','LMT','GE','DE','EMR','ETN',
-  'FDX','NSC','CSX','URI',
-  // Communication Services
-  'NFLX','DIS','CMCSA','T','VZ','TMUS','SNAP','PINS','ROKU',
+  'FDX','NSC','CSX','URI','MMM','ITW','PH','ROK','GD','NOC',
+  'HII','TXT','LHX','HWM','TDG','CARR','OTIS','DAY','AXON','PWR',
+  'HUBB','RRX','AME','LDOS','SAIC','CPRT','CTAS','FAST','GWW','WAB',
+  'JBHT','CHRW','EXPD','XPO','J','JCI','IR','TRANE','FTV','ROL',
+  'RSG','WM','AOS','MAS','SNA','SWK','ALLE','BALL','PKG','IP',
+  'AVY','SEE','SON','BLL','WRK','BLDR','MLM','VMC','NUE','STLD',
+  'ROP','VRSK','NDAQ','ODFL','PCAR','CMI','GNRC',
   // Materials
-  'LIN','APD','ECL','SHW','NEM','FCX','AA','CLF',
-  // Utilities / REIT
-  'NEE','DUK','SO','AMT','PLD','EQIX','SPG','O',
+  'LIN','APD','ECL','SHW','NEM','FCX','AA','CLF','ALB','CE',
+  'DOW','DD','LYB','PPG','RPM','EMN','IFF','FMC','MOS','NUE',
+  'STLD','WRB',
+  // Real Estate
+  'AMT','PLD','EQIX','CCI','PSA','WELL','SPG','O','DLR','EQR',
+  'AVB','ESS','MAA','UDR','CPT','ARE','BXP','VTR','PEAK','HST',
+  'REG','FRT','KIM','NNN','VICI','INVH','SUI','EXR','CUBE','LSI',
+  'IRM','SBAC','AMT','CSGP',
+  // Utilities
+  'NEE','DUK','SO','AEP','EXC','XEL','SRE','D','PCG','EIX',
+  'ETR','PPL','ES','WEC','CMS','LNT','EVRG','NI','PNW','AES',
+  'NRG','AEE','CNP','PEG','FE','DTE','AWK',
 ];
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -164,7 +202,10 @@ function scoreSetup(
   else if (volRatio >= 1.2)  score += 8;
 
   // 3. RSI quality (0-25)
-  if (rsi >= 55 && rsi <= 70)       score += 25; // sweet spot: momentum not overbought
+  // Exception: extreme movers (≥8%) always get full momentum credit regardless of RSI
+  if (changePct >= 8) {
+    score += 25; // explosive move — RSI being high is expected, not a penalty
+  } else if (rsi >= 55 && rsi <= 70)       score += 25; // sweet spot: momentum not overbought
   else if (rsi >= 45 && rsi < 55)   score += 20; // pullback recovery
   else if (rsi >= 40 && rsi < 45)   score += 12; // oversold bounce
   else if (rsi > 70  && rsi <= 80)  score += 10; // extended but running
