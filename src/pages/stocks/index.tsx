@@ -1159,18 +1159,18 @@ const QUICK_STOCKS = ['SPY', 'QQQ', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'GOO
 /* ── Main page ──────────────────────────────────────────────────── */
 export default function StockScannerPage() {
   const router = useRouter();
-  const [symbol, setSymbol] = useState('SPY');
-  const [input, setInput]   = useState('SPY');
+  const [symbol, setSymbol] = useState('');
+  const [input, setInput]   = useState('');
 
-  // Pre-load symbol from ?symbol= query param (e.g. linked from Options Screener)
+  // Wait for router to be ready so ?symbol= param is available before first scan
   useEffect(() => {
+    if (!router.isReady) return;
     const q = router.query.symbol;
-    if (typeof q === 'string' && q.trim()) {
-      const s = q.toUpperCase().trim();
-      setSymbol(s);
-      setInput(s);
-    }
-  }, [router.query.symbol]);
+    const s = typeof q === 'string' && q.trim() ? q.toUpperCase().trim() : 'SPY';
+    setSymbol(s);
+    setInput(s);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
 
   const [indicators, setIndicators] = useState<Indicators | null>(null);
   const [setups, setSetups]         = useState<StockSetup[]>([]);
@@ -1227,7 +1227,7 @@ export default function StockScannerPage() {
     }
   }, []);
 
-  useEffect(() => { fetchAndScan(symbol); }, [symbol, fetchAndScan]);
+  useEffect(() => { if (symbol) fetchAndScan(symbol); }, [symbol, fetchAndScan]);
 
   const handleSymbol = (sym: string) => {
     const s = sym.toUpperCase().trim();
