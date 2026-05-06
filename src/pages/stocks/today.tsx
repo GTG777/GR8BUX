@@ -427,8 +427,6 @@ export default function MorningBriefPage() {
       if (res.ok) {
         setMacro(await res.json());
         setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-        const next = new Date(Date.now() + 10 * 60 * 1000);
-        setNextScan(next.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
       }
     } finally {
       setMacroLoading(false);
@@ -450,13 +448,54 @@ export default function MorningBriefPage() {
     }
   }, []);
 
+  // Returns ms until the next :00/:15/:30/:45 ET boundary (scanner cron schedule)
+  function msUntilNextScanBoundary(): number {
+    const etOffset = -4 * 60; // EDT (UTC-4); adjust to -5 in winter if needed
+    const now = new Date();
+    const etMin = (now.getUTCHours() * 60 + now.getUTCMinutes() + etOffset + 1440) % 1440;
+    const nextBoundary = Math.ceil((etMin + 1) / 15) * 15; // next multiple of 15
+    const minsLeft = (nextBoundary - etMin + 1440) % 1440 || 15;
+    return minsLeft * 60 * 1000 - (now.getUTCSeconds() * 1000 + now.getUTCMilliseconds());
+  }
+
+  function nextScanLabel(): string {
+    const ms = msUntilNextScanBoundary();
+    const next = new Date(Date.now() + ms);
+    return next.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+
   useEffect(() => {
     fetchMacro();
     fetchSetups();
+    setNextScan(nextScanLabel());
+
+    // Macro refreshes every 10 min
     const macroTimer = setInterval(fetchMacro, 10 * 60 * 1000);
-    const setupsTimer = setInterval(fetchSetups, 5 * 60 * 1000);
-    return () => { clearInterval(macroTimer); clearInterval(setupsTimer); };
-  }, [fetchMacro, fetchSetups]);
+
+    // Setups: fire exactly at next :00/:15/:30/:45 boundary, then repeat every 15 min
+    let repeatTimer: ReturnType<typeof setInterval> | null = null;
+    const msToNext = msUntilNextScanBoundary();
+    // Add 30s buffer so the scanner has time to write results before we read
+    const boundaryTimer = setTimeout(() => {
+      fetchSetups();
+      setNextScan(nextScanLabel());
+      repeatTimer = setInterval(() => {
+        fetchSetups();
+        setNextScan(nextScanLabel());
+      }, 15 * 60 * 1000);
+    }, msToNext + 30_000);
+
+    // Update the "Next scan" label every minute so the displayed time stays accurate
+    const labelTimer = setInterval(() => setNextScan(nextScanLabel()), 60_000);
+
+    return () => {
+      clearInterval(macroTimer);
+      clearTimeout(boundaryTimer);
+      if (repeatTimer) clearInterval(repeatTimer);
+      clearInterval(labelTimer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const regime: Regime = (macro?.riskRegime as Regime) ?? 'neutral';
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -485,7 +524,7 @@ export default function MorningBriefPage() {
               </span>
             )}
             <button
-              onClick={() => { fetchMacro(); fetchSetups(); }}
+              onClick={() => { fetchMacro(); fetchSetups(); setNextScan(nextScanLabel()); }}
               className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs font-medium text-gray-600 dark:text-zinc-300 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
             >
               ↻ Refresh
