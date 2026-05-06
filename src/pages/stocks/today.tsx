@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 import type { MacroData } from '@/pages/api/market/macro';
+import type { PreBreakoutRow } from '@/pages/api/market/prebreakout';
 
 /* ── Types ─────────────────────────────────────────────────────── */
 type SetupType = 'Breakout' | 'Pullback' | 'Earnings Play' | 'VWAP Reclaim' | 'Gap + Hold';
 type CatalystType = 'Earnings Today' | 'Earnings AMC' | 'Analyst Upgrade' | 'Volume Spike' | 'Technical';
 type Regime = 'risk-on' | 'risk-off' | 'neutral';
+type ActiveTab = 'moving' | 'coiling';
 
 interface Setup {
   rank: number;
@@ -354,6 +356,189 @@ function ScannerTable({ setups, loading }: { setups: Setup[]; loading: boolean }
   );
 }
 
+      </table>
+    </div>
+  );
+}
+
+/* ── Signal pill (pre-breakout) ─────────────────────────────────── */
+const SIGNAL_STYLES: Record<string, string> = {
+  'NR7':             'bg-violet-500/20 text-violet-300 border border-violet-500/30',
+  'NR5':             'bg-violet-500/15 text-violet-400 border border-violet-500/25',
+  'ATR Squeeze':     'bg-sky-500/20 text-sky-300 border border-sky-500/30',
+  'Compressing':     'bg-sky-500/15 text-sky-400 border border-sky-500/25',
+  'Vol Accumulation':'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+  'Elevated Vol':    'bg-amber-500/15 text-amber-400 border border-amber-500/25',
+  'Near 20d High':   'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+  'Approaching High':'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25',
+  'Gap & Hold':      'bg-rose-500/20 text-rose-300 border border-rose-500/30',
+};
+
+function SignalPills({ signals }: { signals: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {signals.map(s => (
+        <span key={s} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SIGNAL_STYLES[s] ?? 'bg-zinc-800 text-zinc-400 border border-zinc-700'}`}>
+          {s}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/* ── Pre-breakout expanded detail ───────────────────────────────── */
+function PreBreakoutDetail({ setup }: { setup: PreBreakoutRow }) {
+  const fmt = (n: number, d = 2) => n.toFixed(d);
+  return (
+    <div className="px-4 py-3 bg-zinc-800/60 border-t border-zinc-700 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Why it&apos;s coiling</p>
+          <p className="text-zinc-200 leading-snug">{setup.reason}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Trade levels</p>
+          <div className="flex flex-col gap-0.5 text-xs">
+            <span className="text-zinc-300">Entry: <strong className="text-white">${fmt(setup.entry)}</strong></span>
+            <span className="text-red-400">Stop: <strong>${fmt(setup.stop)}</strong></span>
+            <span className="text-emerald-400">Target: <strong>${fmt(setup.target)}</strong> <span className="text-zinc-500">(3:1 R)</span></span>
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Compression metrics</p>
+          <div className="flex flex-col gap-0.5 text-xs text-zinc-300">
+            <span>ATR ratio: <strong className={setup.atrRatio < 0.65 ? 'text-violet-300' : 'text-zinc-200'}>{setup.atrRatio.toFixed(2)}</strong> {setup.atrRatio < 0.65 ? '🔥 squeezed' : ''}</span>
+            <span>Dist from 20d high: <strong className={setup.distFromHigh <= 1.5 ? 'text-emerald-300' : 'text-zinc-200'}>{setup.distFromHigh.toFixed(1)}%</strong></span>
+            <span>RSI-14: <strong>{setup.rsi}</strong></span>
+            <span>Vol: <strong>{(setup.volume / Math.max(setup.avgVolume20d, 1)).toFixed(1)}x avg</strong></span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <Link
+          href={`/trades/new?symbol=${setup.symbol}&entry=${setup.entry}&stop=${setup.stop}&target=${setup.target}`}
+          className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors"
+        >
+          → Plan This Trade
+        </Link>
+        <Link
+          href={`/stocks?symbol=${setup.symbol}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-1.5 rounded-lg border border-zinc-600 text-zinc-300 hover:border-indigo-500 text-xs font-medium transition-colors"
+        >
+          View Chart
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ── Pre-breakout scanner table ─────────────────────────────────── */
+function PreBreakoutTable({ setups, loading }: { setups: PreBreakoutRow[]; loading: boolean }) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const toggle = (rank: number) => setExpanded(prev => prev === rank ? null : rank);
+  const fmt = (n: number, d = 2) => n.toFixed(d);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="p-4 border-b border-zinc-800 animate-pulse">
+            <div className="flex gap-4">
+              <div className="h-5 w-12 bg-zinc-700 rounded" />
+              <div className="h-5 w-32 bg-zinc-800 rounded" />
+              <div className="h-5 w-48 bg-zinc-800 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (setups.length === 0) {
+    return (
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+        <p className="text-zinc-500 text-sm">No pre-breakout setups found yet.</p>
+        <p className="text-zinc-600 text-xs mt-1">The scanner runs every 15 minutes during market hours.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-zinc-800/60 border-b border-zinc-700">
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-zinc-500 w-8">#</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-zinc-500">Symbol</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-zinc-500">Signals</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-zinc-500">Pattern</th>
+            <th className="px-4 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-zinc-500">RSI</th>
+            <th className="px-4 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-zinc-500">ATR Ratio</th>
+            <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-zinc-500">Entry</th>
+            <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-zinc-500">Target</th>
+            <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-zinc-500 w-32">Score</th>
+            <th className="w-12" />
+          </tr>
+        </thead>
+        <tbody>
+          {setups.map((s) => (
+            <React.Fragment key={s.symbol}>
+              <tr
+                className="border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                onClick={() => toggle(s.rank)}
+              >
+                <td className="px-4 py-3.5 text-xs font-bold text-zinc-500">{s.rank}</td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white text-sm">{s.symbol}</span>
+                    <span className={`text-xs font-semibold tabular-nums ${s.changePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {s.changePct >= 0 ? '+' : ''}{fmt(s.changePct)}%
+                    </span>
+                  </div>
+                  <span className="text-xs text-zinc-400">{s.company}</span>
+                </td>
+                <td className="px-4 py-3.5"><SignalPills signals={s.signals} /></td>
+                <td className="px-4 py-3.5">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-700 text-zinc-200 border border-zinc-600">{s.setupType}</span>
+                </td>
+                <td className="px-4 py-3.5 text-center text-xs font-mono text-zinc-200">{s.rsi}</td>
+                <td className="px-4 py-3.5 text-center text-xs font-mono">
+                  <span className={s.atrRatio < 0.65 ? 'text-violet-300 font-bold' : s.atrRatio < 0.75 ? 'text-sky-300' : 'text-zinc-400'}>
+                    {s.atrRatio.toFixed(2)}
+                  </span>
+                </td>
+                <td className="px-4 py-3.5 text-right text-xs font-mono text-zinc-200">${fmt(s.entry)}</td>
+                <td className="px-4 py-3.5 text-right text-xs font-mono text-emerald-400">${fmt(s.target)}</td>
+                <td className="px-4 py-3.5"><ScoreBar score={s.score} /></td>
+                <td className="px-3 py-3.5 text-center">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggle(s.rank); }}
+                    className="p-1.5 rounded-md hover:bg-zinc-700 text-zinc-400 transition-colors"
+                  >
+                    <svg className={`w-4 h-4 transition-transform duration-200 ${expanded === s.rank ? 'rotate-180' : ''}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+              {expanded === s.rank && (
+                <tr className="bg-zinc-800/60">
+                  <td colSpan={10} className="p-0 border-b border-zinc-700">
+                    <PreBreakoutDetail setup={s} />
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /* ── Regime banner ──────────────────────────────────────────────── */
 function RegimeBanner({ regime, count }: { regime: Regime; count: number }) {
   if (regime === 'risk-on') {
@@ -415,10 +600,19 @@ export default function MorningBriefPage() {
   const [macroLoading, setMacroLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
   const [nextScan, setNextScan] = useState('');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('moving');
+
+  // Moving Now (momentum scanner)
   const [setups, setSetups] = useState<Setup[]>([]);
   const [scannerLoading, setScannerLoading] = useState(true);
   const [scannedAt, setScannedAt] = useState<string | null>(null);
   const [staleData, setStaleData] = useState(false);
+
+  // Setting Up (pre-breakout scanner)
+  const [preSetups, setPreSetups] = useState<PreBreakoutRow[]>([]);
+  const [preLoading, setPreLoading] = useState(true);
+  const [preScannedAt, setPreScannedAt] = useState<string | null>(null);
+
   const countdown = useMarketCountdown();
 
   const fetchMacro = useCallback(async () => {
@@ -448,6 +642,20 @@ export default function MorningBriefPage() {
     }
   }, []);
 
+  const fetchPreSetups = useCallback(async () => {
+    setPreLoading(true);
+    try {
+      const res = await fetch('/api/market/prebreakout');
+      if (res.ok) {
+        const data = await res.json() as { setups: PreBreakoutRow[]; scannedAt: string | null; stale: boolean };
+        setPreSetups(data.setups);
+        setPreScannedAt(data.scannedAt);
+      }
+    } finally {
+      setPreLoading(false);
+    }
+  }, []);
+
   // Returns ms until the next :00/:15/:30/:45 ET boundary (scanner cron schedule)
   function msUntilNextScanBoundary(): number {
     const etOffset = -4 * 60; // EDT (UTC-4); adjust to -5 in winter if needed
@@ -467,25 +675,24 @@ export default function MorningBriefPage() {
   useEffect(() => {
     fetchMacro();
     fetchSetups();
+    fetchPreSetups();
     setNextScan(nextScanLabel());
 
-    // Macro refreshes every 10 min
     const macroTimer = setInterval(fetchMacro, 10 * 60 * 1000);
 
-    // Setups: fire exactly at next :00/:15/:30/:45 boundary, then repeat every 15 min
     let repeatTimer: ReturnType<typeof setInterval> | null = null;
     const msToNext = msUntilNextScanBoundary();
-    // Add 30s buffer so the scanner has time to write results before we read
     const boundaryTimer = setTimeout(() => {
       fetchSetups();
+      fetchPreSetups();
       setNextScan(nextScanLabel());
       repeatTimer = setInterval(() => {
         fetchSetups();
+        fetchPreSetups();
         setNextScan(nextScanLabel());
       }, 15 * 60 * 1000);
     }, msToNext + 30_000);
 
-    // Update the "Next scan" label every minute so the displayed time stays accurate
     const labelTimer = setInterval(() => setNextScan(nextScanLabel()), 60_000);
 
     return () => {
@@ -501,6 +708,9 @@ export default function MorningBriefPage() {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const scanTimeLabel = scannedAt
     ? new Date(scannedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : null;
+  const preTimeLabel = preScannedAt
+    ? new Date(preScannedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     : null;
 
   return (
@@ -519,12 +729,13 @@ export default function MorningBriefPage() {
             {lastUpdated && (
               <span className="text-xs text-gray-400 dark:text-zinc-500">
                 Updated {lastUpdated} · Next scan {nextScan}
-                {scanTimeLabel && ` · Last AI scan ${scanTimeLabel}`}
-                {staleData && <span className="text-amber-500 dark:text-amber-400"> · Stale</span>}
+                {activeTab === 'moving' && scanTimeLabel && ` · Last AI scan ${scanTimeLabel}`}
+                {activeTab === 'coiling' && preTimeLabel && ` · Last AI scan ${preTimeLabel}`}
+                {activeTab === 'moving' && staleData && <span className="text-amber-500 dark:text-amber-400"> · Stale</span>}
               </span>
             )}
             <button
-              onClick={() => { fetchMacro(); fetchSetups(); setNextScan(nextScanLabel()); }}
+              onClick={() => { fetchMacro(); fetchSetups(); fetchPreSetups(); setNextScan(nextScanLabel()); }}
               className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs font-medium text-gray-600 dark:text-zinc-300 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
             >
               ↻ Refresh
@@ -538,19 +749,70 @@ export default function MorningBriefPage() {
         {/* Macro Events */}
         <MacroEvents events={MACRO_EVENTS} />
 
-        {/* Scanner section header */}
-        <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
-          <div>
-            <h2 className="text-base font-bold text-gray-900 dark:text-white">Today&apos;s Best Setups</h2>
-            <p className="text-xs text-gray-400 dark:text-zinc-500 mt-0.5">
-              AI scanned S&P 500 stocks · ranked by confluence score · click any row to expand
-            </p>
+        {/* Tab bar + regime banner */}
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
+          {/* Tabs */}
+          <div className="flex items-center gap-1 bg-zinc-800/60 rounded-xl p-1 border border-zinc-700">
+            <button
+              onClick={() => setActiveTab('moving')}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'moving'
+                  ? 'bg-zinc-900 text-white shadow border border-zinc-700'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              🚀 Moving Now
+              {setups.length > 0 && (
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'moving' ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-700 text-zinc-400'}`}>
+                  {setups.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('coiling')}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'coiling'
+                  ? 'bg-zinc-900 text-white shadow border border-zinc-700'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              🎯 Setting Up
+              {preSetups.length > 0 && (
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'coiling' ? 'bg-violet-500/30 text-violet-300' : 'bg-zinc-700 text-zinc-400'}`}>
+                  {preSetups.length}
+                </span>
+              )}
+            </button>
           </div>
-          <RegimeBanner regime={regime} count={setups.length} />
+
+          {/* Context badge */}
+          {activeTab === 'moving'
+            ? <RegimeBanner regime={regime} count={setups.length} />
+            : (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/30 text-violet-300 text-xs font-medium">
+                <span>🎯</span>
+                <span>Anticipation scanner — {preSetups.length} stock{preSetups.length !== 1 ? 's' : ''} coiling before a potential move</span>
+              </div>
+            )
+          }
         </div>
 
-        {/* Scanner table */}
-        <ScannerTable setups={setups} loading={scannerLoading} />
+        {/* Sub-header description */}
+        {activeTab === 'moving' ? (
+          <p className="text-xs text-zinc-500 -mt-2">
+            AI scanned S&P 500 · ranked by momentum + volume confluence · already in motion
+          </p>
+        ) : (
+          <p className="text-xs text-zinc-500 -mt-2">
+            NR7 · ATR squeeze · volume accumulation · near 20d high — stocks coiling <strong className="text-zinc-300">before</strong> the move happens
+          </p>
+        )}
+
+        {/* Scanner tables */}
+        {activeTab === 'moving'
+          ? <ScannerTable setups={setups} loading={scannerLoading} />
+          : <PreBreakoutTable setups={preSetups} loading={preLoading} />
+        }
 
         {/* Footer note */}
         <p className="text-[11px] text-gray-400 dark:text-zinc-600 text-center pb-4">

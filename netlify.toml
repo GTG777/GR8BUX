@@ -53,6 +53,10 @@
   # Every 15 min Mon-Fri 9:30 AM–4:00 PM ET (13:30–21:00 UTC)
   schedule = "*/15 13-21 * * 1-5"
 
+[functions."intraday-scan-prebreakout"]
+  # Every 15 min Mon-Fri 9:30 AM–4:00 PM ET (13:30–21:00 UTC)
+  schedule = "*/15 13-21 * * 1-5"
+
 # Security headers
 [[headers]]
   for = "/*"
