@@ -119,15 +119,15 @@ function MacroPulse({ macro }: { macro: MacroData | null }) {
     },
     {
       label: '10yr Yield',
-      value: macro.tnx ? `${fmt(macro.tnx.price)}%` : '—',
-      sub:   macro.tnx ? `${macro.tnx.changePct >= 0 ? '+' : ''}${fmt(macro.tnx.changePct)}%` : undefined,
-      color: macro.tnx ? changeColor(macro.tnx.changePct) : undefined,
+      value: macro.t10y ? `${fmt(macro.t10y.price)}%` : '—',
+      sub:   macro.t10y ? `${macro.t10y.changePct >= 0 ? '+' : ''}${fmt(macro.t10y.changePct)}%` : undefined,
+      color: macro.t10y ? changeColor(macro.t10y.changePct) : undefined,
     },
     {
-      label: 'Gold (GLD)',
-      value: macro.gld ? `$${fmt(macro.gld.price)}` : '—',
-      sub:   macro.gld ? `${macro.gld.changePct >= 0 ? '+' : ''}${fmt(macro.gld.changePct)}%` : undefined,
-      color: macro.gld ? changeColor(macro.gld.changePct) : undefined,
+      label: 'Gold',
+      value: macro.gold ? `$${fmt(macro.gold.price)}` : '—',
+      sub:   macro.gold ? `${macro.gold.changePct >= 0 ? '+' : ''}${fmt(macro.gold.changePct)}%` : undefined,
+      color: macro.gold ? changeColor(macro.gold.changePct) : undefined,
     },
   ];
 
