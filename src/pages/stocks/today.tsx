@@ -216,6 +216,8 @@ function SetupDetail({ setup }: { setup: Setup }) {
         </Link>
         <Link
           href={`/stocks?symbol=${setup.symbol}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="px-4 py-1.5 rounded-lg border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-zinc-300 hover:border-indigo-400 dark:hover:border-indigo-500 text-xs font-medium transition-colors"
         >
           View Chart
