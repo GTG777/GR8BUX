@@ -253,8 +253,10 @@ function ScannerTable({ setups, loading }: { setups: Setup[]; loading: boolean }
   if (setups.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 text-center">
-        <p className="text-gray-400 dark:text-zinc-500 text-sm">AI found no high-quality setups right now.</p>
-        <p className="text-gray-400 dark:text-zinc-500 text-xs mt-1">Market conditions may not favor trading today. Check back after the next scan.</p>
+        <p className="text-gray-400 dark:text-zinc-500 text-sm">No setups available yet.</p>
+        <p className="text-gray-400 dark:text-zinc-500 text-xs mt-1">
+          The AI scanner runs every 15 minutes during market hours. Check back shortly — or the first scan may still be in progress.
+        </p>
       </div>
     );
   }
@@ -402,78 +404,8 @@ function useMarketCountdown() {
   return label;
 }
 
-/* ── Mock setup data (replace with API when intraday-scan-setups.ts is live) ── */
-const MOCK_SETUPS: Setup[] = [
-  {
-    rank: 1,
-    symbol: 'NVDA',
-    company: 'NVIDIA Corp',
-    price: 878.40,
-    changePct: 1.8,
-    catalyst: 'Earnings AMC',
-    catalystDetail: 'Reports after close today. Expected move ±7.2%. IVR at 68 — elevated premium.',
-    setupType: 'Breakout',
-    entry: 878,
-    stop: 861,
-    target: 912,
-    rr: '1 : 2.1',
-    score: 87,
-    reason: 'Strong bull trend (score +3), price breaking above 20-day high on 2.4x average volume. Earnings catalyst amplifies move potential. TechnicalSetups confidence: 84%.',
-  },
-  {
-    rank: 2,
-    symbol: 'UBER',
-    company: 'Uber Technologies',
-    price: 74.20,
-    changePct: 2.3,
-    catalyst: 'Analyst Upgrade',
-    catalystDetail: 'Goldman Sachs upgraded to Buy with $90 price target. Volume ratio 3.1x.',
-    setupType: 'Pullback',
-    entry: 74.20,
-    stop: 71.80,
-    target: 80.50,
-    rr: '1 : 2.6',
-    score: 82,
-    reason: 'Pulled back to rising 20 EMA after analyst upgrade. RSI at 52 — room to run. OBV slope positive — accumulation ongoing.',
-  },
-  {
-    rank: 3,
-    symbol: 'AMD',
-    company: 'Advanced Micro Devices',
-    price: 122.10,
-    changePct: 1.2,
-    catalyst: 'Volume Spike',
-    catalystDetail: 'Volume 3.1x average with no news — institutional accumulation signal.',
-    setupType: 'VWAP Reclaim',
-    entry: 122,
-    stop: 118,
-    target: 132,
-    rr: '1 : 2.5',
-    score: 78,
-    reason: 'Reclaimed VWAP after morning dip. Bull flag forming on 15-min chart. Trend score +2 (Bullish). RSI 58 — not extended.',
-  },
-  {
-    rank: 4,
-    symbol: 'AAPL',
-    company: 'Apple Inc',
-    price: 190.30,
-    changePct: 0.7,
-    catalyst: 'Technical',
-    catalystDetail: 'Clean breakout above 52-week consolidation zone on above-average volume.',
-    setupType: 'Breakout',
-    entry: 190,
-    stop: 187,
-    target: 196,
-    rr: '1 : 2.0',
-    score: 71,
-    reason: 'Breaking above resistance that held for 6 weeks. Volume 1.8x average confirms participation. Trend score +3 (Strong Bull).',
-  },
-];
-
-const MOCK_EVENTS: MacroEvent[] = [
-  { time: '8:30am', name: 'Initial Jobless Claims', impact: 'medium', description: 'Weekly count of new unemployment filings. Moves markets if significantly above/below expectations.', passed: true },
-  { time: '2:00pm', name: 'FOMC Minutes', impact: 'high', description: 'Federal Reserve releases notes from its last interest rate meeting. Can cause sharp market moves — especially in bonds and tech.', passed: false },
-];
+/* ── Static economic events (replace with /api/market/events when ready) ── */
+const MACRO_EVENTS: MacroEvent[] = [];
 
 /* ── Main Page ─────────────────────────────────────────────────── */
 export default function MorningBriefPage() {
@@ -481,11 +413,11 @@ export default function MorningBriefPage() {
   const [macroLoading, setMacroLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
   const [nextScan, setNextScan] = useState('');
+  const [setups, setSetups] = useState<Setup[]>([]);
+  const [scannerLoading, setScannerLoading] = useState(true);
+  const [scannedAt, setScannedAt] = useState<string | null>(null);
+  const [staleData, setStaleData] = useState(false);
   const countdown = useMarketCountdown();
-
-  // In production this will be replaced by /api/market/setups (intraday scanner output)
-  const setups = MOCK_SETUPS;
-  const scannerLoading = false;
 
   const fetchMacro = useCallback(async () => {
     try {
@@ -501,14 +433,34 @@ export default function MorningBriefPage() {
     }
   }, []);
 
+  const fetchSetups = useCallback(async () => {
+    setScannerLoading(true);
+    try {
+      const res = await fetch('/api/market/setups');
+      if (res.ok) {
+        const data = await res.json() as { setups: Setup[]; scannedAt: string | null; stale: boolean };
+        setSetups(data.setups);
+        setScannedAt(data.scannedAt);
+        setStaleData(data.stale);
+      }
+    } finally {
+      setScannerLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchMacro();
-    const t = setInterval(fetchMacro, 10 * 60 * 1000);
-    return () => clearInterval(t);
-  }, [fetchMacro]);
+    fetchSetups();
+    const macroTimer = setInterval(fetchMacro, 10 * 60 * 1000);
+    const setupsTimer = setInterval(fetchSetups, 5 * 60 * 1000);
+    return () => { clearInterval(macroTimer); clearInterval(setupsTimer); };
+  }, [fetchMacro, fetchSetups]);
 
   const regime: Regime = (macro?.riskRegime as Regime) ?? 'neutral';
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const scanTimeLabel = scannedAt
+    ? new Date(scannedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : null;
 
   return (
     <Layout title="Morning Brief">
@@ -526,10 +478,12 @@ export default function MorningBriefPage() {
             {lastUpdated && (
               <span className="text-xs text-gray-400 dark:text-zinc-500">
                 Updated {lastUpdated} · Next scan {nextScan}
+                {scanTimeLabel && ` · Last AI scan ${scanTimeLabel}`}
+                {staleData && <span className="text-amber-500 dark:text-amber-400"> · Stale</span>}
               </span>
             )}
             <button
-              onClick={fetchMacro}
+              onClick={() => { fetchMacro(); fetchSetups(); }}
               className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs font-medium text-gray-600 dark:text-zinc-300 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
             >
               ↻ Refresh
@@ -541,7 +495,7 @@ export default function MorningBriefPage() {
         {macroLoading ? <MacroPulse macro={null} /> : <MacroPulse macro={macro} />}
 
         {/* Macro Events */}
-        <MacroEvents events={MOCK_EVENTS} />
+        <MacroEvents events={MACRO_EVENTS} />
 
         {/* Scanner section header */}
         <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
