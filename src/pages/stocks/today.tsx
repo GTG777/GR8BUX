@@ -157,7 +157,7 @@ function MacroEvents({ events }: { events: MacroEvent[] }) {
   return (
     <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider shrink-0">Today's Events</span>
+        <span className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider shrink-0">Today&apos;s Events</span>
         <div className="flex gap-2 flex-wrap">
           {events.map((e, i) => (
             <div key={i} title={e.description} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium cursor-help ${e.passed ? 'opacity-40 line-through' : ''} ${impactBadge(e.impact)}`}>
@@ -522,7 +522,7 @@ export default function MorningBriefPage() {
         {/* Scanner section header */}
         <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
           <div>
-            <h2 className="text-base font-bold text-gray-900 dark:text-white">Today's Best Setups</h2>
+            <h2 className="text-base font-bold text-gray-900 dark:text-white">Today&apos;s Best Setups</h2>
             <p className="text-xs text-gray-400 dark:text-zinc-500 mt-0.5">
               AI scanned S&P 500 stocks · ranked by confluence score · click any row to expand
             </p>
