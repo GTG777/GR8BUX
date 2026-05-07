@@ -748,36 +748,64 @@ export default function MorningBriefPage() {
         <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
           {/* Tabs */}
           <div className="flex items-center gap-1 bg-zinc-800/60 rounded-xl p-1 border border-zinc-700">
-            <button
-              onClick={() => setActiveTab('moving')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'moving'
-                  ? 'bg-zinc-900 text-white shadow border border-zinc-700'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              🚀 Moving Now
-              {setups.length > 0 && (
-                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'moving' ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-700 text-zinc-400'}`}>
-                  {setups.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('coiling')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'coiling'
-                  ? 'bg-zinc-900 text-white shadow border border-zinc-700'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              🎯 Setting Up
-              {preSetups.length > 0 && (
-                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'coiling' ? 'bg-violet-500/30 text-violet-300' : 'bg-zinc-700 text-zinc-400'}`}>
-                  {preSetups.length}
-                </span>
-              )}
-            </button>
+            {/* Moving Now tab */}
+            <div className="relative group">
+              <button
+                onClick={() => setActiveTab('moving')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  activeTab === 'moving'
+                    ? 'bg-zinc-900 text-white shadow border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                🚀 Moving Now
+                {setups.length > 0 && (
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'moving' ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-700 text-zinc-400'}`}>
+                    {setups.length}
+                  </span>
+                )}
+              </button>
+              <div className="pointer-events-none absolute left-0 top-full mt-2 z-50 w-72 rounded-xl bg-zinc-900 border border-zinc-700 shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                <p className="text-xs font-semibold text-white mb-1.5">🚀 How Moving Now works</p>
+                <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                  <li>Scans all ~490 S&amp;P 500 stocks every 15 minutes during market hours</li>
+                  <li>Scores each stock on: price momentum, volume spike vs 20-day average, RSI quality, and gap size</li>
+                  <li>Stocks up 8%+ automatically rank near the top regardless of RSI</li>
+                  <li>AI writes a one-sentence reason for each setup</li>
+                  <li>Shows the top 12 highest-scoring stocks already in motion</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Setting Up tab */}
+            <div className="relative group">
+              <button
+                onClick={() => setActiveTab('coiling')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  activeTab === 'coiling'
+                    ? 'bg-zinc-900 text-white shadow border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                🎯 Setting Up
+                {preSetups.length > 0 && (
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'coiling' ? 'bg-violet-500/30 text-violet-300' : 'bg-zinc-700 text-zinc-400'}`}>
+                    {preSetups.length}
+                  </span>
+                )}
+              </button>
+              <div className="pointer-events-none absolute left-0 top-full mt-2 z-50 w-72 rounded-xl bg-zinc-900 border border-zinc-700 shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                <p className="text-xs font-semibold text-white mb-1.5">🎯 How Setting Up works</p>
+                <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                  <li><span className="text-violet-300 font-medium">NR7 / NR5</span> — price range is the narrowest it&apos;s been in 7 (or 5) days, a classic coiling signal</li>
+                  <li><span className="text-sky-300 font-medium">ATR Squeeze</span> — short-term volatility has shrunk to 65% of its 20-day average, like a compressed spring</li>
+                  <li><span className="text-amber-300 font-medium">Vol Accumulation</span> — volume is running well above average while the price barely moves (quiet buying)</li>
+                  <li><span className="text-emerald-300 font-medium">Near 20d High</span> — price is within 1.5% of its recent peak, knocking at resistance</li>
+                  <li><span className="text-rose-300 font-medium">Gap &amp; Hold</span> — opened with a small gap and is holding the level (no fade)</li>
+                  <li>AI writes a one-sentence anticipation reason. Shows top 12 stocks most likely to move soon.</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
           {/* Context badge */}
