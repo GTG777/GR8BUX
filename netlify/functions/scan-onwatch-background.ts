@@ -335,11 +335,11 @@ const handler: Handler = async (event) => {
   for (let i = 0; i < universe.length; i += BATCH_SNAPSHOT) {
     const batch = universe.slice(i, i + BATCH_SNAPSHOT);
     try {
-      const res = await massiveGet<{ results?: MassiveSnapshot[] }>(
+      const res = await massiveGet<{ tickers?: MassiveSnapshot[] }>(
         `/v2/snapshot/locale/us/markets/stocks/tickers`,
         { tickers: batch.join(',') },
       );
-      snapshots.push(...(res.results ?? []));
+      snapshots.push(...(res.tickers ?? []));
     } catch (e) {
       console.error('[scan-onwatch] Snapshot batch error:', e);
     }
