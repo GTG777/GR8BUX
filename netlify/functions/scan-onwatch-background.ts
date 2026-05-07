@@ -27,7 +27,7 @@ import Anthropic from '@anthropic-ai/sdk';
 const MASSIVE_BASE    = 'https://api.massive.com';
 const BATCH_SNAPSHOT  = 200;
 const BATCH_BARS      = 8;
-const TIER1_COUNT     = 60;   // candidates after merge
+const TIER1_COUNT     = 80;   // candidates after merge (S&P 500 earners sorted first)
 const TIER2_COUNT     = 15;   // after scoring
 const FINAL_COUNT     = 12;   // written to DB
 const BARS_LOOKBACK   = 30;
@@ -421,7 +421,18 @@ const handler: Handler = async (event) => {
     });
   }
 
-  // Limit to TIER1_COUNT, earnings first
+  // Sort: S&P 500 members first (guaranteed Massive bar data), then by signal priority
+  const sp500Set = new Set(SP500_UNIVERSE);
+  candidates.sort((a, b) => {
+    const aKnown = sp500Set.has(a.symbol) ? 0 : 1;
+    const bKnown = sp500Set.has(b.symbol) ? 0 : 1;
+    if (aKnown !== bKnown) return aKnown - bKnown;
+    // Within same group: earnings_today first, then earnings_tomorrow, then vol_surge
+    const priority = (sig: string) => sig === 'earnings_today' ? 0 : sig === 'earnings_tomorrow' ? 1 : 2;
+    return priority(a.signalType) - priority(b.signalType);
+  });
+
+  // Limit to TIER1_COUNT, S&P 500 earners first
   const tier1 = candidates.slice(0, TIER1_COUNT);
   console.log(`[scan-onwatch] Tier 1 candidates: ${tier1.length} (${earnings.length} earnings + ${tier1.length - Math.min(earnings.length, TIER1_COUNT)} vol surge)`);
 
