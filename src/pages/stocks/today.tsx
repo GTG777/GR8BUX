@@ -709,14 +709,14 @@ export default function MorningBriefPage() {
     : null;
 
   return (
-    <Layout title="Morning Brief">
+    <Layout title="Daily Brief">
       <div className="space-y-4 max-w-6xl mx-auto">
 
         {/* Header */}
         <div className="flex items-start justify-between flex-wrap gap-2">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              ☀️ Morning Brief
+              ☀️ Daily Brief
             </h1>
             <p className="text-sm text-gray-400 dark:text-zinc-500 mt-0.5">{today} · {countdown}</p>
           </div>
