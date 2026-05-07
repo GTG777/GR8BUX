@@ -327,8 +327,9 @@ const handler: Handler = async (event) => {
 
   console.log(`[scan-onwatch] Earnings today/tomorrow: ${earnings.length} symbols`);
 
-  // ── TIER 1b: Snapshot all S&P 500 to find vol surges ───────────────────
-  const universe = [...new Set(SP500_UNIVERSE)];
+  // ── TIER 1b: Snapshot all S&P 500 + earnings tickers to find vol surges ─
+  const earningsSymbols = earnings.map(e => e.symbol);
+  const universe = [...new Set([...SP500_UNIVERSE, ...earningsSymbols])];
   const snapshots: MassiveSnapshot[] = [];
 
   for (let i = 0; i < universe.length; i += BATCH_SNAPSHOT) {
@@ -363,7 +364,7 @@ const handler: Handler = async (event) => {
     if (price < 5) continue; // skip penny stocks
 
     const changePct = snap?.todaysChangePerc ?? 0;
-    const volume    = snap?.day?.v ?? 0;
+    const volume    = snap?.day?.v ?? snap?.prevDay?.v ?? 0;
     const gapPct    = snap?.prevDay?.c && snap?.day?.o
       ? ((snap.day.o - snap.prevDay.c) / snap.prevDay.c) * 100
       : 0;
@@ -402,7 +403,7 @@ const handler: Handler = async (event) => {
     if (price < 10) continue;
 
     const changePct = snap?.todaysChangePerc ?? 0;
-    const volume    = snap?.day?.v ?? 0;
+    const volume    = snap?.day?.v ?? snap?.prevDay?.v ?? 0;
     const gapPct    = snap?.prevDay?.c && snap?.day?.o
       ? ((snap.day.o - snap.prevDay.c) / snap.prevDay.c) * 100
       : 0;
