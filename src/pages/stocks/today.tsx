@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { Layout } from '@/components/Layout';
 import type { MacroData } from '@/pages/api/market/macro';
 import type { PreBreakoutRow } from '@/pages/api/market/prebreakout';
+import type { OnWatchRow } from '@/pages/api/market/onwatch';
 
 /* ── Types ─────────────────────────────────────────────────────── */
 type SetupType = 'Breakout' | 'Pullback' | 'Earnings Play' | 'VWAP Reclaim' | 'Gap + Hold';
 type CatalystType = 'Earnings Today' | 'Earnings AMC' | 'Analyst Upgrade' | 'Volume Spike' | 'Technical';
 type Regime = 'risk-on' | 'risk-off' | 'neutral';
-type ActiveTab = 'moving' | 'coiling';
+type ActiveTab = 'moving' | 'coiling' | 'onwatch';
 
 interface Setup {
   rank: number;
@@ -560,6 +561,181 @@ function RegimeBanner({ regime, count }: { regime: Regime; count: number }) {
   );
 }
 
+/* ── On Watch signal badge ───────────────────────────────────────── */
+const SIGNAL_TYPE_STYLES: Record<string, { label: string; cls: string }> = {
+  earnings_today:      { label: 'Earnings Today',  cls: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse' },
+  earnings_vol_combo:  { label: 'Earnings + Vol ↑', cls: 'bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse' },
+  earnings_tomorrow:   { label: 'Earnings Tomorrow', cls: 'bg-orange-500/20 text-orange-300 border border-orange-500/30' },
+  vol_surge:           { label: 'Vol Surge',        cls: 'bg-blue-500/20 text-blue-300 border border-blue-500/30' },
+};
+
+function SignalTypeBadge({ signalType }: { signalType: string }) {
+  const s = SIGNAL_TYPE_STYLES[signalType] ?? { label: signalType, cls: 'bg-zinc-800 text-zinc-400 border border-zinc-700' };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${s.cls}`}>{s.label}</span>
+  );
+}
+
+function OnWatchDetail({ setup }: { setup: OnWatchRow }) {
+  return (
+    <div className="p-4 space-y-3">
+      {setup.reason && (
+        <p className="text-sm text-zinc-300 italic border-l-2 border-amber-500/50 pl-3">&ldquo;{setup.reason}&rdquo;</p>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="space-y-0.5">
+          <p className="text-zinc-500">Entry</p>
+          <p className="text-zinc-200 font-mono font-semibold">${setup.entry.toFixed(2)}</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-zinc-500">Stop</p>
+          <p className="text-red-400 font-mono font-semibold">${setup.stop.toFixed(2)}</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-zinc-500">Target</p>
+          <p className="text-emerald-400 font-mono font-semibold">${setup.target.toFixed(2)}</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-zinc-500">R:R</p>
+          <p className="text-zinc-200 font-mono font-semibold">{setup.rr}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="space-y-0.5">
+          <p className="text-zinc-500">Vol Ratio</p>
+          <p className={`font-mono font-semibold ${setup.volRatio >= 3 ? 'text-red-300' : setup.volRatio >= 2 ? 'text-amber-300' : 'text-zinc-300'}`}>{setup.volRatio.toFixed(1)}x</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-zinc-500">RSI</p>
+          <p className="text-zinc-300 font-mono font-semibold">{setup.rsi.toFixed(0)}</p>
+        </div>
+        {setup.epsBeatStreak != null && (
+          <div className="space-y-0.5">
+            <p className="text-zinc-500">EPS Beat Streak</p>
+            <p className="text-emerald-300 font-mono font-semibold">{setup.epsBeatStreak}Q</p>
+          </div>
+        )}
+        {setup.hv20 != null && (
+          <div className="space-y-0.5">
+            <p className="text-zinc-500">HV20</p>
+            <p className="text-zinc-300 font-mono font-semibold">{setup.hv20.toFixed(0)}%</p>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2 pt-1">
+        <a
+          href={`/stocks?symbol=${setup.symbol}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+        >
+          View Chart ↗
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function OnWatchTable({ setups, loading }: { setups: OnWatchRow[]; loading: boolean }) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-gray-200 dark:border-zinc-800 overflow-hidden">
+        {[1,2,3,4,5].map(i => (
+          <div key={i} className="p-4 border-b border-gray-100 dark:border-zinc-800 animate-pulse flex gap-4">
+            <div className="h-4 w-6 bg-gray-200 dark:bg-zinc-700 rounded" />
+            <div className="h-4 w-16 bg-gray-200 dark:bg-zinc-700 rounded" />
+            <div className="h-4 w-32 bg-gray-100 dark:bg-zinc-800 rounded" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (setups.length === 0) {
+    return (
+      <div className="rounded-xl border border-zinc-800 p-8 text-center text-zinc-500 text-sm">
+        No on-watch setups yet — scanner runs every 15 min during market hours.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-200 dark:border-zinc-800 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/60 text-xs text-gray-500 dark:text-zinc-500 uppercase tracking-wide">
+            <th className="px-4 py-3 text-left w-8">#</th>
+            <th className="px-4 py-3 text-left">Symbol</th>
+            <th className="px-4 py-3 text-left">Signal</th>
+            <th className="px-4 py-3 text-left hidden sm:table-cell">Setup</th>
+            <th className="px-4 py-3 text-right">Price</th>
+            <th className="px-4 py-3 text-right hidden md:table-cell">Vol Ratio</th>
+            <th className="px-4 py-3 text-right hidden lg:table-cell">RSI</th>
+            <th className="px-4 py-3 text-right hidden lg:table-cell">Target</th>
+            <th className="px-4 py-3 text-right">Score</th>
+            <th className="px-4 py-3 w-8" />
+          </tr>
+        </thead>
+        <tbody>
+          {setups.map(s => (
+            <React.Fragment key={s.rank}>
+              <tr
+                onClick={() => setExpanded(expanded === s.rank ? null : s.rank)}
+                className="border-b border-gray-100 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors"
+              >
+                <td className="px-4 py-3 text-gray-400 dark:text-zinc-600 font-mono text-xs">{s.rank}</td>
+                <td className="px-4 py-3">
+                  <div className="font-bold text-gray-900 dark:text-white">{s.symbol}</div>
+                  <div className="text-xs text-gray-500 dark:text-zinc-500 truncate max-w-[120px]">{s.company}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <SignalTypeBadge signalType={s.signalType} />
+                  {s.reportDate && (
+                    <div className="text-[10px] text-zinc-500 mt-0.5">{s.reportDate}</div>
+                  )}
+                </td>
+                <td className="px-4 py-3 hidden sm:table-cell">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">{s.setupType}</span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="font-mono font-semibold text-gray-900 dark:text-white">${s.price.toFixed(2)}</div>
+                  <div className={`text-xs font-mono ${changeColor(s.changePct)}`}>
+                    {s.changePct >= 0 ? '+' : ''}{s.changePct.toFixed(2)}%
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right hidden md:table-cell">
+                  <span className={`font-mono font-semibold ${s.volRatio >= 3 ? 'text-red-400' : s.volRatio >= 2 ? 'text-amber-400' : 'text-zinc-300'}`}>
+                    {s.volRatio.toFixed(1)}x
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right hidden lg:table-cell font-mono text-zinc-300">{s.rsi.toFixed(0)}</td>
+                <td className="px-4 py-3 text-right hidden lg:table-cell font-mono text-emerald-400">${s.target.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right">
+                  <span className={scoreColor(s.score)}>{s.score}</span>
+                </td>
+                <td className="px-4 py-3 text-gray-400 dark:text-zinc-600">
+                  <svg className={`w-4 h-4 transition-transform ${expanded === s.rank ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </td>
+              </tr>
+              {expanded === s.rank && (
+                <tr className="bg-gray-50 dark:bg-zinc-800/60">
+                  <td colSpan={10} className="p-0 border-b border-gray-200 dark:border-zinc-700">
+                    <OnWatchDetail setup={s} />
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /* ── Countdown to market open/close ────────────────────────────── */
 function useMarketCountdown() {
   const [label, setLabel] = useState('');
@@ -608,6 +784,11 @@ export default function MorningBriefPage() {
   const [preLoading, setPreLoading] = useState(true);
   const [preScannedAt, setPreScannedAt] = useState<string | null>(null);
 
+  // On Watch (earnings + vol surge scanner)
+  const [onWatchSetups, setOnWatchSetups] = useState<OnWatchRow[]>([]);
+  const [onWatchLoading, setOnWatchLoading] = useState(true);
+  const [onWatchScannedAt, setOnWatchScannedAt] = useState<string | null>(null);
+
   const countdown = useMarketCountdown();
 
   const fetchMacro = useCallback(async () => {
@@ -651,6 +832,20 @@ export default function MorningBriefPage() {
     }
   }, []);
 
+  const fetchOnWatch = useCallback(async () => {
+    setOnWatchLoading(true);
+    try {
+      const res = await fetch('/api/market/onwatch');
+      if (res.ok) {
+        const data = await res.json() as { setups: OnWatchRow[]; scannedAt: string | null; stale: boolean };
+        setOnWatchSetups(data.setups);
+        setOnWatchScannedAt(data.scannedAt);
+      }
+    } finally {
+      setOnWatchLoading(false);
+    }
+  }, []);
+
   // Returns ms until the next :00/:15/:30/:45 ET boundary (scanner cron schedule)
   function msUntilNextScanBoundary(): number {
     const etOffset = -4 * 60; // EDT (UTC-4); adjust to -5 in winter if needed
@@ -671,6 +866,7 @@ export default function MorningBriefPage() {
     fetchMacro();
     fetchSetups();
     fetchPreSetups();
+    fetchOnWatch();
     setNextScan(nextScanLabel());
 
     const macroTimer = setInterval(fetchMacro, 10 * 60 * 1000);
@@ -680,10 +876,12 @@ export default function MorningBriefPage() {
     const boundaryTimer = setTimeout(() => {
       fetchSetups();
       fetchPreSetups();
+      fetchOnWatch();
       setNextScan(nextScanLabel());
       repeatTimer = setInterval(() => {
         fetchSetups();
         fetchPreSetups();
+        fetchOnWatch();
         setNextScan(nextScanLabel());
       }, 15 * 60 * 1000);
     }, msToNext + 30_000);
@@ -707,6 +905,9 @@ export default function MorningBriefPage() {
   const preTimeLabel = preScannedAt
     ? new Date(preScannedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     : null;
+  const onWatchTimeLabel = onWatchScannedAt
+    ? new Date(onWatchScannedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : null;
 
   return (
     <Layout title="Daily Brief">
@@ -724,13 +925,14 @@ export default function MorningBriefPage() {
             {lastUpdated && (
               <span className="text-xs text-gray-400 dark:text-zinc-500">
                 Updated {lastUpdated} · Next scan {nextScan}
-                {activeTab === 'moving' && scanTimeLabel && ` · Last AI scan ${scanTimeLabel}`}
-                {activeTab === 'coiling' && preTimeLabel && ` · Last AI scan ${preTimeLabel}`}
+                {activeTab === 'moving'  && scanTimeLabel    && ` · Last AI scan ${scanTimeLabel}`}
+                {activeTab === 'coiling' && preTimeLabel     && ` · Last AI scan ${preTimeLabel}`}
+                {activeTab === 'onwatch' && onWatchTimeLabel && ` · Last AI scan ${onWatchTimeLabel}`}
                 {activeTab === 'moving' && staleData && <span className="text-amber-500 dark:text-amber-400"> · Stale</span>}
               </span>
             )}
             <button
-              onClick={() => { fetchMacro(); fetchSetups(); fetchPreSetups(); setNextScan(nextScanLabel()); }}
+              onClick={() => { fetchMacro(); fetchSetups(); fetchPreSetups(); fetchOnWatch(); setNextScan(nextScanLabel()); }}
               className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs font-medium text-gray-600 dark:text-zinc-300 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
             >
               ↻ Refresh
@@ -806,15 +1008,51 @@ export default function MorningBriefPage() {
                 </ul>
               </div>
             </div>
+
+            {/* On Watch tab */}
+            <div className="relative group">
+              <button
+                onClick={() => setActiveTab('onwatch')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  activeTab === 'onwatch'
+                    ? 'bg-zinc-900 text-white shadow border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                📡 On Watch
+                {onWatchSetups.length > 0 && (
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'onwatch' ? 'bg-amber-500/30 text-amber-300' : 'bg-zinc-700 text-zinc-400'}`}>
+                    {onWatchSetups.length}
+                  </span>
+                )}
+              </button>
+              <div className="pointer-events-none absolute left-0 top-full mt-2 z-50 w-72 rounded-xl bg-zinc-900 border border-zinc-700 shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                <p className="text-xs font-semibold text-white mb-1.5">📡 How On Watch works</p>
+                <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                  <li><span className="text-amber-300 font-medium">Earnings Today</span> — reports today; stock may move 5-20%+ after the print</li>
+                  <li><span className="text-orange-300 font-medium">Earnings Tomorrow</span> — reports tomorrow; setup into the catalyst</li>
+                  <li><span className="text-blue-300 font-medium">Vol Surge</span> — running 3x+ normal volume with little price movement — often signals smart money positioning</li>
+                  <li><span className="text-red-300 font-medium">Earnings + Vol Surge</span> — both signals together; highest conviction combination</li>
+                  <li>Bonus points for stocks with a history of beating EPS estimates. AI writes a catalyst-aware reason for each.</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
           {/* Context badge */}
           {activeTab === 'moving'
             ? <RegimeBanner regime={regime} count={setups.length} />
-            : (
+            : activeTab === 'coiling'
+            ? (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/30 text-violet-300 text-xs font-medium">
                 <span>🎯</span>
                 <span>Anticipation scanner — {preSetups.length} stock{preSetups.length !== 1 ? 's' : ''} coiling before a potential move</span>
+              </div>
+            )
+            : (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium">
+                <span>📡</span>
+                <span>Earnings &amp; vol surge scanner — {onWatchSetups.length} stock{onWatchSetups.length !== 1 ? 's' : ''} with catalysts or unusual activity</span>
               </div>
             )
           }
@@ -825,16 +1063,22 @@ export default function MorningBriefPage() {
           <p className="text-xs text-zinc-500 -mt-2">
             AI scanned S&P 500 · ranked by momentum + volume confluence · already in motion
           </p>
-        ) : (
+        ) : activeTab === 'coiling' ? (
           <p className="text-xs text-zinc-500 -mt-2">
             NR7 · ATR squeeze · volume accumulation · near 20d high — stocks coiling <strong className="text-zinc-300">before</strong> the move happens
+          </p>
+        ) : (
+          <p className="text-xs text-zinc-500 -mt-2">
+            Earnings today/tomorrow + unusual volume surges — stocks with known catalysts or smart-money activity
           </p>
         )}
 
         {/* Scanner tables */}
         {activeTab === 'moving'
           ? <ScannerTable setups={setups} loading={scannerLoading} />
-          : <PreBreakoutTable setups={preSetups} loading={preLoading} />
+          : activeTab === 'coiling'
+          ? <PreBreakoutTable setups={preSetups} loading={preLoading} />
+          : <OnWatchTable setups={onWatchSetups} loading={onWatchLoading} />
         }
 
         {/* Footer note */}
