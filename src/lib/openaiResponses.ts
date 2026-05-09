@@ -19,7 +19,7 @@ interface GenerateTextOptions {
   temperature?: number;
 }
 
-const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1';
+const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
 const DEFAULT_OPENAI_FAST_MODEL = process.env.OPENAI_FAST_MODEL || DEFAULT_OPENAI_MODEL;
 
 let client: OpenAI | null = null;
@@ -52,6 +52,7 @@ function getModelPricing(model: string): { input: number; output: number } | nul
   if (normalized.startsWith('gpt-5-codex')) return { input: 1.25, output: 10 };
   if (normalized.startsWith('gpt-5-mini')) return { input: 0.25, output: 2 };
   if (normalized.startsWith('gpt-5')) return { input: 1.25, output: 10 };
+  if (normalized.startsWith('gpt-4.1-nano')) return { input: 0.1, output: 0.4 };
   if (normalized.startsWith('gpt-4.1-mini')) return { input: 0.4, output: 1.6 };
   if (normalized.startsWith('gpt-4.1')) return { input: 2, output: 8 };
   if (normalized.startsWith('codex-mini-latest')) return { input: 1.5, output: 6 };
