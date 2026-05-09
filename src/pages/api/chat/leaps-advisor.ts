@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase';
+import { generateJson, generateText, getDefaultOpenAIFastModel } from '@/lib/openaiResponses';
 
 export interface ChatIntent {
   goalAmount: number;
@@ -77,12 +77,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Message required' });
   }
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!anthropicKey) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (!openAiKey) {
+    return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
   }
-
-  const anthropic = new Anthropic({ apiKey: anthropicKey });
 
   // ── 1. Parse user intent ─────────────────────────────────────────────────
   let intent: ChatIntent = {
@@ -95,21 +93,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   try {
-    const intentRes = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 256,
+    const intentRes = await generateJson<Partial<ChatIntent>>({
+      model: getDefaultOpenAIFastModel(),
+      maxOutputTokens: 256,
       temperature: 0,
-      system: `Parse trading intent. Return ONLY valid JSON:
+      instructions: `Parse trading intent. Return ONLY valid JSON:
 {"goalAmount":number,"timeframe":"today"|"week"|"month"|"year","riskLevel":"low"|"moderate"|"aggressive","sectors":string[]|null,"strategy":"long_calls"|"pmcc"|"spread","summary":string}
 Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null, strategy="long_calls".
 "summary" is a 1-sentence plain English rephrase of the goal.`,
       messages: [{ role: 'user', content: message }],
     });
-    const raw =
-      intentRes.content[0].type === 'text'
-        ? intentRes.content[0].text.replace(/```[a-z]*\n?|\n?```/g, '').trim()
-        : '{}';
-    intent = { ...intent, ...JSON.parse(raw) };
+    intent = { ...intent, ...intentRes.data };
   } catch {
     // keep defaults on parse failure
   }
@@ -282,11 +276,11 @@ Defaults: goalAmount=1000, timeframe="today", riskLevel="moderate", sectors=null
         `${c.rank}. ${c.symbol} (${c.name}): $${c.price.toFixed(0)} stock, $${c.strike} strike ${c.expiry} (${c.dte}d), δ${c.delta.toFixed(2)}, $${c.costPerContract.toLocaleString()}/contract, need ${c.contractsNeeded}x = $${c.totalCost.toLocaleString()} capital → ≈$${(c.gainAt3Pct * c.contractsNeeded).toLocaleString()} at 3% move, IVR:${c.ivRank.toFixed(0)} RSI:${c.rsi.toFixed(0)}, AI:${c.aiConsensus} (score ${c.aiScore})`
     );
 
-    const narrativeRes = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 450,
+    const narrativeRes = await generateText({
+      model: getDefaultOpenAIFastModel(),
+      maxOutputTokens: 450,
       temperature: 0.65,
-      system:
+      instructions:
         'You are a LEAPS options coach. Be direct, specific, and practical. No filler phrases. Use exact numbers. 3–5 sentences max.',
       messages: [
         ...(history.slice(-4) as any),
@@ -302,10 +296,7 @@ Write a brief analysis: which ticker to prioritize and why, realistic capital re
         },
       ],
     });
-    narrative =
-      narrativeRes.content[0].type === 'text'
-        ? narrativeRes.content[0].text
-        : '';
+    narrative = narrativeRes.text;
   } catch {
     const c = top[0];
     if (c) {

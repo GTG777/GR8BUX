@@ -166,7 +166,7 @@ export default function OptionsCoachPanel({ symbol, optionsContext, tradeContext
           <div className="flex items-center gap-2 mt-0.5">
             <p className="text-xs text-gray-400 dark:text-zinc-500">
               <span className="font-bold text-violet-600 dark:text-violet-400">{symbol}</span>
-              {' · '}Claude + live IV data
+              {' · '}OpenAI + live IV data
             </p>
             {optionsContext && <IVBadge ivr={optionsContext.ivr} />}
           </div>

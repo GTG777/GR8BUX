@@ -3,7 +3,7 @@
  *
  * Stock Analysis Coach — context-stuffing (no RAG).
  * Receives live indicator data + detected setups for the current symbol,
- * then uses Claude to give actionable, data-grounded analysis.
+ * then uses OpenAI to give actionable, data-grounded analysis.
  *
  * Body:
  *   {
@@ -19,10 +19,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/apiAuth';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' });
+import { generateText, getDefaultOpenAIModel, type ChatMessage } from '@/lib/openaiResponses';
 
 /* ── Types (mirrors stocks page) ─────────────────────────────────── */
 interface StockIndicators {
@@ -162,7 +160,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   try {
     const systemPrompt = buildSystemPrompt(symbol, indicators, setups ?? []);
 
-    const messages: Anthropic.MessageParam[] = [
+    const messages: ChatMessage[] = [
       ...safeHistory.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -170,26 +168,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       { role: 'user', content: query.trim() },
     ];
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 600,
-      system: systemPrompt,
+    const response = await generateText({
+      model: getDefaultOpenAIModel(),
+      maxOutputTokens: 600,
+      instructions: systemPrompt,
       messages,
     });
 
-    const reply = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('');
-
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    const estimatedCostUsd = (inputTokens / 1_000_000) * 3 + (outputTokens / 1_000_000) * 15;
-
     return res.status(200).json({
       success: true,
-      reply,
-      usage: { inputTokens, outputTokens, estimatedCostUsd },
+      reply: response.text,
+      usage: response.usage,
     });
   } catch (err) {
     console.error('Stock coach error:', err);

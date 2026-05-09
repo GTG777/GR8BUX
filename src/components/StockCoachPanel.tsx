@@ -179,7 +179,7 @@ export default function StockCoachPanel({ symbol, indicators, setups }: StockCoa
           <p className="text-sm font-semibold text-gray-900 dark:text-white">Stock Coach</p>
           <p className="text-xs text-gray-400 dark:text-zinc-500">
             Analysis for <span className="font-bold text-indigo-600 dark:text-indigo-400">{symbol}</span>
-            {' · '}Claude + live indicators
+            {' · '}OpenAI + live indicators
           </p>
         </div>
         {messages.length > 0 && (

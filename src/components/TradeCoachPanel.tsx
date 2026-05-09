@@ -4,7 +4,7 @@
  * TradeCoachPanel
  *
  * RAG-powered conversational trading coach.
- * Retrieves semantically similar past trades and uses Claude to deliver
+ * Retrieves semantically similar past trades and uses OpenAI to deliver
  * personalized, evidence-based coaching grounded in the user's own history.
  *
  * Props:
@@ -291,7 +291,7 @@ export function TradeCoachPanel({ currentTrade, className = '' }: TradeCoachPane
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">Trade Coach</p>
-          <p className="text-xs text-muted-foreground">Powered by RAG + Claude — grounded in your own trade history</p>
+          <p className="text-xs text-muted-foreground">Powered by RAG + OpenAI — grounded in your own trade history</p>
         </div>
         {messages.length > 0 && (
           <button

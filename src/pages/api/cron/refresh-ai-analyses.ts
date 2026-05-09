@@ -12,6 +12,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { getAIOrchestrator, resetOrchestratorInstance, FullSetupData } from '@/lib/agents/orchestrator';
+import { getDefaultOpenAIModel } from '@/lib/openaiResponses';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 // How old (minutes) an ai_analysis can be before we re-run it
@@ -112,7 +113,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         symbol: row.symbol,
         setup_type: 'LEAPS_CANDIDATE',
         result: analysis,
-        model: 'claude-sonnet-4-5',
+        model: getDefaultOpenAIModel(),
         agents_ran: agents,
         consensus: analysis.consensusRecommendation.action,
         confidence: analysis.consensusRecommendation.confidence,
@@ -126,7 +127,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       results.push({ symbol: row.symbol, status: 'error', error: err.message });
     }
 
-    // Delay between symbols to avoid rate-limiting Claude
+    // Delay between symbols to avoid rate limiting the LLM provider
     await new Promise((r) => setTimeout(r, 1000));
   }
 

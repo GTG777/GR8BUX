@@ -5,6 +5,7 @@
 
 import { Agent, AgentConfig } from './baseAgent';
 import { GreeksAnalysis } from '@/types/agents';
+import { getDefaultOpenAIModel } from '@/lib/openaiResponses';
 
 export interface GreeksSetupData {
   symbol: string;
@@ -23,7 +24,7 @@ export interface GreeksSetupData {
 
 export class GreeksCoach extends Agent {
   constructor(config: AgentConfig = {}) {
-    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
+    super({ model: getDefaultOpenAIModel(), maxTokens: 1500, ...config });
   }
 
   async analyzeGreeks(setup: GreeksSetupData): Promise<GreeksAnalysis> {

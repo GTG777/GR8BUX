@@ -3,7 +3,7 @@
  *
  * RAG-powered personal trading coach.
  * Retrieves semantically similar past trades via pgvector,
- * then uses Claude to give personalized, evidence-based coaching.
+ * then uses OpenAI to give personalized, evidence-based coaching.
  *
  * Body:
  *   { query, currentTrade?, history? }

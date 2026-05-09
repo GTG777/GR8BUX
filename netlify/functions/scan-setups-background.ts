@@ -10,7 +10,7 @@
  *            Compute: RSI-14, 20d avg volume, gap%, VWAP proxy
  *            Score 0-100 with rule-based formula
  *            Keep top 12 by score
- *  Tier 3 — Single Claude call to generate concise 'reason' text for each setup
+ *  Tier 3 — Single OpenAI call to generate concise 'reason' text for each setup
  *            Write final batch to Supabase morning_setups table
  *
  * Triggered by:
@@ -20,7 +20,7 @@
 
 import type { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
+import { extractJsonString, generateText, getDefaultOpenAIModel } from '../../src/lib/openaiResponses';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 const MASSIVE_BASE     = 'https://api.massive.com';
@@ -264,8 +264,6 @@ async function generateReasons(setups: ScoredSetup[]): Promise<Map<string, strin
   const reasons = new Map<string, string>();
   if (setups.length === 0) return reasons;
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   const setupSummaries = setups.map(s =>
     `${s.symbol}: ${s.setupType}, RSI ${s.rsi}, +${s.changePct.toFixed(1)}% today, ` +
     `${s.rsi >= 55 ? 'momentum zone' : 'pullback zone'}, vol ${(s.volume / s.avgVolume20d).toFixed(1)}x avg, ` +
@@ -278,23 +276,18 @@ Setups:
 ${setupSummaries}`;
 
   try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 600,
+    const response = await generateText({
+      model: getDefaultOpenAIModel(),
+      maxOutputTokens: 600,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const text = msg.content.find(c => c.type === 'text')?.text ?? '{}';
-    // Extract JSON from response (Claude sometimes wraps in ```json blocks)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as Record<string, string>;
-      for (const [sym, reason] of Object.entries(parsed)) {
-        reasons.set(sym.toUpperCase(), reason);
-      }
+    const parsed = JSON.parse(extractJsonString(response.text)) as Record<string, string>;
+    for (const [sym, reason] of Object.entries(parsed)) {
+      reasons.set(sym.toUpperCase(), reason);
     }
   } catch (err) {
-    console.error('[scan-setups] Claude reason generation failed:', err instanceof Error ? err.message : err);
+    console.error('[scan-setups] OpenAI reason generation failed:', err instanceof Error ? err.message : err);
     // Fall back to template reasons
   }
 

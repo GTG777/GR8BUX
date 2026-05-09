@@ -5,6 +5,7 @@
 
 import { Agent, AgentConfig } from './baseAgent';
 import { RiskAssessment } from '@/types/agents';
+import { getDefaultOpenAIModel } from '@/lib/openaiResponses';
 
 export interface RiskData {
   symbol: string;
@@ -28,7 +29,7 @@ export interface RiskData {
 
 export class RiskManager extends Agent {
   constructor(config: AgentConfig = {}) {
-    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
+    super({ model: getDefaultOpenAIModel(), maxTokens: 1500, ...config });
   }
 
   async assessRisk(data: RiskData): Promise<RiskAssessment> {

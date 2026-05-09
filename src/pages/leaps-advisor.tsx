@@ -324,7 +324,7 @@ const WELCOME: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "Hi! I'm your LEAPS Coach — powered by Claude AI + live Massive.com market data. Tell me your profit goal and I'll scan all 18 LEAPS candidates, run a multi-agent AI analysis, and show you the best setups ranked by probability of success with exact position sizing.\n\nTry: *\"Make $1,000 today\"* or *\"Low-risk LEAPS for $10k capital\"*.",
+    "Hi! I'm your LEAPS Coach — powered by OpenAI + live Massive.com market data. Tell me your profit goal and I'll scan all 18 LEAPS candidates, run a multi-agent AI analysis, and show you the best setups ranked by probability of success with exact position sizing.\n\nTry: *\"Make $1,000 today\"* or *\"Low-risk LEAPS for $10k capital\"*.",
   timestamp: new Date(),
 };
 
@@ -433,7 +433,7 @@ export default function LeapsCoachPage() {
           <div>
             <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">LEAPS Coach</h1>
             <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
-              AI-powered scanner · 18 tickers · Claude + live Massive.com data
+              AI-powered scanner · 18 tickers · OpenAI + live Massive.com data
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-500">

@@ -21,7 +21,7 @@
  *            Penalty: already moved >5% today (-20 pts each tier)
  *            Keep top 15 by score
  *
- *  Tier 3 — Single Claude call generates 1-sentence reason per setup
+ *  Tier 3 — Single OpenAI call generates 1-sentence reason per setup
  *            Write final top 12 to Supabase pre_breakout_setups table
  *
  * Triggered by:
@@ -31,7 +31,7 @@
 
 import type { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
+import { extractJsonString, generateText, getDefaultOpenAIModel } from '../../src/lib/openaiResponses';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const MASSIVE_BASE   = 'https://api.massive.com';
@@ -285,8 +285,6 @@ async function generateReasons(setups: ScoredSetup[]): Promise<Map<string, strin
   const reasons = new Map<string, string>();
   if (setups.length === 0) return reasons;
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   const summaries = setups.map(s =>
     `${s.symbol}: ${s.setupType}, RSI ${s.rsi}, ${s.changePct >= 0 ? '+' : ''}${s.changePct.toFixed(1)}% today, ` +
     `signals: [${s.signals.join(', ')}], ATR ratio ${s.atrRatio.toFixed(2)}, ` +
@@ -299,19 +297,16 @@ Setups:
 ${summaries}`;
 
   try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 600,
+    const response = await generateText({
+      model: getDefaultOpenAIModel(),
+      maxOutputTokens: 600,
       messages: [{ role: 'user', content: prompt }],
     });
-    const text = msg.content.find(c => c.type === 'text')?.text ?? '{}';
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]) as Record<string, string>;
-      for (const [sym, reason] of Object.entries(parsed)) reasons.set(sym.toUpperCase(), reason);
-    }
+
+    const parsed = JSON.parse(extractJsonString(response.text)) as Record<string, string>;
+    for (const [sym, reason] of Object.entries(parsed)) reasons.set(sym.toUpperCase(), reason);
   } catch (err) {
-    console.error('[scan-prebreakout] Claude failed:', err instanceof Error ? err.message : err);
+    console.error('[scan-prebreakout] OpenAI failed:', err instanceof Error ? err.message : err);
   }
   return reasons;
 }

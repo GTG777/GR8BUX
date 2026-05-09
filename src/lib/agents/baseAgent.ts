@@ -1,27 +1,23 @@
 /**
  * Base Agent Class
- * Handles LLM communication via Anthropic Claude
+ * Handles LLM communication via OpenAI
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, getDefaultOpenAIModel } from '@/lib/openaiResponses';
 
 export interface AgentConfig {
-  model?: 'claude-opus-4-1' | 'claude-sonnet-4-5' | 'claude-3-5-sonnet-20241022' | 'claude-3-5-haiku-20241022';
+  model?: string;
   maxTokens?: number;
   temperature?: number;
 }
 
 export class Agent {
-  protected client: Anthropic;
   protected model: string;
   protected maxTokens: number;
   protected temperature: number;
 
   constructor(config: AgentConfig = {}) {
-    this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-    this.model = config.model || 'claude-sonnet-4-5';
+    this.model = config.model || getDefaultOpenAIModel();
     this.maxTokens = config.maxTokens || 1500;
     this.temperature = config.temperature || 0.7;
   }
@@ -35,11 +31,11 @@ export class Agent {
     options: { maxTokens?: number; temperature?: number } = {}
   ): Promise<string> {
     try {
-      const response = await this.client.messages.create({
+      const response = await generateText({
         model: this.model,
-        max_tokens: options.maxTokens || this.maxTokens,
+        maxOutputTokens: options.maxTokens || this.maxTokens,
         temperature: options.temperature || this.temperature,
-        system: systemContext,
+        instructions: systemContext,
         messages: [
           {
             role: 'user',
@@ -48,11 +44,11 @@ export class Agent {
         ],
       });
 
-      if (response.content[0].type === 'text') {
-        return response.content[0].text;
+      if (response.text) {
+        return response.text;
       }
 
-      throw new Error('Unexpected response type from Claude');
+      throw new Error('OpenAI returned an empty response');
     } catch (error) {
       console.error('[Agent Query Error]', error);
       throw error;

@@ -29,7 +29,7 @@ export interface CoachPatterns {
 export interface CoachTokenUsage {
   inputTokens: number;
   outputTokens: number;
-  /** Estimated cost in USD based on claude-sonnet-4-5 pricing */
+  /** Estimated cost in USD based on the configured OpenAI model pricing */
   estimatedCostUsd: number;
 }
 

@@ -5,6 +5,7 @@
 
 import { Agent, AgentConfig } from './baseAgent';
 import { TradeStrategy, TechnicalAnalysis, GreeksAnalysis, RiskAssessment, SentimentAnalysis } from '@/types/agents';
+import { getDefaultOpenAIModel } from '@/lib/openaiResponses';
 
 export interface StrategyInput {
   symbol: string;
@@ -25,7 +26,7 @@ export interface StrategyInput {
 export class TradeStrategist extends Agent {
   constructor(config: AgentConfig = {}) {
     // Use haiku for fast structured JSON output
-    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
+    super({ model: getDefaultOpenAIModel(), maxTokens: 1500, ...config });
   }
 
   async buildStrategy(input: StrategyInput): Promise<TradeStrategy> {

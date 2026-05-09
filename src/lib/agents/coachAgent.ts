@@ -9,6 +9,7 @@
 
 import { Agent, AgentConfig } from './baseAgent';
 import { findSimilarTrades, SimilarTrade } from '@/lib/ragEmbeddings';
+import { generateText, getDefaultOpenAIModel } from '@/lib/openaiResponses';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ export interface CoachResponse {
 
 export class CoachAgent extends Agent {
   constructor(config: AgentConfig = {}) {
-    super({ model: 'claude-sonnet-4-5', maxTokens: 2000, temperature: 0.7, ...config });
+    super({ model: getDefaultOpenAIModel(), maxTokens: 2000, temperature: 0.7, ...config });
   }
 
   async coach(input: CoachInput): Promise<CoachResponse> {
@@ -343,21 +344,17 @@ Risk Warnings: ${patterns.riskWarnings.join('; ') || 'None'}`);
     systemPrompt: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<{ text: string; usage: CoachTokenUsage }> {
-    const response = await this.client.messages.create({
+    const response = await generateText({
       model: this.model,
-      max_tokens: this.maxTokens,
+      maxOutputTokens: this.maxTokens,
       temperature: this.temperature,
-      system: systemPrompt,
+      instructions: systemPrompt,
       messages,
     });
-    if (response.content[0].type !== 'text') throw new Error('Unexpected response type from Claude');
-    // claude-sonnet-4-5 pricing: $3/M input, $15/M output
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    const estimatedCostUsd = (inputTokens / 1_000_000) * 3 + (outputTokens / 1_000_000) * 15;
+
     return {
-      text: response.content[0].text,
-      usage: { inputTokens, outputTokens, estimatedCostUsd },
+      text: response.text,
+      usage: response.usage,
     };
   }
 

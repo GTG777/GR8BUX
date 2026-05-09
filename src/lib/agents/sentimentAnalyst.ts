@@ -5,6 +5,7 @@
 
 import { Agent, AgentConfig } from './baseAgent';
 import { SentimentAnalysis } from '@/types/agents';
+import { getDefaultOpenAIModel } from '@/lib/openaiResponses';
 
 export interface SentimentData {
   symbol: string;
@@ -33,7 +34,7 @@ export interface SentimentData {
 
 export class SentimentAnalyst extends Agent {
   constructor(config: AgentConfig = {}) {
-    super({ model: 'claude-sonnet-4-5', maxTokens: 1500, ...config });
+    super({ model: getDefaultOpenAIModel(), maxTokens: 1500, ...config });
   }
 
   async analyzeSentiment(data: SentimentData): Promise<SentimentAnalysis> {

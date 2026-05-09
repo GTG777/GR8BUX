@@ -15,13 +15,13 @@
  *            Score 0-100 with combined earnings + volume formula
  *            Keep top 15 with score ≥ 20
  *
- *  Tier 3 — Claude generates catalyst-aware 1-sentence reason for each
+ *  Tier 3 — OpenAI generates catalyst-aware 1-sentence reason for each
  *            Write top 12 to on_watch_setups table with new batch_id
  */
 
 import type { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
+import { extractJsonString, generateText, getDefaultOpenAIModel } from '../../src/lib/openaiResponses';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const MASSIVE_BASE    = 'https://api.massive.com';
@@ -301,14 +301,13 @@ const handler: Handler = async (event) => {
   const massiveKey = process.env.MASSIVE_API_KEY ?? '';
   const sbUrl      = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const sbKey      = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  const anthropicKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const openAiKey = process.env.OPENAI_API_KEY ?? '';
 
   if (!massiveKey || !sbUrl || !sbKey) {
     return { statusCode: 500, body: JSON.stringify({ error: 'Missing env vars' }) };
   }
 
   const supabase  = createClient(sbUrl, sbKey);
-  const anthropic = new Anthropic({ apiKey: anthropicKey });
   const start     = Date.now();
 
   // ── TIER 1a: Load today's + tomorrow's earnings from Supabase ───────────
@@ -544,8 +543,8 @@ const handler: Handler = async (event) => {
     return { statusCode: 200, body: JSON.stringify({ message: 'No qualifying setups', elapsed: Date.now() - start }) };
   }
 
-  // ── TIER 3: Claude reasons ───────────────────────────────────────────────
-  if (anthropicKey) {
+  // ── TIER 3: OpenAI reasons ───────────────────────────────────────────────
+  if (openAiKey) {
     try {
       const prompt = tier2.map(s => {
         const earningsPart = s.reportDate
@@ -563,20 +562,19 @@ const handler: Handler = async (event) => {
         return `${s.symbol} (${s.company}): ${s.signalType} — ${earningsPart}${volPart}, price $${s.price.toFixed(2)} (${s.changePct >= 0 ? '+' : ''}${s.changePct.toFixed(2)}%), RSI ${s.rsi}${enrichPart}${hv20Part}, vol ratio ${s.volRatio.toFixed(1)}x`;
       }).join('\n');
 
-      const msg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 1024,
+      const response = await generateText({
+        model: getDefaultOpenAIModel(),
+        maxOutputTokens: 1024,
         messages: [{
           role: 'user',
           content: `You are a concise trading analyst. For each stock below, write exactly ONE sentence explaining why it's "on watch" today — focus on the catalyst (earnings or unusual volume) and what the setup means for traders. Be specific, plain English, no jargon. Output ONLY a JSON array of strings in the same order, no other text.\n\n${prompt}`,
         }],
       });
 
-      const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '[]';
-      const reasons: string[] = JSON.parse(text.replace(/^```json?\n?/, '').replace(/\n?```$/, ''));
+      const reasons: string[] = JSON.parse(extractJsonString(response.text));
       reasons.forEach((r, i) => { if (tier2[i]) tier2[i].reason = r; });
     } catch (e) {
-      console.error('[scan-onwatch] Claude error:', e);
+      console.error('[scan-onwatch] OpenAI error:', e);
     }
   }
 

@@ -2,7 +2,7 @@
  * POST /api/chat/options-coach
  *
  * Options Coach — context-stuffing with live IV environment + optional trade context.
- * Uses Claude to give actionable options strategy advice.
+ * Uses OpenAI to give actionable options strategy advice.
  *
  * Body:
  *   {
@@ -18,10 +18,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/lib/apiAuth';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' });
+import { generateText, getDefaultOpenAIModel, type ChatMessage } from '@/lib/openaiResponses';
 
 /* ── Types ───────────────────────────────────────────────────────── */
 export interface OptionsContext {
@@ -149,31 +147,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   try {
     const systemPrompt = buildSystemPrompt(symbol, optionsContext, tradeContext ?? null);
 
-    const messages: Anthropic.MessageParam[] = [
+    const messages: ChatMessage[] = [
       ...safeHistory.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
       { role: 'user', content: query.trim() },
     ];
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 600,
-      system: systemPrompt,
+    const response = await generateText({
+      model: getDefaultOpenAIModel(),
+      maxOutputTokens: 600,
+      instructions: systemPrompt,
       messages,
     });
 
-    const reply = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('');
-
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    const estimatedCostUsd = (inputTokens / 1_000_000) * 3 + (outputTokens / 1_000_000) * 15;
-
     return res.status(200).json({
       success: true,
-      reply,
-      usage: { inputTokens, outputTokens, estimatedCostUsd },
+      reply: response.text,
+      usage: response.usage,
     });
   } catch (err) {
     console.error('Options coach error:', err);
