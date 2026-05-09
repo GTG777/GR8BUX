@@ -264,6 +264,24 @@ function formatMoney(value: number) {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
+function SectionTooltip({ label, description }: { label: string; description: string }) {
+  return (
+    <span className="group relative inline-flex items-center">
+      <button
+        type="button"
+        aria-label={`${label} info`}
+        className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-white font-mono text-[11px] font-semibold text-gray-500 transition-colors hover:border-indigo-400 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-indigo-400 dark:hover:text-indigo-300 dark:focus:ring-offset-zinc-900"
+      >
+        ?
+      </button>
+      <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-72 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-xl group-hover:block group-focus-within:block dark:border-zinc-700 dark:bg-zinc-950">
+        <span className="block font-mono text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">{label}</span>
+        <span className="mt-1 block text-xs leading-5 text-gray-600 dark:text-zinc-300">{description}</span>
+      </span>
+    </span>
+  );
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -667,7 +685,13 @@ export default function TradingGoalPage() {
       <Layout title="$1M Goal">
         <div className="space-y-8">
           <section className="flex flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-500">Trading / Mission Plan</p>
+            <p className="flex items-center text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-500">
+              Trading / Mission Plan
+              <SectionTooltip
+                label="missionPlan"
+                description="High-level goal context, live data status, goal pace, and the active risk budget for the page."
+              />
+            </p>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl space-y-2">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">$1M Goal Planner</h1>
@@ -714,7 +738,13 @@ export default function TradingGoalPage() {
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">Best Trade Right Now</p>
+                <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">
+                  Best Trade Right Now
+                  <SectionTooltip
+                    label="bestTrade"
+                    description="The top-ranked symbol after the algorithm compares trend, volume, catalyst, setup quality, risk, and options liquidity."
+                  />
+                </p>
                 <h2 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
                   {bestTrade ? `${bestTrade.symbol} ${bestTrade.instrument === 'option' ? 'calls' : 'stock'}` : 'No valid trade'}
                 </h2>
@@ -784,7 +814,13 @@ export default function TradingGoalPage() {
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">Algorithm Inputs</p>
+            <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">
+              Algorithm Inputs
+              <SectionTooltip
+                label="algorithmInputs"
+                description="Controls for account size, risk, capital allocation, time horizon, and daily-versus-swing ranking bias."
+              />
+            </p>
             <div className="mt-4 space-y-4">
               <label className="block">
                 <span className="text-sm font-medium text-gray-700 dark:text-zinc-200">Account size</span>
@@ -858,7 +894,13 @@ export default function TradingGoalPage() {
 
         <section className="rounded-xl border border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-gray-200 px-5 py-4 dark:border-zinc-800">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Ranked opportunities</h2>
+            <h2 className="flex items-center text-lg font-semibold text-gray-900 dark:text-white">
+              Ranked opportunities
+              <SectionTooltip
+                label="rankedOpportunities"
+                description="A sortable-style readout of candidates with instrument choice, trigger, stop, target, quantity, risk, profit goal, and score."
+              />
+            </h2>
             <p className="mt-1 text-sm text-gray-600 dark:text-zinc-300">
               The algorithm ranks each candidate on trend, momentum, catalyst quality, move potential, and trade structure.
             </p>
@@ -914,7 +956,13 @@ export default function TradingGoalPage() {
 
         <section className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">How it decides</p>
+            <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">
+              How it decides
+              <SectionTooltip
+                label="decisionLogic"
+                description="The rules that choose between stock and options, then size the trade from risk first and capital second."
+              />
+            </p>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-gray-600 dark:text-zinc-300">
               <li>Prefers options when move potential is high, implied volatility is not extreme, and the chain is liquid.</li>
               <li>Defaults to stock when the setup is clean but option pricing or liquidity is less attractive.</li>
@@ -922,7 +970,13 @@ export default function TradingGoalPage() {
             </ul>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">Daily review</p>
+            <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">
+              Daily review
+              <SectionTooltip
+                label="dailyReview"
+                description="The day-trading checklist for confirming breakouts, volume, fresh catalysts, and whether the setup is still chaseable."
+              />
+            </p>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-gray-600 dark:text-zinc-300">
               <li>Check for bullish breakouts, unusual volume, and earnings within the next 10 trading days.</li>
               <li>Only act when the trigger is live. If price never confirms, it is a pass.</li>
@@ -930,7 +984,13 @@ export default function TradingGoalPage() {
             </ul>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">Weekly review</p>
+            <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">
+              Weekly review
+              <SectionTooltip
+                label="weeklyReview"
+                description="The discipline loop for comparing planned trades with actual trades, then adjusting the watchlist based on what worked."
+              />
+            </p>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-gray-600 dark:text-zinc-300">
               <li>Compare planned trades versus executed trades and note where discipline slipped.</li>
               <li>Promote symbols that respected triggers and demote names that produced failed breakouts.</li>
@@ -941,7 +1001,13 @@ export default function TradingGoalPage() {
 
         {bestTrade && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">Current rationale</p>
+            <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">
+              Current rationale
+              <SectionTooltip
+                label="currentRationale"
+                description="A plain-English explanation of why the leading setup is ranked first and how its reward-to-risk profile looks."
+              />
+            </p>
             <div className="mt-3 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{bestTrade.symbol} setup note</h3>
