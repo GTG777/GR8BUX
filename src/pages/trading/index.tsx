@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Layout } from '@/components/Layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 type Instrument = 'stock' | 'option';
 type Horizon = 'daily' | 'swing';
@@ -294,19 +295,20 @@ export default function TradingGoalPage() {
   const weeklyGoal = dailyGoal * 5;
 
   return (
-    <Layout title="$1M Goal">
-      <div className="space-y-8">
-        <section className="flex flex-col gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-500">Trading / Mission Plan</p>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl space-y-2">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">$1M Goal Planner</h1>
-              <p className="text-sm leading-6 text-gray-600 dark:text-zinc-300">
-                This page ranks high-beta stocks and large-cap movers, decides whether the cleaner trade is stock or options,
-                and sizes the position from your risk budget instead of emotion.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <ProtectedRoute requiredRoles={['admin']}>
+      <Layout title="$1M Goal">
+        <div className="space-y-8">
+          <section className="flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-500">Trading / Mission Plan</p>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl space-y-2">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">$1M Goal Planner</h1>
+                <p className="text-sm leading-6 text-gray-600 dark:text-zinc-300">
+                  This page ranks high-beta stocks and large-cap movers, decides whether the cleaner trade is stock or options,
+                  and sizes the position from your risk budget instead of emotion.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
                 <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-zinc-500">Goal Horizon</p>
                 <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{goalDays}d</p>
@@ -586,8 +588,9 @@ export default function TradingGoalPage() {
               </div>
             </div>
           </section>
-        )}
-      </div>
-    </Layout>
+          )}
+        </div>
+      </Layout>
+    </ProtectedRoute>
   );
 }
