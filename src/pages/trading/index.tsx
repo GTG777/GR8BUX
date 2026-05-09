@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -48,7 +48,109 @@ interface RankedTrade {
   note: string;
 }
 
-const CANDIDATES: Candidate[] = [
+interface QuoteResponse {
+  symbol: string;
+  price: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: number;
+  latestTradingDay: string;
+  previousClose: number;
+  change: number;
+  changePercent: string;
+  marketOpen: boolean;
+}
+
+interface Candle {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+interface CandleResponse {
+  symbol: string;
+  candles: Candle[];
+}
+
+interface OptionContract {
+  contractSymbol: string;
+  strike: number;
+  expiration: string;
+  expirationStr: string;
+  type: 'call' | 'put';
+  lastPrice: number;
+  bid: number;
+  ask: number;
+  mid: number;
+  impliedVolatility: number;
+  delta: number | null;
+  openInterest: number;
+  volume: number;
+  inTheMoney: boolean;
+  percentChange?: number;
+}
+
+interface OptionsChainResponse {
+  symbol: string;
+  underlyingPrice: number;
+  expirations: string[];
+  contracts: OptionContract[];
+  fetchedAt: string;
+}
+
+interface EarningsEvent {
+  symbol: string;
+  name: string;
+  reportDate: string;
+  daysOut: number;
+  ivRank: number;
+  rsi: number;
+  price: number;
+  expectedMove: number;
+  strategy: string;
+  urgency: string;
+}
+
+interface EarningsResponse {
+  events: EarningsEvent[];
+  total: number;
+  cachedAt: string;
+}
+
+interface SetupRow {
+  symbol: string;
+  company: string;
+  sector: string;
+  price: number;
+  changePct: number;
+  gapPct: number;
+  catalyst: string;
+  catalystDetail: string;
+  setupType: string;
+  entry: number;
+  stop: number;
+  target: number;
+  rr: number;
+  score: number;
+  reason: string;
+}
+
+interface SetupsResponse {
+  setups: SetupRow[];
+  scannedAt: string;
+  stale: boolean;
+}
+
+type DataSource = 'live' | 'mixed' | 'fallback';
+
+const CORE_SYMBOLS = ['NVDA', 'AMD', 'RIVN', 'NOK', 'PLTR'];
+const LARGE_CAP_SYMBOLS = new Set(['NVDA', 'AMD']);
+
+const FALLBACK_CANDIDATES: Candidate[] = [
   {
     symbol: 'NVDA',
     name: 'NVIDIA',
@@ -156,12 +258,214 @@ const CANDIDATES: Candidate[] = [
   },
 ];
 
+const FALLBACK_BY_SYMBOL = new Map(FALLBACK_CANDIDATES.map((candidate) => [candidate.symbol, candidate]));
+
 function formatMoney(value: number) {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function safeNumber(value: number | null | undefined, fallback: number) {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function average(values: number[]) {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function ema(values: number[], period: number) {
+  if (values.length === 0) return 0;
+  const multiplier = 2 / (period + 1);
+  return values.reduce((current, value, index) => {
+    if (index === 0) return value;
+    return (value - current) * multiplier + current;
+  }, values[0]);
+}
+
+function getAverageMovePct(candles: Candle[], price: number) {
+  const recent = candles.slice(-14);
+  const ranges = recent.map((candle) => candle.high - candle.low).filter((range) => range > 0);
+  if (price <= 0) return 0;
+  return (average(ranges) / price) * 100;
+}
+
+function getTrendScore(candles: Candle[], price: number) {
+  const closes = candles.map((candle) => candle.close).filter((close) => close > 0);
+  if (closes.length === 0) return 10;
+
+  const ema20 = ema(closes.slice(-40), 20);
+  const ema50 = ema(closes.slice(-80), 50);
+  const recentHigh = Math.max(...candles.slice(-20).map((candle) => candle.high));
+  let score = 8;
+
+  if (price >= ema20) score += 5;
+  if (price >= ema50) score += 5;
+  if (price >= recentHigh * 0.98) score += 4;
+  if (closes.at(-1) && closes.at(-5) && closes.at(-1)! > closes.at(-5)!) score += 3;
+
+  return clamp(score, 0, 20);
+}
+
+function getVolumeScore(candles: Candle[], quoteVolume: number) {
+  const recentVolumes = candles.slice(-20).map((candle) => candle.volume).filter((volume) => volume > 0);
+  const avgVolume = average(recentVolumes);
+  if (avgVolume <= 0 || quoteVolume <= 0) return 10;
+
+  const ratio = quoteVolume / avgVolume;
+  if (ratio >= 2) return 20;
+  if (ratio >= 1.5) return 17;
+  if (ratio >= 1) return 14;
+  if (ratio >= 0.7) return 10;
+  return 7;
+}
+
+function getSetupScore(setup: SetupRow | undefined, price: number, entry: number) {
+  if (setup) return clamp(Math.round(setup.score / 5), 8, 20);
+
+  const distancePct = entry > 0 ? ((entry - price) / entry) * 100 : 5;
+  if (distancePct <= 0.5) return 18;
+  if (distancePct <= 1.5) return 15;
+  if (distancePct <= 3) return 11;
+  return 8;
+}
+
+function getCatalystScore(earning: EarningsEvent | undefined, setup: SetupRow | undefined) {
+  if (earning?.daysOut !== undefined && earning.daysOut <= 7) return 18;
+  if (earning?.daysOut !== undefined && earning.daysOut <= 14) return 16;
+  if (setup?.catalyst) return 15;
+  if (earning) return 13;
+  return 10;
+}
+
+function getBestCall(chain: OptionsChainResponse | null, price: number) {
+  if (!chain) return null;
+  const now = Date.now();
+  const minExpiration = now + 21 * 24 * 60 * 60 * 1000;
+  const maxExpiration = now + 75 * 24 * 60 * 60 * 1000;
+
+  return chain.contracts
+    .filter((contract) => {
+      const expirationTime = new Date(contract.expiration).getTime();
+      return contract.type === 'call'
+        && expirationTime >= minExpiration
+        && expirationTime <= maxExpiration
+        && contract.mid > 0
+        && contract.strike >= price * 0.97
+        && contract.strike <= price * 1.12;
+    })
+    .sort((a, b) => {
+      const deltaA = Math.abs(safeNumber(a.delta, 0.5) - 0.55);
+      const deltaB = Math.abs(safeNumber(b.delta, 0.5) - 0.55);
+      const liquidityA = a.openInterest + a.volume;
+      const liquidityB = b.openInterest + b.volume;
+      return deltaA - deltaB || liquidityB - liquidityA;
+    })[0] ?? null;
+}
+
+function getOptionLiquidityScore(contract: OptionContract | null) {
+  if (!contract) return 0;
+  const spreadPct = contract.mid > 0 ? Math.max(contract.ask - contract.bid, 0) / contract.mid : 1;
+  const activity = contract.openInterest + contract.volume;
+  let score = 6;
+
+  if (activity >= 1000) score += 7;
+  else if (activity >= 300) score += 5;
+  else if (activity >= 100) score += 3;
+
+  if (spreadPct <= 0.08) score += 6;
+  else if (spreadPct <= 0.15) score += 4;
+  else if (spreadPct <= 0.25) score += 2;
+
+  return clamp(score, 0, 20);
+}
+
+function buildLiveCandidate(
+  symbol: string,
+  quote: QuoteResponse,
+  candles: Candle[],
+  chain: OptionsChainResponse | null,
+  earning: EarningsEvent | undefined,
+  setup: SetupRow | undefined,
+): Candidate {
+  const fallback = FALLBACK_BY_SYMBOL.get(symbol);
+  const price = safeNumber(quote.price, fallback?.price ?? 0);
+  const recentCandles = candles.filter((candle) => candle.close > 0);
+  const recentHigh = recentCandles.length > 0
+    ? Math.max(...recentCandles.slice(-20).map((candle) => candle.high))
+    : price * 1.02;
+  const avgMovePct = getAverageMovePct(recentCandles, price) || fallback?.avgMovePct || 4;
+  const riskWidth = Math.max(price * (avgMovePct / 100) * 0.7, price * 0.025, 0.05);
+  const entry = setup?.entry && setup.entry > 0
+    ? setup.entry
+    : Math.max(price * 1.004, recentHigh * 1.001);
+  const stop = setup?.stop && setup.stop > 0
+    ? Math.min(setup.stop, entry - 0.01)
+    : Math.max(entry - riskWidth, entry * 0.88);
+  const target1 = setup?.target && setup.target > entry
+    ? setup.target
+    : entry + (entry - stop) * 2;
+  const target2 = entry + (entry - stop) * 3;
+  const bestCall = getBestCall(chain, price);
+  const catalyst = setup?.catalystDetail
+    || setup?.catalyst
+    || (earning ? `${earning.strategy} before ${earning.reportDate}` : fallback?.catalyst)
+    || 'Live momentum and options scan';
+  const note = setup?.reason
+    || (earning ? `${earning.urgency} earnings setup with expected move near ${earning.expectedMove}%.` : fallback?.note)
+    || 'Live quote, trend, volume, and options chain are driving this ranking.';
+
+  return {
+    symbol,
+    name: setup?.company || earning?.name || fallback?.name || symbol,
+    price,
+    entry,
+    stop,
+    target1,
+    target2,
+    avgMovePct,
+    volumeScore: getVolumeScore(recentCandles, quote.volume),
+    trendScore: getTrendScore(recentCandles, price),
+    catalystScore: getCatalystScore(earning, setup),
+    setupScore: getSetupScore(setup, price, entry),
+    ivRank: earning?.ivRank ?? clamp(Math.round((bestCall?.impliedVolatility ?? 0.45) * 100), 20, 95),
+    optionPremium: bestCall?.mid ?? fallback?.optionPremium ?? Math.max(price * 0.035, 0.1),
+    optionDelta: Math.abs(safeNumber(bestCall?.delta, fallback?.optionDelta ?? 0.5)),
+    optionLiquidity: getOptionLiquidityScore(bestCall) || fallback?.optionLiquidity || 8,
+    largeCap: LARGE_CAP_SYMBOLS.has(symbol),
+    catalyst,
+    note,
+  };
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} failed with ${response.status}`);
+  return response.json() as Promise<T>;
+}
+
+async function loadLiveCandidate(
+  symbol: string,
+  earningsBySymbol: Map<string, EarningsEvent>,
+  setupsBySymbol: Map<string, SetupRow>,
+) {
+  const [quote, candleResponse, chain] = await Promise.all([
+    fetchJson<QuoteResponse>(`/api/market/quote?symbol=${symbol}`),
+    fetchJson<CandleResponse>(`/api/market/candles?symbol=${symbol}&range=compact`),
+    fetchJson<OptionsChainResponse>(`/api/options/chain?symbol=${symbol}`).catch(() => null),
+  ]);
+
+  return buildLiveCandidate(
+    symbol,
+    quote,
+    candleResponse.candles,
+    chain,
+    earningsBySymbol.get(symbol),
+    setupsBySymbol.get(symbol),
+  );
 }
 
 function scoreCandidate(candidate: Candidate, horizon: Horizon) {
@@ -224,12 +528,69 @@ export default function TradingGoalPage() {
   const [capitalPct, setCapitalPct] = useState(25);
   const [goalDays, setGoalDays] = useState(100);
   const [horizon, setHorizon] = useState<Horizon>('swing');
+  const [candidates, setCandidates] = useState<Candidate[]>(FALLBACK_CANDIDATES);
+  const [isLoadingMarketData, setIsLoadingMarketData] = useState(true);
+  const [dataSource, setDataSource] = useState<DataSource>('fallback');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [marketDataError, setMarketDataError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMarketData() {
+      setIsLoadingMarketData(true);
+      setMarketDataError('');
+
+      try {
+        const [earningsResult, setupsResult] = await Promise.allSettled([
+          fetchJson<EarningsResponse>('/api/market/earnings?days=45'),
+          fetchJson<SetupsResponse>('/api/market/setups'),
+        ]);
+        const earnings = earningsResult.status === 'fulfilled' ? earningsResult.value.events : [];
+        const setups = setupsResult.status === 'fulfilled' ? setupsResult.value.setups : [];
+        const earningsBySymbol = new Map(earnings.map((event) => [event.symbol, event]));
+        const setupsBySymbol = new Map(setups.map((setup) => [setup.symbol, setup]));
+        const results = await Promise.allSettled(
+          CORE_SYMBOLS.map((symbol) => loadLiveCandidate(symbol, earningsBySymbol, setupsBySymbol)),
+        );
+        const liveCandidates = results
+          .filter((result): result is PromiseFulfilledResult<Candidate> => result.status === 'fulfilled')
+          .map((result) => result.value);
+        const liveSymbols = new Set(liveCandidates.map((candidate) => candidate.symbol));
+        const fallbackCandidates = FALLBACK_CANDIDATES.filter((candidate) => !liveSymbols.has(candidate.symbol));
+        const nextCandidates = [...liveCandidates, ...fallbackCandidates];
+
+        if (!cancelled) {
+          setCandidates(nextCandidates);
+          setDataSource(liveCandidates.length === CORE_SYMBOLS.length ? 'live' : liveCandidates.length > 0 ? 'mixed' : 'fallback');
+          setLastUpdated(new Date());
+          if (liveCandidates.length === 0) {
+            setMarketDataError('Live market data is unavailable, so fallback planning values are showing.');
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCandidates(FALLBACK_CANDIDATES);
+          setDataSource('fallback');
+          setMarketDataError(error instanceof Error ? error.message : 'Live market data is unavailable.');
+        }
+      } finally {
+        if (!cancelled) setIsLoadingMarketData(false);
+      }
+    }
+
+    loadMarketData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const riskBudget = accountSize * (riskPct / 100);
   const maxCapitalPerTrade = accountSize * (capitalPct / 100);
 
   const rankedTrades = useMemo<RankedTrade[]>(() => {
-    return CANDIDATES.map((candidate) => {
+    return candidates.map((candidate) => {
       const score = scoreCandidate(candidate, horizon);
       const stockRiskPerShare = Math.max(candidate.entry - candidate.stop, 0.01);
       const stockQtyByRisk = Math.floor(riskBudget / stockRiskPerShare);
@@ -288,11 +649,18 @@ export default function TradingGoalPage() {
     })
       .filter((trade) => trade.quantity > 0)
       .sort((a, b) => b.score - a.score);
-  }, [capitalPct, horizon, maxCapitalPerTrade, riskBudget]);
+  }, [candidates, horizon, maxCapitalPerTrade, riskBudget]);
 
   const bestTrade = rankedTrades[0] ?? null;
   const dailyGoal = goalDays > 0 ? 1000000 / goalDays : 0;
   const weeklyGoal = dailyGoal * 5;
+  const dataStatusLabel = isLoadingMarketData
+    ? 'Loading live data'
+    : dataSource === 'live'
+      ? 'Live data'
+      : dataSource === 'mixed'
+        ? 'Partial live data'
+        : 'Fallback data';
 
   return (
     <ProtectedRoute requiredRoles={['admin']}>
@@ -304,9 +672,22 @@ export default function TradingGoalPage() {
               <div className="max-w-3xl space-y-2">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">$1M Goal Planner</h1>
                 <p className="text-sm leading-6 text-gray-600 dark:text-zinc-300">
-                  This page ranks high-beta stocks and large-cap movers, decides whether the cleaner trade is stock or options,
+                  This page ranks live high-beta stocks and large-cap movers, decides whether the cleaner trade is stock or options,
                   and sizes the position from your risk budget instead of emotion.
                 </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-zinc-500">
+                  <span className={`rounded-full px-2.5 py-1 font-semibold ${
+                    dataSource === 'live'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                      : dataSource === 'mixed'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                        : 'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-300'
+                  }`}>
+                    {dataStatusLabel}
+                  </span>
+                  {lastUpdated && <span>Updated {lastUpdated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
+                  {marketDataError && <span>{marketDataError}</span>}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
