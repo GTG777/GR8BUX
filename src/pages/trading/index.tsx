@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import type { Trade } from '@/types';
 
 type Instrument = 'stock' | 'option';
 type Horizon = 'daily' | 'swing';
@@ -145,10 +146,18 @@ interface SetupsResponse {
   stale: boolean;
 }
 
+interface TradesResponse {
+  success: boolean;
+  data?: Trade[];
+  error?: string;
+  total?: number;
+}
+
 type DataSource = 'live' | 'mixed' | 'fallback';
 
 const CORE_SYMBOLS = ['NVDA', 'AMD', 'RIVN', 'NOK', 'PLTR'];
 const LARGE_CAP_SYMBOLS = new Set(['NVDA', 'AMD']);
+const MILLION_DOLLAR_GOAL = 1000000;
 
 const FALLBACK_CANDIDATES: Candidate[] = [
   {
@@ -486,6 +495,31 @@ async function loadLiveCandidate(
   );
 }
 
+function getTradePnl(trade: Trade) {
+  return typeof trade.pnl === 'number' && Number.isFinite(trade.pnl) ? trade.pnl : 0;
+}
+
+function getTradeExitTime(trade: Trade) {
+  return new Date(trade.exitDate || trade.updatedAt || trade.createdAt || trade.entryDate).getTime();
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function buildSymbolProgress(trades: Trade[]) {
+  const bySymbol = new Map<string, { symbol: string; trades: number; pnl: number }>();
+
+  trades.forEach((trade) => {
+    const current = bySymbol.get(trade.symbol) ?? { symbol: trade.symbol, trades: 0, pnl: 0 };
+    current.trades += 1;
+    current.pnl += getTradePnl(trade);
+    bySymbol.set(trade.symbol, current);
+  });
+
+  return Array.from(bySymbol.values()).sort((a, b) => b.pnl - a.pnl).slice(0, 3);
+}
+
 function scoreCandidate(candidate: Candidate, horizon: Horizon) {
   const breakoutDistancePct = ((candidate.entry - candidate.price) / candidate.entry) * 100;
   const proximityScore = breakoutDistancePct <= 0
@@ -551,6 +585,9 @@ export default function TradingGoalPage() {
   const [dataSource, setDataSource] = useState<DataSource>('fallback');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [marketDataError, setMarketDataError] = useState('');
+  const [tradeLog, setTradeLog] = useState<Trade[]>([]);
+  const [isLoadingTrades, setIsLoadingTrades] = useState(true);
+  const [tradeLogError, setTradeLogError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -604,8 +641,79 @@ export default function TradingGoalPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTradeProgress() {
+      setIsLoadingTrades(true);
+      setTradeLogError('');
+
+      try {
+        const response = await fetchJson<TradesResponse>('/api/trades?limit=500');
+        if (!response.success) throw new Error(response.error || 'Unable to load trades.');
+        if (!cancelled) setTradeLog(response.data ?? []);
+      } catch (error) {
+        if (!cancelled) {
+          setTradeLog([]);
+          setTradeLogError(error instanceof Error ? error.message : 'Unable to load trades.');
+        }
+      } finally {
+        if (!cancelled) setIsLoadingTrades(false);
+      }
+    }
+
+    loadTradeProgress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const riskBudget = accountSize * (riskPct / 100);
   const maxCapitalPerTrade = accountSize * (capitalPct / 100);
+
+  const tradeProgress = useMemo(() => {
+    const closedTrades = tradeLog.filter((trade) => trade.status === 'closed' && typeof trade.pnl === 'number');
+    const openTrades = tradeLog.filter((trade) => trade.status === 'open');
+    const totalRealizedPnl = closedTrades.reduce((sum, trade) => sum + getTradePnl(trade), 0);
+    const wins = closedTrades.filter((trade) => getTradePnl(trade) > 0);
+    const losses = closedTrades.filter((trade) => getTradePnl(trade) < 0);
+    const todayStart = startOfLocalDay(new Date());
+    const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000;
+    const todayPnl = closedTrades
+      .filter((trade) => getTradeExitTime(trade) >= todayStart)
+      .reduce((sum, trade) => sum + getTradePnl(trade), 0);
+    const weekPnl = closedTrades
+      .filter((trade) => getTradeExitTime(trade) >= weekStart)
+      .reduce((sum, trade) => sum + getTradePnl(trade), 0);
+    const firstTradeTime = closedTrades.length > 0
+      ? Math.min(...closedTrades.map((trade) => getTradeExitTime(trade)).filter(Number.isFinite))
+      : Date.now();
+    const daysUsed = closedTrades.length > 0
+      ? Math.max(1, Math.ceil((Date.now() - firstTradeTime) / (24 * 60 * 60 * 1000)))
+      : 0;
+    const daysRemaining = Math.max(goalDays - daysUsed, 0);
+    const remainingGoal = MILLION_DOLLAR_GOAL - totalRealizedPnl;
+    const requiredDaily = remainingGoal > 0 ? remainingGoal / Math.max(daysRemaining, 1) : 0;
+
+    return {
+      closedTrades,
+      openTrades,
+      totalRealizedPnl,
+      remainingGoal,
+      progressPct: clamp((totalRealizedPnl / MILLION_DOLLAR_GOAL) * 100, 0, 100),
+      winRate: closedTrades.length > 0 ? (wins.length / closedTrades.length) * 100 : 0,
+      avgTradePnl: closedTrades.length > 0 ? totalRealizedPnl / closedTrades.length : 0,
+      todayPnl,
+      weekPnl,
+      daysUsed,
+      daysRemaining,
+      requiredDaily,
+      topSymbols: buildSymbolProgress(closedTrades),
+      wins: wins.length,
+      losses: losses.length,
+    };
+  }, [goalDays, tradeLog]);
 
   const rankedTrades = useMemo<RankedTrade[]>(() => {
     return candidates.map((candidate) => {
@@ -670,7 +778,7 @@ export default function TradingGoalPage() {
   }, [candidates, horizon, maxCapitalPerTrade, riskBudget]);
 
   const bestTrade = rankedTrades[0] ?? null;
-  const dailyGoal = goalDays > 0 ? 1000000 / goalDays : 0;
+  const dailyGoal = goalDays > 0 ? MILLION_DOLLAR_GOAL / goalDays : 0;
   const weeklyGoal = dailyGoal * 5;
   const dataStatusLabel = isLoadingMarketData
     ? 'Loading live data'
@@ -732,6 +840,88 @@ export default function TradingGoalPage() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-500">
+                Trade Log Progress
+                <SectionTooltip
+                  label="tradeLogProgress"
+                  description="Reads your closed trades from the Trades page and turns realized P/L into $1M goal progress, pace, win rate, and open-trade context."
+                />
+              </p>
+              <h2 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
+                {formatMoney(tradeProgress.totalRealizedPnl)} tracked toward $1M
+              </h2>
+              <p className="mt-1 text-sm text-gray-600 dark:text-zinc-300">
+                {isLoadingTrades
+                  ? 'Loading trade log progress...'
+                  : tradeLogError
+                    ? tradeLogError
+                    : `${tradeProgress.closedTrades.length} closed trades and ${tradeProgress.openTrades.length} open trades found in your trade log.`}
+              </p>
+            </div>
+            <div className="text-left sm:text-right">
+              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-zinc-500">Remaining</p>
+              <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
+                {formatMoney(Math.max(tradeProgress.remainingGoal, 0))}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <div className="h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-zinc-800">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: `${tradeProgress.progressPct}%` }}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-zinc-500">
+              <span>{tradeProgress.progressPct.toFixed(2)}% complete</span>
+              <span>{tradeProgress.daysUsed} days used / {tradeProgress.daysRemaining} left</span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-zinc-800">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-zinc-500">Today P/L</p>
+              <p className={`mt-1 text-lg font-semibold ${tradeProgress.todayPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {formatMoney(tradeProgress.todayPnl)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-zinc-800">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-zinc-500">7-Day P/L</p>
+              <p className={`mt-1 text-lg font-semibold ${tradeProgress.weekPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {formatMoney(tradeProgress.weekPnl)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-zinc-800">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-zinc-500">Needed / Day</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{formatMoney(tradeProgress.requiredDaily)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-zinc-800">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-zinc-500">Win Rate</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{tradeProgress.winRate.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-zinc-800">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-zinc-500">Avg Closed</p>
+              <p className={`mt-1 text-lg font-semibold ${tradeProgress.avgTradePnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {formatMoney(tradeProgress.avgTradePnl)}
+              </p>
+            </div>
+          </div>
+
+          {tradeProgress.topSymbols.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-zinc-300">
+              {tradeProgress.topSymbols.map((symbol) => (
+                <span key={symbol.symbol} className="rounded-full border border-gray-200 px-3 py-1 dark:border-zinc-800">
+                  {symbol.symbol}: {formatMoney(symbol.pnl)} across {symbol.trades} trades
+                </span>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
