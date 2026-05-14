@@ -861,7 +861,7 @@ export default function DailyOptionsPage() {
             <Section title="After-Hours Mode" emoji="🌙">
               <ToggleRow
                 label="Enable After-Hours Fallback"
-                description="If bid/ask are missing, fall back to last trade price and add prominent warnings."
+                description="If bid/ask are missing, fall back to last trade or day close price and add prominent warnings."
                 checked={config.afterHours.enabled}
                 onChange={(v) => setConfig((p) => ({ ...p, afterHours: { ...p.afterHours, enabled: v } }))}
               />

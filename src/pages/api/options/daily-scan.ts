@@ -78,7 +78,9 @@ interface ChainContract {
   bid: number;
   ask: number;
   mid: number;
-  lastPrice: number;
+  lastTradePrice: number;
+  dayClose: number;
+  dayVwap: number;
   impliedVolatility: number; // 0-1
   delta: number | null;
   gamma: number | null;
@@ -158,7 +160,9 @@ function mapContract(raw: MassiveOptionContract, underlyingPrice: number): Chain
       : bid > 0
         ? parseFloat(bid.toFixed(2))
         : 0;
-  const lastPrice = last_trade?.price ?? 0;
+  const dayClose = day?.close ?? 0;
+  const dayVwap = day?.vwap ?? 0;
+  const lastTradePrice = last_trade?.price ?? 0;
   const expDate = details.expiration_date;
   const expEpoch = Math.floor(new Date(expDate + 'T21:00:00Z').getTime() / 1000);
 
@@ -175,7 +179,9 @@ function mapContract(raw: MassiveOptionContract, underlyingPrice: number): Chain
     bid: parseFloat(bid.toFixed(2)),
     ask: parseFloat(ask.toFixed(2)),
     mid,
-    lastPrice: parseFloat(lastPrice.toFixed(2)),
+    lastTradePrice: parseFloat(lastTradePrice.toFixed(2)),
+    dayClose: parseFloat((dayClose ?? 0).toFixed(2)),
+    dayVwap: parseFloat((dayVwap ?? 0).toFixed(2)),
     impliedVolatility: implied_volatility ?? 0,
     delta: greeks?.delta ?? null,
     gamma: greeks?.gamma ?? null,
@@ -195,6 +201,14 @@ function spreadPct(c: ChainContract): number | null {
 
 function isMissingQuote(c: ChainContract): boolean {
   return c.bid <= 0 || c.ask <= 0 || c.mid <= 0;
+}
+
+type FallbackReason = 'last_trade' | 'day_close' | 'day_vwap';
+function fallbackPrice(c: ChainContract): { price: number; reason: FallbackReason } | null {
+  if (c.lastTradePrice > 0) return { price: c.lastTradePrice, reason: 'last_trade' };
+  if (c.dayClose > 0) return { price: c.dayClose, reason: 'day_close' };
+  if (c.dayVwap > 0) return { price: c.dayVwap, reason: 'day_vwap' };
+  return null;
 }
 
 function dteFromExpiration(expirationUnixSeconds: number): number {
@@ -286,6 +300,7 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
     spread: number | null;
     ivMetricValue: number | null;
     usedFallback: boolean;
+    fallbackReason: FallbackReason | null;
   }> = [];
 
   for (const c of mapped) {
@@ -299,8 +314,9 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
 
     if (c.openInterest < config.liquidity.minOpenInterest) continue;
     if (c.volume < config.liquidity.minVolume) continue;
-    const usedFallback = afterHours.enabled && isMissingQuote(c) && c.lastPrice > 0;
-    const effectiveMid = usedFallback ? c.lastPrice : c.mid;
+    const fb = afterHours.enabled && isMissingQuote(c) ? fallbackPrice(c) : null;
+    const usedFallback = Boolean(fb);
+    const effectiveMid = usedFallback ? (fb as { price: number }).price : c.mid;
     const sp = usedFallback ? null : spreadPct(c);
 
     if (effectiveMid < config.liquidity.minOptionPrice) continue;
@@ -326,18 +342,16 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
     if (ivMetricValue === null) continue;
 
     // If we used fallback, override displayed quotes to be explicit and consistent.
-    const cOut: ChainContract = usedFallback
-      ? { ...c, bid: c.lastPrice, ask: c.lastPrice, mid: c.lastPrice }
-      : c;
+    const cOut2: ChainContract = usedFallback ? { ...c, bid: effectiveMid, ask: effectiveMid, mid: effectiveMid } : c;
 
-    candidates.push({ c: cOut, dte, spread: sp, ivMetricValue, usedFallback });
+    candidates.push({ c: cOut2, dte, spread: sp, ivMetricValue, usedFallback, fallbackReason: fb?.reason ?? null });
   }
 
   // Score + rank, cap per ticker
   const scored = candidates
-    .map(({ c, dte, spread, ivMetricValue, usedFallback }) => {
+    .map(({ c, dte, spread, ivMetricValue, usedFallback, fallbackReason }) => {
       const scoredParts = scoreCandidate({ c, config, dte, spread, ivMetricValue });
-      return { c, dte, spread, ivMetricValue, usedFallback, scoredParts };
+      return { c, dte, spread, ivMetricValue, usedFallback, fallbackReason, scoredParts };
     })
     .sort((a, b) => b.scoredParts.total - a.scoredParts.total || (a.spread ?? 999) - (b.spread ?? 999));
 
@@ -405,7 +419,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (afterHours.spreadFilterMode === 'disable') warnings.push('Spread filtering disabled in after-hours mode.');
       }
       if (afterHours.enabled && row.usedFallback) {
-        warnings.push('Bid/ask unavailable. Using last trade price; spread is unknown.');
+        const src =
+          row.fallbackReason === 'day_close'
+            ? 'day close price'
+            : row.fallbackReason === 'day_vwap'
+              ? 'day VWAP'
+              : 'last trade price';
+        warnings.push(`Bid/ask unavailable. Using ${src}; spread is unknown.`);
       }
       if (row.usedFallback) fallbackCount += 1;
 
