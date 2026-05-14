@@ -565,6 +565,23 @@ export default function DailyOptionsPage() {
     return candidates.filter((c) => !c.warnings.includes('Duplicate signal within dedupe window.'));
   }, [candidates, hideDuplicates]);
 
+  const emptyState = useMemo(() => {
+    if (!scanAt) return null;
+    if (running) return null;
+    if (scanErr) return null;
+    if (visibleCandidates.length > 0) return null;
+    if (hideDuplicates && candidates.length > 0) {
+      return {
+        title: 'All candidates hidden as duplicates',
+        body: 'Turn off Hide Duplicates, or reduce Dedupe Window (or set it to 0) to see them.',
+      };
+    }
+    return {
+      title: 'No candidates matched your filters',
+      body: 'Try lowering Min Volume / Min OI, widening Max Bid-Ask Spread, or lowering the IV threshold.',
+    };
+  }, [scanAt, running, scanErr, visibleCandidates.length, hideDuplicates, candidates.length]);
+
   return (
     <Layout title="Daily Options">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -623,6 +640,13 @@ export default function DailyOptionsPage() {
                 onChange={setHideDuplicates}
               />
             </div>
+          </div>
+        )}
+
+        {emptyState && (
+          <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{emptyState.title}</p>
+            <p className="mt-1 text-sm text-gray-600 dark:text-zinc-400">{emptyState.body}</p>
           </div>
         )}
 
