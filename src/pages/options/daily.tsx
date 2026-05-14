@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/Layout';
 
 const STORAGE_KEY = 'gr8bux_daily_options_config_v1';
+const RESULTS_KEY = 'gr8bux_daily_options_last_results_v1';
 
 type IVMode = 'iv_percentile' | 'iv_rank';
 type AfterHoursSpreadMode = 'disable' | 'relax';
@@ -114,6 +115,12 @@ interface DailyScanResponse {
   disclaimer?: string;
 }
 
+interface StoredResults {
+  fetchedAt: number;
+  warnings: string[];
+  candidates: DailyScanCandidate[];
+}
+
 const DEFAULT_CONFIG: DailyOptionsConfig = {
   universe: {
     mode: 'custom',
@@ -204,6 +211,27 @@ function loadLastSignals(): LastSignalMap {
 }
 function saveLastSignals(map: LastSignalMap) {
   localStorage.setItem(LAST_SIGNALS_KEY, JSON.stringify(map));
+}
+
+function loadStoredResults(): StoredResults | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(RESULTS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredResults>;
+    if (!parsed.fetchedAt || !Array.isArray(parsed.candidates)) return null;
+    return {
+      fetchedAt: Number(parsed.fetchedAt),
+      warnings: Array.isArray(parsed.warnings) ? (parsed.warnings as string[]) : [],
+      candidates: parsed.candidates as DailyScanCandidate[],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredResults(results: StoredResults) {
+  localStorage.setItem(RESULTS_KEY, JSON.stringify(results));
 }
 
 function clampNumber(value: number, min: number, max: number) {
@@ -451,6 +479,14 @@ export default function DailyOptionsPage() {
     setConfig(loaded);
     setTickersText(loaded.universe.tickers.join(', '));
     setLastSignals(loadLastSignals());
+
+    const stored = loadStoredResults();
+    if (stored?.candidates?.length) {
+      setScanAt(stored.fetchedAt);
+      setScanWarnings(stored.warnings ?? []);
+      setCandidates(stored.candidates);
+      setTab('results');
+    }
   }, []);
 
   useEffect(() => {
@@ -637,11 +673,13 @@ export default function DailyOptionsPage() {
 
       // Keep the UI sane: sort and cap display
       withDupes.sort((a, b) => b.score.total - a.score.total || a.ticker.localeCompare(b.ticker));
-      setCandidates(withDupes.slice(0, 400));
+      const nextCandidates = withDupes.slice(0, 400);
+      setCandidates(nextCandidates);
+      saveStoredResults({ fetchedAt, warnings: Array.from(new Set(allWarnings)), candidates: nextCandidates });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
       setScanErr(msg);
-      setCandidates([]);
+      // Keep previous results visible if the new scan fails.
     } finally {
       setRunning(false);
     }
