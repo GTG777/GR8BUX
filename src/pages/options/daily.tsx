@@ -668,6 +668,59 @@ export default function DailyOptionsPage() {
     return groups;
   }, [visibleCandidates]);
 
+  function formatMoney(v: number) {
+    return `$${v.toFixed(2)}`;
+  }
+
+  function buildTradePlan(c: DailyScanCandidate) {
+    const premium = c.mid;
+    const costPerContract = premium > 0 ? premium * 100 : null;
+    const isCall = c.type === 'call';
+    const breakevenAtExpiry = premium > 0 ? (isCall ? c.strike + premium : c.strike - premium) : null;
+    const absDelta = c.greeks.delta === null ? null : Math.abs(c.greeks.delta);
+
+    const lines: string[] = [];
+
+    // Entry
+    if (c.warnings.some((w) => w.toLowerCase().includes('after-hours'))) {
+      lines.push('Entry: Wait for regular hours and confirm live bid/ask; use a limit order (avoid market orders).');
+    } else {
+      lines.push('Entry: Use a limit order near the mid; avoid chasing if price gaps against you.');
+    }
+    if (c.spreadPct !== null) {
+      lines.push(`Liquidity check: Keep spread tight; current spread ~${c.spreadPct.toFixed(2)}%.`);
+    } else {
+      lines.push('Liquidity check: Spread unknown (quote fallback). Verify bid/ask before entering.');
+    }
+
+    // Breakeven
+    if (breakevenAtExpiry !== null) {
+      const be = formatMoney(breakevenAtExpiry);
+      lines.push(`Breakeven (at expiry, long ${isCall ? 'call' : 'put'}): underlying ~${be}.`);
+    } else {
+      lines.push('Breakeven: Not available (missing premium).');
+    }
+
+    // Exit rules of thumb (short DTE)
+    if (c.dte <= 7) {
+      lines.push('Exit (profit): Consider taking partial/full profits around +30% to +70% in premium on short DTE contracts.');
+      lines.push('Exit (loss): Consider cutting around -30% to -50% in premium, or earlier if thesis breaks.');
+      lines.push('Time stop: If the move doesn’t happen quickly, decay accelerates; avoid holding into the final 1–2 days unless intentional.');
+    } else {
+      lines.push('Exit: Use a thesis-based exit plus time stop; avoid letting theta dominate as expiry approaches.');
+    }
+
+    // Context lines
+    if (costPerContract !== null) {
+      lines.push(`Defined risk (long option): max loss is premium paid (~${formatMoney(costPerContract)} per contract).`);
+    }
+    if (absDelta !== null) {
+      lines.push(`Sensitivity: |delta| ~${absDelta.toFixed(2)} (approx $${(absDelta * 100).toFixed(0)} per $1 move, per contract, ignoring convexity).`);
+    }
+
+    return lines;
+  }
+
   const emptyState = useMemo(() => {
     if (!scanAt) return null;
     if (running) return null;
@@ -858,6 +911,12 @@ export default function DailyOptionsPage() {
                                           <ul className="mt-1 text-xs text-gray-600 dark:text-zinc-400 list-disc pl-5 space-y-0.5">
                                             {c.rationale.map((r) => (
                                               <li key={r}>{r}</li>
+                                            ))}
+                                          </ul>
+                                          <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300 mt-3">Entry / Exit / Breakeven</p>
+                                          <ul className="mt-1 text-xs text-gray-600 dark:text-zinc-400 list-disc pl-5 space-y-0.5">
+                                            {buildTradePlan(c).map((t) => (
+                                              <li key={t}>{t}</li>
                                             ))}
                                           </ul>
                                         </div>
