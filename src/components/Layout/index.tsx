@@ -48,6 +48,7 @@ const NAV_GROUPS: NavGroup[] = [
     emoji: '🎯',
     items: [
       { href: '/calculator',  label: 'Options Lab',      icon: OptionsIcon      },
+      { href: '/options/daily', label: 'Daily Options',  icon: DailyOptionsIcon },
       { href: '/scanner',     label: 'Options Screener', icon: ScannerIcon      },
       { href: '/strategies',  label: 'Strategies',       icon: StrategiesIcon   },
       { href: '/leaps',       label: 'LEAPS',            icon: LeapsIcon        },
@@ -175,6 +176,15 @@ function CalculatorIcon() {
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2h-2M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M9 7h6" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h.01M12 12h.01M15 12h.01M9 15h.01M12 15h.01M15 15h.01M9 18h.01M12 18h.01M15 18h.01" />
+    </svg>
+  );
+}
+
+function DailyOptionsIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-11 8h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16l2-2 2 2 4-4" />
     </svg>
   );
 }

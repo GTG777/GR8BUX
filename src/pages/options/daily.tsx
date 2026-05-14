@@ -1,0 +1,831 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Layout } from '@/components/Layout';
+
+const STORAGE_KEY = 'gr8bux_daily_options_config_v1';
+
+type IVMode = 'iv_percentile' | 'iv_rank';
+
+interface DailyOptionsConfig {
+  universe: {
+    tickers: string[];
+    includeWeeklies: boolean;
+    excludeEarningsWithinDays: number; // 0 disables
+  };
+  data: {
+    provider: 'placeholder';
+    refreshIntervalMinutes: number;
+  };
+  liquidity: {
+    minOpenInterest: number;
+    minVolume: number;
+    maxBidAskSpreadPct: number;
+    minOptionPrice: number;
+    maxContractsPerTicker: number;
+  };
+  expiry: {
+    dteMin: number;
+    dteMax: number;
+    allow0DTE: boolean;
+    allow1DTE: boolean;
+  };
+  greeks: {
+    deltaMin: number;
+    deltaMax: number;
+  };
+  volatility: {
+    mode: IVMode;
+    threshold: number;
+    ivSpike: {
+      enabled: boolean;
+      lookbackDays: number;
+      thresholdPct: number;
+    };
+  };
+  scoring: {
+    weights: {
+      volumeVsOI: number;
+      volatility: number;
+      delta: number;
+      liquidity: number;
+      dte: number;
+    };
+  };
+  risk: {
+    maxRiskPctPerTrade: number;
+    definedRiskOnly: boolean;
+    warnOnWideSpreadPct: number;
+  };
+  scheduler: {
+    enabled: boolean;
+    runEveryMinutes: number;
+    dedupeWindowMinutes: number;
+  };
+}
+
+const DEFAULT_CONFIG: DailyOptionsConfig = {
+  universe: {
+    tickers: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA'],
+    includeWeeklies: true,
+    excludeEarningsWithinDays: 7,
+  },
+  data: {
+    provider: 'placeholder',
+    refreshIntervalMinutes: 15,
+  },
+  liquidity: {
+    minOpenInterest: 500,
+    minVolume: 200,
+    maxBidAskSpreadPct: 8,
+    minOptionPrice: 0.25,
+    maxContractsPerTicker: 20,
+  },
+  expiry: {
+    dteMin: 1,
+    dteMax: 7,
+    allow0DTE: false,
+    allow1DTE: true,
+  },
+  greeks: {
+    deltaMin: 0.3,
+    deltaMax: 0.7,
+  },
+  volatility: {
+    mode: 'iv_percentile',
+    threshold: 60,
+    ivSpike: {
+      enabled: false,
+      lookbackDays: 20,
+      thresholdPct: 25,
+    },
+  },
+  scoring: {
+    weights: {
+      volumeVsOI: 2,
+      volatility: 2,
+      delta: 1,
+      liquidity: 3,
+      dte: 1,
+    },
+  },
+  risk: {
+    maxRiskPctPerTrade: 1,
+    definedRiskOnly: false,
+    warnOnWideSpreadPct: 12,
+  },
+  scheduler: {
+    enabled: true,
+    runEveryMinutes: 15,
+    dedupeWindowMinutes: 60,
+  },
+};
+
+function clampNumber(value: number, min: number, max: number) {
+  if (Number.isNaN(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeTickers(text: string): string[] {
+  const raw = text
+    .split(/[\s,]+/g)
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean);
+  return Array.from(new Set(raw));
+}
+
+function loadConfig(): DailyOptionsConfig {
+  if (typeof window === 'undefined') return DEFAULT_CONFIG;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_CONFIG;
+    const parsed = JSON.parse(raw) as Partial<DailyOptionsConfig>;
+    return {
+      ...DEFAULT_CONFIG,
+      ...parsed,
+      universe: { ...DEFAULT_CONFIG.universe, ...(parsed.universe ?? {}) },
+      data: { ...DEFAULT_CONFIG.data, ...(parsed.data ?? {}) },
+      liquidity: { ...DEFAULT_CONFIG.liquidity, ...(parsed.liquidity ?? {}) },
+      expiry: { ...DEFAULT_CONFIG.expiry, ...(parsed.expiry ?? {}) },
+      greeks: { ...DEFAULT_CONFIG.greeks, ...(parsed.greeks ?? {}) },
+      volatility: {
+        ...DEFAULT_CONFIG.volatility,
+        ...(parsed.volatility ?? {}),
+        ivSpike: { ...DEFAULT_CONFIG.volatility.ivSpike, ...((parsed.volatility as any)?.ivSpike ?? {}) },
+      },
+      scoring: {
+        ...DEFAULT_CONFIG.scoring,
+        ...(parsed.scoring ?? {}),
+        weights: { ...DEFAULT_CONFIG.scoring.weights, ...((parsed.scoring as any)?.weights ?? {}) },
+      },
+      risk: { ...DEFAULT_CONFIG.risk, ...(parsed.risk ?? {}) },
+      scheduler: { ...DEFAULT_CONFIG.scheduler, ...(parsed.scheduler ?? {}) },
+    };
+  } catch {
+    return DEFAULT_CONFIG;
+  }
+}
+
+function saveConfig(config: DailyOptionsConfig) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+
+function Section({ title, emoji, children }: { title: string; emoji: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700/60 shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-gray-100 dark:border-zinc-700/40 flex items-center gap-2">
+        <span>{emoji}</span>
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-zinc-100">{title}</h2>
+      </div>
+      <div className="p-5 space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-4 cursor-pointer group">
+      <div>
+        <p className="text-sm font-medium text-gray-800 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+          {label}
+        </p>
+        {description && <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">{description}</p>}
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex w-11 h-6 rounded-full transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900 ${
+          checked ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-zinc-700'
+        }`}
+      >
+        <span
+          className={`inline-block w-5 h-5 bg-white rounded-full shadow transform transition-transform mt-0.5 ${
+            checked ? 'translate-x-5' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
+function NumberRow({
+  label,
+  description,
+  value,
+  min,
+  max,
+  step,
+  prefix,
+  suffix,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  prefix?: string;
+  suffix?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-medium text-gray-800 dark:text-zinc-100">{label}</p>
+        {description && <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">{description}</p>}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {prefix && <span className="text-sm text-gray-500 dark:text-zinc-500">{prefix}</span>}
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-28 text-sm bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-800 dark:text-zinc-100 rounded-lg px-3 py-1.5 text-right focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+        />
+        {suffix && <span className="text-sm text-gray-500 dark:text-zinc-500">{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+function SelectRow({
+  label,
+  description,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-medium text-gray-800 dark:text-zinc-100">{label}</p>
+        {description && <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">{description}</p>}
+      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-sm bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-800 dark:text-zinc-100 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function TextareaRow({
+  label,
+  description,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div>
+        <p className="text-sm font-medium text-gray-800 dark:text-zinc-100">{label}</p>
+        {description && <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">{description}</p>}
+      </div>
+      <textarea
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        className="w-full text-sm bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-800 dark:text-zinc-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+      />
+    </div>
+  );
+}
+
+export default function DailyOptionsPage() {
+  const [config, setConfig] = useState<DailyOptionsConfig>(DEFAULT_CONFIG);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [tickersText, setTickersText] = useState(DEFAULT_CONFIG.universe.tickers.join(', '));
+
+  useEffect(() => {
+    const loaded = loadConfig();
+    setConfig(loaded);
+    setTickersText(loaded.universe.tickers.join(', '));
+  }, []);
+
+  useEffect(() => {
+    // Keep config in sync with the textarea, but don't fight the user's typing.
+    const normalized = normalizeTickers(tickersText);
+    setConfig((prev) => ({ ...prev, universe: { ...prev.universe, tickers: normalized } }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickersText]);
+
+  const validation = useMemo(() => {
+    const issues: string[] = [];
+    if (config.expiry.dteMin > config.expiry.dteMax) issues.push('DTE min is greater than DTE max.');
+    if (config.greeks.deltaMin > config.greeks.deltaMax) issues.push('Delta min is greater than Delta max.');
+    if (config.liquidity.maxBidAskSpreadPct > config.risk.warnOnWideSpreadPct) {
+      issues.push('Liquidity spread filter is looser than your wide-spread warning threshold.');
+    }
+    if (config.scheduler.enabled && config.scheduler.runEveryMinutes < 5) issues.push('Scheduler interval is very aggressive (< 5 min).');
+    if (config.expiry.allow0DTE && config.liquidity.maxBidAskSpreadPct > 6) issues.push('0DTE enabled with a wide spread filter.');
+    return issues;
+  }, [config]);
+
+  const exportJson = useMemo(() => JSON.stringify(config, null, 2), [config]);
+
+  const setNumber = (path: (prev: DailyOptionsConfig) => DailyOptionsConfig) => setConfig(path);
+
+  const handleSave = () => {
+    // Clamp a few values to keep config sane.
+    const cleaned: DailyOptionsConfig = {
+      ...config,
+      universe: {
+        ...config.universe,
+        excludeEarningsWithinDays: clampNumber(config.universe.excludeEarningsWithinDays, 0, 30),
+      },
+      data: {
+        ...config.data,
+        refreshIntervalMinutes: clampNumber(config.data.refreshIntervalMinutes, 1, 120),
+      },
+      liquidity: {
+        ...config.liquidity,
+        minOpenInterest: Math.max(0, config.liquidity.minOpenInterest),
+        minVolume: Math.max(0, config.liquidity.minVolume),
+        maxBidAskSpreadPct: clampNumber(config.liquidity.maxBidAskSpreadPct, 0, 100),
+        minOptionPrice: Math.max(0, config.liquidity.minOptionPrice),
+        maxContractsPerTicker: clampNumber(config.liquidity.maxContractsPerTicker, 1, 200),
+      },
+      expiry: {
+        ...config.expiry,
+        dteMin: clampNumber(config.expiry.dteMin, 0, 365),
+        dteMax: clampNumber(config.expiry.dteMax, 0, 365),
+      },
+      greeks: {
+        ...config.greeks,
+        deltaMin: clampNumber(config.greeks.deltaMin, 0, 1),
+        deltaMax: clampNumber(config.greeks.deltaMax, 0, 1),
+      },
+      volatility: {
+        ...config.volatility,
+        threshold: clampNumber(config.volatility.threshold, 0, 100),
+        ivSpike: {
+          ...config.volatility.ivSpike,
+          lookbackDays: clampNumber(config.volatility.ivSpike.lookbackDays, 5, 252),
+          thresholdPct: clampNumber(config.volatility.ivSpike.thresholdPct, 1, 300),
+        },
+      },
+      risk: {
+        ...config.risk,
+        maxRiskPctPerTrade: clampNumber(config.risk.maxRiskPctPerTrade, 0.1, 10),
+        warnOnWideSpreadPct: clampNumber(config.risk.warnOnWideSpreadPct, 0, 100),
+      },
+      scheduler: {
+        ...config.scheduler,
+        runEveryMinutes: clampNumber(config.scheduler.runEveryMinutes, 5, 120),
+        dedupeWindowMinutes: clampNumber(config.scheduler.dedupeWindowMinutes, 0, 24 * 60),
+      },
+    };
+
+    setConfig(cleaned);
+    saveConfig(cleaned);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleReset = () => {
+    setConfig(DEFAULT_CONFIG);
+    setTickersText(DEFAULT_CONFIG.universe.tickers.join(', '));
+    saveConfig(DEFAULT_CONFIG);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(exportJson);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // no-op: clipboard can fail in some browser contexts
+    }
+  };
+
+  return (
+    <Layout title="Daily Options">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Daily Options</h1>
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
+              Configure your options scan rules and export a JSON config for the backend scanner.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleReset}
+              className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Reset
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+
+        {validation.length > 0 && (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3">
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Config warnings</p>
+            <ul className="mt-1 text-sm text-amber-800 dark:text-amber-300 list-disc pl-5 space-y-0.5">
+              {validation.map((msg) => (
+                <li key={msg}>{msg}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <Section title="Universe" emoji="🧺">
+              <TextareaRow
+                label="Tickers"
+                description="Comma or whitespace separated. Duplicates removed and normalized to uppercase."
+                value={tickersText}
+                placeholder="SPY, QQQ, AAPL"
+                onChange={setTickersText}
+              />
+              <ToggleRow
+                label="Include Weeklies"
+                description="Include weekly expirations when available."
+                checked={config.universe.includeWeeklies}
+                onChange={(v) => setConfig((p) => ({ ...p, universe: { ...p.universe, includeWeeklies: v } }))}
+              />
+              <NumberRow
+                label="Exclude Earnings Within"
+                description="0 disables. Requires an earnings calendar source in the backend."
+                value={config.universe.excludeEarningsWithinDays}
+                min={0}
+                max={30}
+                step={1}
+                suffix="days"
+                onChange={(v) =>
+                  setConfig((p) => ({ ...p, universe: { ...p.universe, excludeEarningsWithinDays: Math.max(0, v) } }))
+                }
+              />
+            </Section>
+
+            <Section title="Data Source" emoji="🛰️">
+              <SelectRow
+                label="Provider"
+                description="Backend uses this to choose the options chain API."
+                value={config.data.provider}
+                options={[{ value: 'placeholder', label: 'API Placeholder' }]}
+                onChange={(v) => setConfig((p) => ({ ...p, data: { ...p.data, provider: v as 'placeholder' } }))}
+              />
+              <NumberRow
+                label="Refresh Interval"
+                description="UI-side default; scheduler also enforces its own run frequency."
+                value={config.data.refreshIntervalMinutes}
+                min={1}
+                max={120}
+                step={1}
+                suffix="min"
+                onChange={(v) => setConfig((p) => ({ ...p, data: { ...p.data, refreshIntervalMinutes: v } }))}
+              />
+            </Section>
+
+            <Section title="Liquidity Filters" emoji="💧">
+              <NumberRow
+                label="Min Open Interest"
+                description="Hard filter gate."
+                value={config.liquidity.minOpenInterest}
+                min={0}
+                max={500000}
+                step={50}
+                onChange={(v) => setConfig((p) => ({ ...p, liquidity: { ...p.liquidity, minOpenInterest: v } }))}
+              />
+              <NumberRow
+                label="Min Volume"
+                description="Hard filter gate."
+                value={config.liquidity.minVolume}
+                min={0}
+                max={500000}
+                step={50}
+                onChange={(v) => setConfig((p) => ({ ...p, liquidity: { ...p.liquidity, minVolume: v } }))}
+              />
+              <NumberRow
+                label="Max Bid-Ask Spread"
+                description="Filters out wide / illiquid contracts."
+                value={config.liquidity.maxBidAskSpreadPct}
+                min={0}
+                max={100}
+                step={0.5}
+                suffix="%"
+                onChange={(v) => setConfig((p) => ({ ...p, liquidity: { ...p.liquidity, maxBidAskSpreadPct: v } }))}
+              />
+              <NumberRow
+                label="Min Option Price"
+                description="Avoids noisy penny options."
+                value={config.liquidity.minOptionPrice}
+                min={0}
+                max={100}
+                step={0.05}
+                prefix="$"
+                onChange={(v) => setConfig((p) => ({ ...p, liquidity: { ...p.liquidity, minOptionPrice: v } }))}
+              />
+              <NumberRow
+                label="Max Contracts Per Ticker"
+                description="Keeps ranked output readable."
+                value={config.liquidity.maxContractsPerTicker}
+                min={1}
+                max={200}
+                step={1}
+                onChange={(v) =>
+                  setConfig((p) => ({ ...p, liquidity: { ...p.liquidity, maxContractsPerTicker: v } }))
+                }
+              />
+            </Section>
+
+            <Section title="Expiry Window" emoji="📅">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <NumberRow
+                  label="DTE Min"
+                  value={config.expiry.dteMin}
+                  min={0}
+                  max={365}
+                  step={1}
+                  suffix="days"
+                  onChange={(v) => setConfig((p) => ({ ...p, expiry: { ...p.expiry, dteMin: v } }))}
+                />
+                <NumberRow
+                  label="DTE Max"
+                  value={config.expiry.dteMax}
+                  min={0}
+                  max={365}
+                  step={1}
+                  suffix="days"
+                  onChange={(v) => setConfig((p) => ({ ...p, expiry: { ...p.expiry, dteMax: v } }))}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ToggleRow
+                  label="Allow 0DTE"
+                  description="Requires strict liquidity. High gamma risk."
+                  checked={config.expiry.allow0DTE}
+                  onChange={(v) => setConfig((p) => ({ ...p, expiry: { ...p.expiry, allow0DTE: v } }))}
+                />
+                <ToggleRow
+                  label="Allow 1DTE"
+                  description="Next-day expiry (if available)."
+                  checked={config.expiry.allow1DTE}
+                  onChange={(v) => setConfig((p) => ({ ...p, expiry: { ...p.expiry, allow1DTE: v } }))}
+                />
+              </div>
+            </Section>
+          </div>
+
+          <div className="space-y-6">
+            <Section title="Greeks" emoji="📐">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <NumberRow
+                  label="Delta Min"
+                  description="Directional contracts often sit in 0.30–0.70."
+                  value={config.greeks.deltaMin}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(v) => setConfig((p) => ({ ...p, greeks: { ...p.greeks, deltaMin: v } }))}
+                />
+                <NumberRow
+                  label="Delta Max"
+                  value={config.greeks.deltaMax}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(v) => setConfig((p) => ({ ...p, greeks: { ...p.greeks, deltaMax: v } }))}
+                />
+              </div>
+            </Section>
+
+            <Section title="Volatility" emoji="🌪️">
+              <SelectRow
+                label="Volatility Mode"
+                description="Choose one thresholding method for filtering and scoring."
+                value={config.volatility.mode}
+                options={[
+                  { value: 'iv_percentile', label: 'IV Percentile' },
+                  { value: 'iv_rank', label: 'IV Rank' },
+                ]}
+                onChange={(v) => setConfig((p) => ({ ...p, volatility: { ...p.volatility, mode: v as IVMode } }))}
+              />
+              <NumberRow
+                label={config.volatility.mode === 'iv_rank' ? 'IV Rank Min' : 'IV Percentile Min'}
+                description="0–100. Higher values favor elevated implied volatility."
+                value={config.volatility.threshold}
+                min={0}
+                max={100}
+                step={1}
+                suffix="%"
+                onChange={(v) => setConfig((p) => ({ ...p, volatility: { ...p.volatility, threshold: v } }))}
+              />
+              <ToggleRow
+                label="IV Spike Detection"
+                description="Optional: flag sudden IV expansion."
+                checked={config.volatility.ivSpike.enabled}
+                onChange={(v) => setConfig((p) => ({ ...p, volatility: { ...p.volatility, ivSpike: { ...p.volatility.ivSpike, enabled: v } } }))}
+              />
+              {config.volatility.ivSpike.enabled && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <NumberRow
+                    label="Spike Lookback"
+                    value={config.volatility.ivSpike.lookbackDays}
+                    min={5}
+                    max={252}
+                    step={1}
+                    suffix="days"
+                    onChange={(v) =>
+                      setConfig((p) => ({
+                        ...p,
+                        volatility: { ...p.volatility, ivSpike: { ...p.volatility.ivSpike, lookbackDays: v } },
+                      }))
+                    }
+                  />
+                  <NumberRow
+                    label="Spike Threshold"
+                    value={config.volatility.ivSpike.thresholdPct}
+                    min={1}
+                    max={300}
+                    step={1}
+                    suffix="%"
+                    onChange={(v) =>
+                      setConfig((p) => ({
+                        ...p,
+                        volatility: { ...p.volatility, ivSpike: { ...p.volatility.ivSpike, thresholdPct: v } },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+            </Section>
+
+            <Section title="Scoring" emoji="🧮">
+              <p className="text-xs text-gray-500 dark:text-zinc-500">
+                Weights are relative; higher means more influence on ranking. Keep it simple to avoid overfitting.
+              </p>
+              <NumberRow
+                label="Weight: Liquidity"
+                value={config.scoring.weights.liquidity}
+                min={0}
+                max={10}
+                step={0.5}
+                onChange={(v) => setNumber((p) => ({ ...p, scoring: { ...p.scoring, weights: { ...p.scoring.weights, liquidity: v } } }))}
+              />
+              <NumberRow
+                label="Weight: Volume vs OI"
+                value={config.scoring.weights.volumeVsOI}
+                min={0}
+                max={10}
+                step={0.5}
+                onChange={(v) => setNumber((p) => ({ ...p, scoring: { ...p.scoring, weights: { ...p.scoring.weights, volumeVsOI: v } } }))}
+              />
+              <NumberRow
+                label="Weight: Volatility"
+                value={config.scoring.weights.volatility}
+                min={0}
+                max={10}
+                step={0.5}
+                onChange={(v) => setNumber((p) => ({ ...p, scoring: { ...p.scoring, weights: { ...p.scoring.weights, volatility: v } } }))}
+              />
+              <NumberRow
+                label="Weight: Delta Fit"
+                value={config.scoring.weights.delta}
+                min={0}
+                max={10}
+                step={0.5}
+                onChange={(v) => setNumber((p) => ({ ...p, scoring: { ...p.scoring, weights: { ...p.scoring.weights, delta: v } } }))}
+              />
+              <NumberRow
+                label="Weight: DTE"
+                value={config.scoring.weights.dte}
+                min={0}
+                max={10}
+                step={0.5}
+                onChange={(v) => setNumber((p) => ({ ...p, scoring: { ...p.scoring, weights: { ...p.scoring.weights, dte: v } } }))}
+              />
+            </Section>
+
+            <Section title="Risk + Scheduler" emoji="🛡️">
+              <ToggleRow
+                label="Defined-Risk Only"
+                description="If enabled, backend should emit spreads only."
+                checked={config.risk.definedRiskOnly}
+                onChange={(v) => setConfig((p) => ({ ...p, risk: { ...p.risk, definedRiskOnly: v } }))}
+              />
+              <NumberRow
+                label="Max Risk Per Trade"
+                description="Percent-based sizing cap; never a fixed dollar amount."
+                value={config.risk.maxRiskPctPerTrade}
+                min={0.1}
+                max={10}
+                step={0.1}
+                suffix="%"
+                onChange={(v) => setConfig((p) => ({ ...p, risk: { ...p.risk, maxRiskPctPerTrade: v } }))}
+              />
+              <NumberRow
+                label="Wide Spread Warning"
+                description="Adds an extra warning in output JSON."
+                value={config.risk.warnOnWideSpreadPct}
+                min={0}
+                max={100}
+                step={0.5}
+                suffix="%"
+                onChange={(v) => setConfig((p) => ({ ...p, risk: { ...p.risk, warnOnWideSpreadPct: v } }))}
+              />
+              <ToggleRow
+                label="Scheduler Enabled"
+                description="Runs every N minutes during market hours (9:30–16:00 ET)."
+                checked={config.scheduler.enabled}
+                onChange={(v) => setConfig((p) => ({ ...p, scheduler: { ...p.scheduler, enabled: v } }))}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <NumberRow
+                  label="Run Every"
+                  value={config.scheduler.runEveryMinutes}
+                  min={5}
+                  max={120}
+                  step={1}
+                  suffix="min"
+                  onChange={(v) => setConfig((p) => ({ ...p, scheduler: { ...p.scheduler, runEveryMinutes: v } }))}
+                />
+                <NumberRow
+                  label="Dedupe Window"
+                  description="Avoid duplicate signals."
+                  value={config.scheduler.dedupeWindowMinutes}
+                  min={0}
+                  max={24 * 60}
+                  step={5}
+                  suffix="min"
+                  onChange={(v) =>
+                    setConfig((p) => ({ ...p, scheduler: { ...p.scheduler, dedupeWindowMinutes: v } }))
+                  }
+                />
+              </div>
+            </Section>
+
+            <Section title="Export" emoji="📦">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-zinc-100">Config JSON</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">Use this as the backend scanner config.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopy}
+                    className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+              <pre className="text-xs bg-gray-50 dark:bg-zinc-950/40 border border-gray-200 dark:border-zinc-800 rounded-lg p-3 overflow-auto max-h-96">
+                <code className="text-gray-800 dark:text-zinc-200">{exportJson}</code>
+              </pre>
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-500">
+                <span>{saved ? 'Saved' : 'Not saved'}</span>
+                <span>No live trades. Signals are probabilistic and include risk warnings.</span>
+              </div>
+            </Section>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
