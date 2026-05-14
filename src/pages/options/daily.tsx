@@ -62,6 +62,48 @@ interface DailyOptionsConfig {
   };
 }
 
+interface DailyScanCandidate {
+  id: string;
+  ticker: string;
+  contractSymbol: string;
+  type: 'call' | 'put';
+  strike: number;
+  expiry: string;
+  dte: number;
+  underlyingPrice: number;
+  bid: number;
+  ask: number;
+  mid: number;
+  spreadPct: number | null;
+  iv: number;
+  ivMetric: { mode: IVMode; value: number | null; note?: string };
+  greeks: { delta: number | null; gamma: number | null; theta: number | null };
+  liquidity: { openInterest: number; volume: number; volumeOiRatio: number; liquidityScore: number };
+  score: { total: number; breakdown: Record<string, number>; weights: DailyOptionsConfig['scoring']['weights'] };
+  rationale: string[];
+  risk: {
+    maxLossPerContract: number | null;
+    maxRiskPctPerTrade: number;
+    positionSizing: {
+      method: 'percent_of_account';
+      accountSize?: number;
+      maxRiskDollars?: number;
+      suggestedContracts?: number;
+      riskPerContract?: number;
+    };
+  };
+  warnings: string[];
+}
+
+interface DailyScanResponse {
+  success: boolean;
+  fetchedAt: number;
+  tickers: string[];
+  candidates: DailyScanCandidate[];
+  errors: Array<{ ticker: string; error: string }>;
+  disclaimer?: string;
+}
+
 const DEFAULT_CONFIG: DailyOptionsConfig = {
   universe: {
     tickers: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA'],
@@ -118,6 +160,34 @@ const DEFAULT_CONFIG: DailyOptionsConfig = {
     dedupeWindowMinutes: 60,
   },
 };
+
+function loadAccountSizeFallback(): number | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = localStorage.getItem('gr8bux_settings');
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as { defaultAccountSize?: unknown };
+    const v = Number(parsed.defaultAccountSize);
+    return Number.isFinite(v) && v > 0 ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+type LastSignalMap = Record<string, number>; // id -> lastSeen timestamp ms
+const LAST_SIGNALS_KEY = 'gr8bux_daily_options_last_signals_v1';
+function loadLastSignals(): LastSignalMap {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LAST_SIGNALS_KEY);
+    return raw ? (JSON.parse(raw) as LastSignalMap) : {};
+  } catch {
+    return {};
+  }
+}
+function saveLastSignals(map: LastSignalMap) {
+  localStorage.setItem(LAST_SIGNALS_KEY, JSON.stringify(map));
+}
 
 function clampNumber(value: number, min: number, max: number) {
   if (Number.isNaN(value)) return min;
@@ -330,11 +400,19 @@ export default function DailyOptionsPage() {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [tickersText, setTickersText] = useState(DEFAULT_CONFIG.universe.tickers.join(', '));
+  const [running, setRunning] = useState(false);
+  const [scanErr, setScanErr] = useState<string | null>(null);
+  const [scanAt, setScanAt] = useState<number | null>(null);
+  const [candidates, setCandidates] = useState<DailyScanCandidate[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [hideDuplicates, setHideDuplicates] = useState(true);
+  const [lastSignals, setLastSignals] = useState<LastSignalMap>({});
 
   useEffect(() => {
     const loaded = loadConfig();
     setConfig(loaded);
     setTickersText(loaded.universe.tickers.join(', '));
+    setLastSignals(loadLastSignals());
   }, []);
 
   useEffect(() => {
@@ -435,6 +513,58 @@ export default function DailyOptionsPage() {
     }
   };
 
+  const handleRunScan = async () => {
+    setRunning(true);
+    setScanErr(null);
+    setExpandedId(null);
+    try {
+      // Save current config before running, so API matches what you see.
+      saveConfig(config);
+
+      const accountSize = loadAccountSizeFallback();
+      const currentLastSignals = loadLastSignals();
+      const resp = await fetch('/api/options/daily-scan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ config, accountSize, side: 'both' }),
+      });
+      const data = (await resp.json()) as DailyScanResponse;
+      if (!resp.ok || !data?.success) {
+        throw new Error((data as any)?.error ?? 'Scan failed');
+      }
+
+      setScanAt(data.fetchedAt ?? Date.now());
+
+      // Dedupe in UI (serverless runtimes are stateless).
+      const now = Date.now();
+      const dedupeMs = Math.max(0, config.scheduler.dedupeWindowMinutes) * 60 * 1000;
+      const nextLastSignals: LastSignalMap = { ...currentLastSignals };
+
+      const withDupes = (data.candidates ?? []).map((c) => {
+        const lastSeen = nextLastSignals[c.id];
+        const isDup = dedupeMs > 0 && lastSeen && now - lastSeen < dedupeMs;
+        return { ...c, warnings: isDup ? ['Duplicate signal within dedupe window.', ...c.warnings] : c.warnings };
+      });
+
+      for (const c of data.candidates ?? []) nextLastSignals[c.id] = now;
+      setLastSignals(nextLastSignals);
+      saveLastSignals(nextLastSignals);
+
+      setCandidates(withDupes);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      setScanErr(msg);
+      setCandidates([]);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const visibleCandidates = useMemo(() => {
+    if (!hideDuplicates) return candidates;
+    return candidates.filter((c) => !c.warnings.includes('Duplicate signal within dedupe window.'));
+  }, [candidates, hideDuplicates]);
+
   return (
     <Layout title="Daily Options">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -446,6 +576,15 @@ export default function DailyOptionsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleRunScan}
+              disabled={running}
+              className={`px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors ${
+                running ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
+            >
+              {running ? 'Running…' : 'Run Scan'}
+            </button>
             <button
               onClick={handleReset}
               className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
@@ -460,6 +599,145 @@ export default function DailyOptionsPage() {
             </button>
           </div>
         </div>
+
+        {scanErr && (
+          <div className="rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 px-4 py-3">
+            <p className="text-sm font-medium text-rose-900 dark:text-rose-200">Scan error</p>
+            <p className="mt-1 text-sm text-rose-800 dark:text-rose-300">{scanErr}</p>
+          </div>
+        )}
+
+        {scanAt && (
+          <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Latest scan</p>
+              <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
+                {new Date(scanAt).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <ToggleRow
+                label="Hide Duplicates"
+                description="Uses your dedupe window setting."
+                checked={hideDuplicates}
+                onChange={setHideDuplicates}
+              />
+            </div>
+          </div>
+        )}
+
+        {visibleCandidates.length > 0 && (
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700/60 shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-gray-100 dark:border-zinc-700/40 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold text-gray-800 dark:text-zinc-100">Ranked Candidates</p>
+                <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
+                  Click a row for rationale and risk sizing.
+                </p>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-zinc-500">
+                {visibleCandidates.length} shown (of {candidates.length})
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-zinc-950/40 text-gray-600 dark:text-zinc-400">
+                  <tr>
+                    <th className="text-left font-medium px-4 py-2.5">Ticker</th>
+                    <th className="text-left font-medium px-4 py-2.5">Type</th>
+                    <th className="text-left font-medium px-4 py-2.5">Strike</th>
+                    <th className="text-left font-medium px-4 py-2.5">Expiry</th>
+                    <th className="text-right font-medium px-4 py-2.5">DTE</th>
+                    <th className="text-right font-medium px-4 py-2.5">Delta</th>
+                    <th className="text-right font-medium px-4 py-2.5">IV%</th>
+                    <th className="text-right font-medium px-4 py-2.5">OI</th>
+                    <th className="text-right font-medium px-4 py-2.5">Vol</th>
+                    <th className="text-right font-medium px-4 py-2.5">Spr%</th>
+                    <th className="text-right font-medium px-4 py-2.5">Score</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {visibleCandidates.map((c) => {
+                    const expanded = expandedId === c.id;
+                    return (
+                      <React.Fragment key={c.id}>
+                        <tr
+                          onClick={() => setExpandedId(expanded ? null : c.id)}
+                          className="cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/40"
+                        >
+                          <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-white">{c.ticker}</td>
+                          <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.type.toUpperCase()}</td>
+                          <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.strike}</td>
+                          <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.expiry}</td>
+                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.dte}</td>
+                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">
+                            {c.greeks.delta === null ? '—' : c.greeks.delta.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.iv.toFixed(1)}</td>
+                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.liquidity.openInterest}</td>
+                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.liquidity.volume}</td>
+                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">
+                            {c.spreadPct === null ? '—' : c.spreadPct.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-gray-900 dark:text-white">
+                            {(c.score.total * 100).toFixed(1)}
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr className="bg-gray-50/60 dark:bg-zinc-950/30">
+                            <td colSpan={11} className="px-4 py-3">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div>
+                                  <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300">Rationale</p>
+                                  <ul className="mt-1 text-xs text-gray-600 dark:text-zinc-400 list-disc pl-5 space-y-0.5">
+                                    {c.rationale.map((r) => (
+                                      <li key={r}>{r}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300">Risk + Sizing</p>
+                                  <div className="mt-1 text-xs text-gray-600 dark:text-zinc-400 space-y-1">
+                                    <div>
+                                      Max loss per contract:{' '}
+                                      {c.risk.maxLossPerContract === null ? '—' : `$${c.risk.maxLossPerContract.toFixed(2)}`}
+                                    </div>
+                                    <div>
+                                      Sizing cap: {c.risk.maxRiskPctPerTrade.toFixed(2)}% of account
+                                      {c.risk.positionSizing.accountSize
+                                        ? ` ($${c.risk.positionSizing.accountSize.toFixed(0)})`
+                                        : ''}
+                                    </div>
+                                    {typeof c.risk.positionSizing.suggestedContracts === 'number' && (
+                                      <div>Suggested contracts: {c.risk.positionSizing.suggestedContracts}</div>
+                                    )}
+                                  </div>
+                                  {c.warnings.length > 0 && (
+                                    <>
+                                      <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300 mt-3">Warnings</p>
+                                      <ul className="mt-1 text-xs text-amber-700 dark:text-amber-300 list-disc pl-5 space-y-0.5">
+                                        {c.warnings.map((w) => (
+                                          <li key={w}>{w}</li>
+                                        ))}
+                                      </ul>
+                                    </>
+                                  )}
+                                  {c.ivMetric?.note && (
+                                    <p className="mt-2 text-[11px] text-gray-500 dark:text-zinc-500">{c.ivMetric.note}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {validation.length > 0 && (
           <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3">
