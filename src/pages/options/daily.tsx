@@ -652,6 +652,22 @@ export default function DailyOptionsPage() {
     return candidates.filter((c) => !c.warnings.includes('Duplicate signal within dedupe window.'));
   }, [candidates, hideDuplicates]);
 
+  const groupedCandidates = useMemo(() => {
+    const map = new Map<string, DailyScanCandidate[]>();
+    for (const c of visibleCandidates) {
+      const arr = map.get(c.ticker) ?? [];
+      arr.push(c);
+      map.set(c.ticker, arr);
+    }
+    const groups = Array.from(map.entries()).map(([ticker, items]) => {
+      items.sort((a, b) => b.score.total - a.score.total);
+      const best = items[0];
+      return { ticker, items, bestScore: best?.score.total ?? 0 };
+    });
+    groups.sort((a, b) => b.bestScore - a.bestScore || a.ticker.localeCompare(b.ticker));
+    return groups;
+  }, [visibleCandidates]);
+
   const emptyState = useMemo(() => {
     if (!scanAt) return null;
     if (running) return null;
@@ -770,110 +786,125 @@ export default function DailyOptionsPage() {
             <div className="px-5 py-3.5 border-b border-gray-100 dark:border-zinc-700/40 flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <p className="text-sm font-semibold text-gray-800 dark:text-zinc-100">Ranked Candidates</p>
-                <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
-                  Click a row for rationale and risk sizing.
-                </p>
+                <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">Expand a ticker to see contracts.</p>
               </div>
               <div className="text-xs text-gray-500 dark:text-zinc-500">
-                {visibleCandidates.length} shown (of {candidates.length})
+                {groupedCandidates.length} tickers ({visibleCandidates.length} contracts)
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-zinc-950/40 text-gray-600 dark:text-zinc-400">
-                  <tr>
-                    <th className="text-left font-medium px-4 py-2.5">Ticker</th>
-                    <th className="text-left font-medium px-4 py-2.5">Type</th>
-                    <th className="text-left font-medium px-4 py-2.5">Strike</th>
-                    <th className="text-left font-medium px-4 py-2.5">Expiry</th>
-                    <th className="text-right font-medium px-4 py-2.5">DTE</th>
-                    <th className="text-right font-medium px-4 py-2.5">Delta</th>
-                    <th className="text-right font-medium px-4 py-2.5">IV%</th>
-                    <th className="text-right font-medium px-4 py-2.5">OI</th>
-                    <th className="text-right font-medium px-4 py-2.5">Vol</th>
-                    <th className="text-right font-medium px-4 py-2.5">Spr%</th>
-                    <th className="text-right font-medium px-4 py-2.5">Score</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                  {visibleCandidates.map((c) => {
-                    const expanded = expandedId === c.id;
-                    return (
-                      <React.Fragment key={c.id}>
-                        <tr
-                          onClick={() => setExpandedId(expanded ? null : c.id)}
-                          className="cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/40"
-                        >
-                          <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-white">{c.ticker}</td>
-                          <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.type.toUpperCase()}</td>
-                          <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.strike}</td>
-                          <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.expiry}</td>
-                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.dte}</td>
-                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">
-                            {c.greeks.delta === null ? '—' : c.greeks.delta.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.iv.toFixed(1)}</td>
-                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.liquidity.openInterest}</td>
-                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.liquidity.volume}</td>
-                          <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">
-                            {c.spreadPct === null ? '—' : c.spreadPct.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-gray-900 dark:text-white">
-                            {(c.score.total * 100).toFixed(1)}
-                          </td>
-                        </tr>
-                        {expanded && (
-                          <tr className="bg-gray-50/60 dark:bg-zinc-950/30">
-                            <td colSpan={11} className="px-4 py-3">
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                <div>
-                                  <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300">Rationale</p>
-                                  <ul className="mt-1 text-xs text-gray-600 dark:text-zinc-400 list-disc pl-5 space-y-0.5">
-                                    {c.rationale.map((r) => (
-                                      <li key={r}>{r}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300">Risk + Sizing</p>
-                                  <div className="mt-1 text-xs text-gray-600 dark:text-zinc-400 space-y-1">
-                                    <div>
-                                      Max loss per contract:{' '}
-                                      {c.risk.maxLossPerContract === null ? '—' : `$${c.risk.maxLossPerContract.toFixed(2)}`}
-                                    </div>
-                                    <div>
-                                      Sizing cap: {c.risk.maxRiskPctPerTrade.toFixed(2)}% of account
-                                      {c.risk.positionSizing.accountSize
-                                        ? ` ($${c.risk.positionSizing.accountSize.toFixed(0)})`
-                                        : ''}
-                                    </div>
-                                    {typeof c.risk.positionSizing.suggestedContracts === 'number' && (
-                                      <div>Suggested contracts: {c.risk.positionSizing.suggestedContracts}</div>
-                                    )}
-                                  </div>
-                                  {c.warnings.length > 0 && (
-                                    <>
-                                      <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300 mt-3">Warnings</p>
-                                      <ul className="mt-1 text-xs text-amber-700 dark:text-amber-300 list-disc pl-5 space-y-0.5">
-                                        {c.warnings.map((w) => (
-                                          <li key={w}>{w}</li>
-                                        ))}
-                                      </ul>
-                                    </>
-                                  )}
-                                  {c.ivMetric?.note && (
-                                    <p className="mt-2 text-[11px] text-gray-500 dark:text-zinc-500">{c.ivMetric.note}</p>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
+            <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+              {groupedCandidates.map((g) => (
+                <details key={g.ticker} className="group">
+                  <summary className="list-none cursor-pointer px-5 py-3 flex items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-zinc-800/40">
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{g.ticker}</span>
+                      <span className="text-xs text-gray-500 dark:text-zinc-500">{g.items.length} contracts</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-gray-500 dark:text-zinc-500">Top score</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{(g.bestScore * 100).toFixed(1)}</span>
+                      <span className="text-gray-400 dark:text-zinc-500 group-open:rotate-180 transition-transform">▾</span>
+                    </div>
+                  </summary>
+                  <div className="px-0 pb-2">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-zinc-950/40 text-gray-600 dark:text-zinc-400">
+                          <tr>
+                            <th className="text-left font-medium px-4 py-2.5">Type</th>
+                            <th className="text-left font-medium px-4 py-2.5">Strike</th>
+                            <th className="text-left font-medium px-4 py-2.5">Expiry</th>
+                            <th className="text-right font-medium px-4 py-2.5">DTE</th>
+                            <th className="text-right font-medium px-4 py-2.5">Delta</th>
+                            <th className="text-right font-medium px-4 py-2.5">IV%</th>
+                            <th className="text-right font-medium px-4 py-2.5">OI</th>
+                            <th className="text-right font-medium px-4 py-2.5">Vol</th>
+                            <th className="text-right font-medium px-4 py-2.5">Spr%</th>
+                            <th className="text-right font-medium px-4 py-2.5">Score</th>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                          {g.items.map((c) => {
+                            const expanded = expandedId === c.id;
+                            return (
+                              <React.Fragment key={c.id}>
+                                <tr
+                                  onClick={() => setExpandedId(expanded ? null : c.id)}
+                                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/40"
+                                >
+                                  <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.type.toUpperCase()}</td>
+                                  <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.strike}</td>
+                                  <td className="px-4 py-2.5 text-gray-700 dark:text-zinc-200">{c.expiry}</td>
+                                  <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.dte}</td>
+                                  <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">
+                                    {c.greeks.delta === null ? '—' : c.greeks.delta.toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.iv.toFixed(1)}</td>
+                                  <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.liquidity.openInterest}</td>
+                                  <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">{c.liquidity.volume}</td>
+                                  <td className="px-4 py-2.5 text-right text-gray-700 dark:text-zinc-200">
+                                    {c.spreadPct === null ? '—' : c.spreadPct.toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-semibold text-gray-900 dark:text-white">
+                                    {(c.score.total * 100).toFixed(1)}
+                                  </td>
+                                </tr>
+                                {expanded && (
+                                  <tr className="bg-gray-50/60 dark:bg-zinc-950/30">
+                                    <td colSpan={10} className="px-4 py-3">
+                                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <div>
+                                          <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300">Rationale</p>
+                                          <ul className="mt-1 text-xs text-gray-600 dark:text-zinc-400 list-disc pl-5 space-y-0.5">
+                                            {c.rationale.map((r) => (
+                                              <li key={r}>{r}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300">Risk + Sizing</p>
+                                          <div className="mt-1 text-xs text-gray-600 dark:text-zinc-400 space-y-1">
+                                            <div>
+                                              Max loss per contract:{' '}
+                                              {c.risk.maxLossPerContract === null ? '—' : `$${c.risk.maxLossPerContract.toFixed(2)}`}
+                                            </div>
+                                            <div>
+                                              Sizing cap: {c.risk.maxRiskPctPerTrade.toFixed(2)}% of account
+                                              {c.risk.positionSizing.accountSize
+                                                ? ` ($${c.risk.positionSizing.accountSize.toFixed(0)})`
+                                                : ''}
+                                            </div>
+                                            {typeof c.risk.positionSizing.suggestedContracts === 'number' && (
+                                              <div>Suggested contracts: {c.risk.positionSizing.suggestedContracts}</div>
+                                            )}
+                                          </div>
+                                          {c.warnings.length > 0 && (
+                                            <>
+                                              <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300 mt-3">Warnings</p>
+                                              <ul className="mt-1 text-xs text-amber-700 dark:text-amber-300 list-disc pl-5 space-y-0.5">
+                                                {c.warnings.map((w) => (
+                                                  <li key={w}>{w}</li>
+                                                ))}
+                                              </ul>
+                                            </>
+                                          )}
+                                          {c.ivMetric?.note && (
+                                            <p className="mt-2 text-[11px] text-gray-500 dark:text-zinc-500">{c.ivMetric.note}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </details>
+              ))}
             </div>
           </div>
         )}
