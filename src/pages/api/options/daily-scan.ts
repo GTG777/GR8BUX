@@ -3,6 +3,7 @@ import { getOptionsChainPaged, getStockSnapshot, todayDateStr, type MassiveOptio
 
 type OptionSide = 'call' | 'put';
 type IVMode = 'iv_percentile' | 'iv_rank';
+type AfterHoursSpreadMode = 'disable' | 'relax';
 
 interface DailyOptionsConfig {
   universe: {
@@ -13,6 +14,11 @@ interface DailyOptionsConfig {
   data: {
     provider: 'placeholder';
     refreshIntervalMinutes: number;
+  };
+  afterHours?: {
+    enabled: boolean;
+    spreadFilterMode: AfterHoursSpreadMode;
+    relaxedMaxBidAskSpreadPct: number;
   };
   liquidity: {
     minOpenInterest: number;
@@ -187,6 +193,10 @@ function spreadPct(c: ChainContract): number | null {
   return clamp(parseFloat(sp.toFixed(2)), 0, 1000);
 }
 
+function isMissingQuote(c: ChainContract): boolean {
+  return c.bid <= 0 || c.ask <= 0 || c.mid <= 0;
+}
+
 function dteFromExpiration(expirationUnixSeconds: number): number {
   const ms = expirationUnixSeconds * 1000 - Date.now();
   return Math.ceil(ms / (24 * 60 * 60 * 1000));
@@ -244,6 +254,11 @@ function scoreCandidate(args: {
 
 async function processTicker(ticker: string, config: DailyOptionsConfig, side: DailyScanRequestBody['side']) {
   const today = todayDateStr();
+  const afterHours = config.afterHours ?? {
+    enabled: false,
+    spreadFilterMode: 'relax' as const,
+    relaxedMaxBidAskSpreadPct: config.liquidity.maxBidAskSpreadPct,
+  };
 
   const { contracts: rawContracts, underlyingPrice: chainPrice } = await getOptionsChainPaged(
     ticker,
@@ -265,7 +280,13 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
   const mapped = rawContracts.map((c) => mapContract(c, underlyingPrice));
   const ivs = mapped.filter((c) => (c.impliedVolatility ?? 0) > 0).map((c) => c.impliedVolatility * 100);
 
-  const candidates: Array<{ c: ChainContract; dte: number; spread: number | null; ivMetricValue: number | null }> = [];
+  const candidates: Array<{
+    c: ChainContract;
+    dte: number;
+    spread: number | null;
+    ivMetricValue: number | null;
+    usedFallback: boolean;
+  }> = [];
 
   for (const c of mapped) {
     if (side === 'calls' && c.type !== 'call') continue;
@@ -278,10 +299,23 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
 
     if (c.openInterest < config.liquidity.minOpenInterest) continue;
     if (c.volume < config.liquidity.minVolume) continue;
-    if (c.mid < config.liquidity.minOptionPrice) continue;
+    const usedFallback = afterHours.enabled && isMissingQuote(c) && c.lastPrice > 0;
+    const effectiveMid = usedFallback ? c.lastPrice : c.mid;
+    const sp = usedFallback ? null : spreadPct(c);
 
-    const sp = spreadPct(c);
-    if (sp === null || sp > config.liquidity.maxBidAskSpreadPct) continue;
+    if (effectiveMid < config.liquidity.minOptionPrice) continue;
+
+    if (afterHours.enabled) {
+      if (afterHours.spreadFilterMode === 'relax') {
+        const maxSpread = Math.max(config.liquidity.maxBidAskSpreadPct, afterHours.relaxedMaxBidAskSpreadPct);
+        if (sp !== null && sp > maxSpread) continue;
+      }
+      if (afterHours.spreadFilterMode === 'disable') {
+        // skip spread filtering entirely
+      }
+    } else {
+      if (sp === null || sp > config.liquidity.maxBidAskSpreadPct) continue;
+    }
 
     if (c.delta === null) continue;
     const absDelta = Math.abs(c.delta);
@@ -291,14 +325,19 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
     if (ivMetricValue !== null && ivMetricValue < config.volatility.threshold) continue;
     if (ivMetricValue === null) continue;
 
-    candidates.push({ c, dte, spread: sp, ivMetricValue });
+    // If we used fallback, override displayed quotes to be explicit and consistent.
+    const cOut: ChainContract = usedFallback
+      ? { ...c, bid: c.lastPrice, ask: c.lastPrice, mid: c.lastPrice }
+      : c;
+
+    candidates.push({ c: cOut, dte, spread: sp, ivMetricValue, usedFallback });
   }
 
   // Score + rank, cap per ticker
   const scored = candidates
-    .map(({ c, dte, spread, ivMetricValue }) => {
+    .map(({ c, dte, spread, ivMetricValue, usedFallback }) => {
       const scoredParts = scoreCandidate({ c, config, dte, spread, ivMetricValue });
-      return { c, dte, spread, ivMetricValue, scoredParts };
+      return { c, dte, spread, ivMetricValue, usedFallback, scoredParts };
     })
     .sort((a, b) => b.scoredParts.total - a.scoredParts.total || (a.spread ?? 999) - (b.spread ?? 999));
 
@@ -327,6 +366,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const accountSize = body.accountSize && Number.isFinite(body.accountSize) ? Math.max(0, body.accountSize) : undefined;
 
   const config = body.config;
+  const afterHours = config.afterHours ?? {
+    enabled: false,
+    spreadFilterMode: 'relax' as const,
+    relaxedMaxBidAskSpreadPct: config.liquidity.maxBidAskSpreadPct,
+  };
   const errors: Array<{ ticker: string; error: string }> = [];
 
   // Simple concurrency limiter
@@ -346,6 +390,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const signals: CandidateSignal[] = [];
+  let fallbackCount = 0;
   for (const r of results) {
     for (const row of r.scored) {
       const c = row.c;
@@ -355,6 +400,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (config.risk.definedRiskOnly) warnings.push('Defined-risk-only is enabled, but spread construction is not implemented yet (single-leg contract shown).');
       if (row.spread !== null && row.spread >= config.risk.warnOnWideSpreadPct) warnings.push('Bid-ask spread is wide relative to your warning threshold.');
       if (row.dte <= 1) warnings.push('Very short-dated option (0–1 DTE). Gamma and decay risk are elevated.');
+      if (afterHours.enabled) {
+        warnings.push('After-hours mode is enabled. Always verify live quotes before trading.');
+        if (afterHours.spreadFilterMode === 'disable') warnings.push('Spread filtering disabled in after-hours mode.');
+      }
+      if (afterHours.enabled && row.usedFallback) {
+        warnings.push('Bid/ask unavailable. Using last trade price; spread is unknown.');
+      }
+      if (row.usedFallback) fallbackCount += 1;
 
       const riskPerContract = c.mid > 0 ? parseFloat((c.mid * 100).toFixed(2)) : null;
       const maxRiskDollars = accountSize !== undefined ? parseFloat(((accountSize * config.risk.maxRiskPctPerTrade) / 100).toFixed(2)) : undefined;
@@ -416,6 +469,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     success: true,
     fetchedAt: Date.now(),
     tickers: tickers,
+    warnings: afterHours.enabled
+      ? [
+          'After-hours mode enabled: results may be less reliable due to missing/late quotes.',
+          ...(fallbackCount > 0 ? [`Used last-trade fallback pricing for ${fallbackCount} contract(s); bid/ask spread may be unknown.`] : []),
+        ]
+      : [],
     candidates: signals,
     errors,
     disclaimer:

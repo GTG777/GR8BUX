@@ -4,6 +4,7 @@ import { Layout } from '@/components/Layout';
 const STORAGE_KEY = 'gr8bux_daily_options_config_v1';
 
 type IVMode = 'iv_percentile' | 'iv_rank';
+type AfterHoursSpreadMode = 'disable' | 'relax';
 
 interface DailyOptionsConfig {
   universe: {
@@ -14,6 +15,11 @@ interface DailyOptionsConfig {
   data: {
     provider: 'placeholder';
     refreshIntervalMinutes: number;
+  };
+  afterHours: {
+    enabled: boolean;
+    spreadFilterMode: AfterHoursSpreadMode;
+    relaxedMaxBidAskSpreadPct: number;
   };
   liquidity: {
     minOpenInterest: number;
@@ -101,6 +107,7 @@ interface DailyScanResponse {
   tickers: string[];
   candidates: DailyScanCandidate[];
   errors: Array<{ ticker: string; error: string }>;
+  warnings?: string[];
   disclaimer?: string;
 }
 
@@ -113,6 +120,11 @@ const DEFAULT_CONFIG: DailyOptionsConfig = {
   data: {
     provider: 'placeholder',
     refreshIntervalMinutes: 15,
+  },
+  afterHours: {
+    enabled: false,
+    spreadFilterMode: 'relax',
+    relaxedMaxBidAskSpreadPct: 25,
   },
   liquidity: {
     minOpenInterest: 500,
@@ -213,6 +225,7 @@ function loadConfig(): DailyOptionsConfig {
       ...parsed,
       universe: { ...DEFAULT_CONFIG.universe, ...(parsed.universe ?? {}) },
       data: { ...DEFAULT_CONFIG.data, ...(parsed.data ?? {}) },
+      afterHours: { ...DEFAULT_CONFIG.afterHours, ...(parsed.afterHours ?? {}) },
       liquidity: { ...DEFAULT_CONFIG.liquidity, ...(parsed.liquidity ?? {}) },
       expiry: { ...DEFAULT_CONFIG.expiry, ...(parsed.expiry ?? {}) },
       greeks: { ...DEFAULT_CONFIG.greeks, ...(parsed.greeks ?? {}) },
@@ -407,6 +420,7 @@ export default function DailyOptionsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [hideDuplicates, setHideDuplicates] = useState(true);
   const [lastSignals, setLastSignals] = useState<LastSignalMap>({});
+  const [scanWarnings, setScanWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     const loaded = loadConfig();
@@ -431,6 +445,9 @@ export default function DailyOptionsPage() {
     }
     if (config.scheduler.enabled && config.scheduler.runEveryMinutes < 5) issues.push('Scheduler interval is very aggressive (< 5 min).');
     if (config.expiry.allow0DTE && config.liquidity.maxBidAskSpreadPct > 6) issues.push('0DTE enabled with a wide spread filter.');
+    if (config.afterHours.enabled && config.afterHours.spreadFilterMode === 'disable') {
+      issues.push('After-hours mode disables spread filtering. Verify quotes before trading.');
+    }
     return issues;
   }, [config]);
 
@@ -449,6 +466,10 @@ export default function DailyOptionsPage() {
       data: {
         ...config.data,
         refreshIntervalMinutes: clampNumber(config.data.refreshIntervalMinutes, 1, 120),
+      },
+      afterHours: {
+        ...config.afterHours,
+        relaxedMaxBidAskSpreadPct: clampNumber(config.afterHours.relaxedMaxBidAskSpreadPct, 0, 100),
       },
       liquidity: {
         ...config.liquidity,
@@ -516,6 +537,7 @@ export default function DailyOptionsPage() {
   const handleRunScan = async () => {
     setRunning(true);
     setScanErr(null);
+    setScanWarnings([]);
     setExpandedId(null);
     try {
       // Save current config before running, so API matches what you see.
@@ -534,6 +556,7 @@ export default function DailyOptionsPage() {
       }
 
       setScanAt(data.fetchedAt ?? Date.now());
+      setScanWarnings(data.warnings ?? []);
 
       // Dedupe in UI (serverless runtimes are stateless).
       const now = Date.now();
@@ -621,6 +644,17 @@ export default function DailyOptionsPage() {
           <div className="rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 px-4 py-3">
             <p className="text-sm font-medium text-rose-900 dark:text-rose-200">Scan error</p>
             <p className="mt-1 text-sm text-rose-800 dark:text-rose-300">{scanErr}</p>
+          </div>
+        )}
+
+        {scanWarnings.length > 0 && (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3">
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Scan warnings</p>
+            <ul className="mt-1 text-sm text-amber-800 dark:text-amber-300 list-disc pl-5 space-y-0.5">
+              {scanWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -822,6 +856,41 @@ export default function DailyOptionsPage() {
                 suffix="min"
                 onChange={(v) => setConfig((p) => ({ ...p, data: { ...p.data, refreshIntervalMinutes: v } }))}
               />
+            </Section>
+
+            <Section title="After-Hours Mode" emoji="🌙">
+              <ToggleRow
+                label="Enable After-Hours Fallback"
+                description="If bid/ask are missing, fall back to last trade price and add prominent warnings."
+                checked={config.afterHours.enabled}
+                onChange={(v) => setConfig((p) => ({ ...p, afterHours: { ...p.afterHours, enabled: v } }))}
+              />
+              <SelectRow
+                label="Spread Filtering"
+                description="After hours, spreads may be unreliable. Choose how strict to be."
+                value={config.afterHours.spreadFilterMode}
+                options={[
+                  { value: 'relax', label: 'Relax Filter' },
+                  { value: 'disable', label: 'Disable Filter' },
+                ]}
+                onChange={(v) =>
+                  setConfig((p) => ({ ...p, afterHours: { ...p.afterHours, spreadFilterMode: v as AfterHoursSpreadMode } }))
+                }
+              />
+              {config.afterHours.spreadFilterMode === 'relax' && (
+                <NumberRow
+                  label="Relaxed Max Spread"
+                  description="Used when quotes exist but are wider after hours."
+                  value={config.afterHours.relaxedMaxBidAskSpreadPct}
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  suffix="%"
+                  onChange={(v) =>
+                    setConfig((p) => ({ ...p, afterHours: { ...p.afterHours, relaxedMaxBidAskSpreadPct: v } }))
+                  }
+                />
+              )}
             </Section>
 
             <Section title="Liquidity Filters" emoji="💧">
