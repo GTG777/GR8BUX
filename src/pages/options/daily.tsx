@@ -5,12 +5,15 @@ const STORAGE_KEY = 'gr8bux_daily_options_config_v1';
 
 type IVMode = 'iv_percentile' | 'iv_rank';
 type AfterHoursSpreadMode = 'disable' | 'relax';
+type UniverseMode = 'custom' | 'sp500';
 
 interface DailyOptionsConfig {
   universe: {
+    mode: UniverseMode;
     tickers: string[];
     includeWeeklies: boolean;
     excludeEarningsWithinDays: number; // 0 disables
+    batchSize: number;
   };
   data: {
     provider: 'placeholder';
@@ -113,9 +116,11 @@ interface DailyScanResponse {
 
 const DEFAULT_CONFIG: DailyOptionsConfig = {
   universe: {
+    mode: 'custom',
     tickers: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA'],
     includeWeeklies: true,
     excludeEarningsWithinDays: 7,
+    batchSize: 25,
   },
   data: {
     provider: 'placeholder',
@@ -421,6 +426,8 @@ export default function DailyOptionsPage() {
   const [hideDuplicates, setHideDuplicates] = useState(true);
   const [lastSignals, setLastSignals] = useState<LastSignalMap>({});
   const [scanWarnings, setScanWarnings] = useState<string[]>([]);
+  const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
+  const [sp500Info, setSp500Info] = useState<{ tickers: string[]; fetchedAt: number } | null>(null);
 
   useEffect(() => {
     const loaded = loadConfig();
@@ -448,6 +455,7 @@ export default function DailyOptionsPage() {
     if (config.afterHours.enabled && config.afterHours.spreadFilterMode === 'disable') {
       issues.push('After-hours mode disables spread filtering. Verify quotes before trading.');
     }
+    if (config.universe.batchSize > 50) issues.push('Batch size above 50 may slow down or fail.');
     return issues;
   }, [config]);
 
@@ -462,6 +470,7 @@ export default function DailyOptionsPage() {
       universe: {
         ...config.universe,
         excludeEarningsWithinDays: clampNumber(config.universe.excludeEarningsWithinDays, 0, 30),
+        batchSize: clampNumber(config.universe.batchSize, 5, 50),
       },
       data: {
         ...config.data,
@@ -538,6 +547,7 @@ export default function DailyOptionsPage() {
     setRunning(true);
     setScanErr(null);
     setScanWarnings([]);
+    setScanProgress(null);
     setExpandedId(null);
     try {
       // Save current config before running, so API matches what you see.
@@ -545,35 +555,71 @@ export default function DailyOptionsPage() {
 
       const accountSize = loadAccountSizeFallback();
       const currentLastSignals = loadLastSignals();
-      const resp = await fetch('/api/options/daily-scan', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ config, accountSize, side: 'both' }),
-      });
-      const data = (await resp.json()) as DailyScanResponse;
-      if (!resp.ok || !data?.success) {
-        throw new Error((data as any)?.error ?? 'Scan failed');
+
+      let tickersToScan: string[] = [];
+      if (config.universe.mode === 'sp500') {
+        const r = await fetch('/api/market/sp500');
+        const j = (await r.json()) as { success: boolean; tickers?: string[]; fetchedAt?: number; error?: string };
+        if (!r.ok || !j.success || !j.tickers?.length) throw new Error(j.error ?? 'Failed to load S&P 500 list');
+        tickersToScan = j.tickers;
+        setSp500Info({ tickers: j.tickers, fetchedAt: j.fetchedAt ?? Date.now() });
+      } else {
+        tickersToScan = normalizeTickers(tickersText);
       }
 
-      setScanAt(data.fetchedAt ?? Date.now());
-      setScanWarnings(data.warnings ?? []);
+      if (tickersToScan.length === 0) throw new Error('No tickers to scan');
+
+      // Run in batches to avoid timeouts.
+      const batchSize = clampNumber(config.universe.batchSize, 5, 50);
+      const totalBatches = Math.ceil(tickersToScan.length / batchSize);
+      setScanProgress({ done: 0, total: totalBatches });
+
+      const allCandidates: DailyScanCandidate[] = [];
+      const allErrors: Array<{ ticker: string; error: string }> = [];
+      const allWarnings: string[] = [];
+      let fetchedAt = Date.now();
+
+      for (let b = 0; b < totalBatches; b++) {
+        setScanProgress({ done: b, total: totalBatches });
+        const batchTickers = tickersToScan.slice(b * batchSize, b * batchSize + batchSize);
+        const batchConfig: DailyOptionsConfig = { ...config, universe: { ...config.universe, tickers: batchTickers } };
+        const resp = await fetch('/api/options/daily-scan', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ config: batchConfig, accountSize, side: 'both' }),
+        });
+        const data = (await resp.json()) as DailyScanResponse;
+        if (!resp.ok || !data?.success) {
+          throw new Error((data as any)?.error ?? 'Scan failed');
+        }
+        fetchedAt = Math.max(fetchedAt, data.fetchedAt ?? Date.now());
+        allCandidates.push(...(data.candidates ?? []));
+        allErrors.push(...(data.errors ?? []));
+        allWarnings.push(...(data.warnings ?? []));
+      }
+
+      setScanProgress({ done: totalBatches, total: totalBatches });
+      setScanAt(fetchedAt);
+      setScanWarnings(Array.from(new Set(allWarnings)));
 
       // Dedupe in UI (serverless runtimes are stateless).
       const now = Date.now();
       const dedupeMs = Math.max(0, config.scheduler.dedupeWindowMinutes) * 60 * 1000;
       const nextLastSignals: LastSignalMap = { ...currentLastSignals };
 
-      const withDupes = (data.candidates ?? []).map((c) => {
+      const withDupes = allCandidates.map((c) => {
         const lastSeen = nextLastSignals[c.id];
         const isDup = dedupeMs > 0 && lastSeen && now - lastSeen < dedupeMs;
         return { ...c, warnings: isDup ? ['Duplicate signal within dedupe window.', ...c.warnings] : c.warnings };
       });
 
-      for (const c of data.candidates ?? []) nextLastSignals[c.id] = now;
+      for (const c of allCandidates) nextLastSignals[c.id] = now;
       setLastSignals(nextLastSignals);
       saveLastSignals(nextLastSignals);
 
-      setCandidates(withDupes);
+      // Keep the UI sane: sort and cap display
+      withDupes.sort((a, b) => b.score.total - a.score.total || a.ticker.localeCompare(b.ticker));
+      setCandidates(withDupes.slice(0, 400));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
       setScanErr(msg);
@@ -665,6 +711,11 @@ export default function DailyOptionsPage() {
               <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
                 {new Date(scanAt).toLocaleString()}
               </p>
+              {scanProgress && scanProgress.total > 1 && (
+                <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
+                  Progress: {scanProgress.done}/{scanProgress.total} batches
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <ToggleRow
@@ -811,12 +862,44 @@ export default function DailyOptionsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
             <Section title="Universe" emoji="🧺">
+              <SelectRow
+                label="Universe"
+                description="Choose between a custom list or the full S&P 500 universe."
+                value={config.universe.mode}
+                options={[
+                  { value: 'custom', label: 'Custom Tickers' },
+                  { value: 'sp500', label: 'S&P 500' },
+                ]}
+                onChange={(v) => setConfig((p) => ({ ...p, universe: { ...p.universe, mode: v as UniverseMode } }))}
+              />
+
+              {config.universe.mode === 'custom' ? (
               <TextareaRow
                 label="Tickers"
                 description="Comma or whitespace separated. Duplicates removed and normalized to uppercase."
                 value={tickersText}
                 placeholder="SPY, QQQ, AAPL"
                 onChange={setTickersText}
+              />
+              ) : (
+                <div className="rounded-lg border border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-950/30 px-3 py-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">S&P 500</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">
+                    Constituents fetched from Wikipedia via `/api/market/sp500`.
+                    {sp500Info?.fetchedAt ? ` Last fetched: ${new Date(sp500Info.fetchedAt).toLocaleString()}.` : ''}
+                  </p>
+                </div>
+              )}
+
+              <NumberRow
+                label="Batch Size"
+                description="S&P 500 scans run in batches to avoid timeouts (max 50 per batch)."
+                value={config.universe.batchSize}
+                min={5}
+                max={50}
+                step={1}
+                suffix="tickers"
+                onChange={(v) => setConfig((p) => ({ ...p, universe: { ...p.universe, batchSize: v } }))}
               />
               <ToggleRow
                 label="Include Weeklies"
