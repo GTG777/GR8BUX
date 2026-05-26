@@ -19,6 +19,7 @@ export interface TradingAgentSignal {
   action: TradingAgentAction;
   confidence: number;
   generatedAt: string;
+  marketPrice: number;
   entry: number | null;
   stop: number | null;
   target: number | null;
@@ -56,9 +57,14 @@ export interface TradingAgentReview {
   nextRulesToTest: string[];
 }
 
+export interface TradingAgentDashboardRequest extends Partial<TradingAgentRuleSet> {
+  accountSize?: number;
+}
+
 export interface TradingAgentDashboard {
   fetchedAt: string;
   nextReviewAt: string;
+  accountSize: number;
   paperEquity: number;
   dayPnl: number;
   mode: TradingAgentMode;

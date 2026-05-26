@@ -1,6 +1,7 @@
 import { getMultipleStockSnapshots, type MassiveTickerSnapshot } from '@/lib/massive';
 import type {
   TradingAgentDashboard,
+  TradingAgentDashboardRequest,
   TradingAgentPaperPosition,
   TradingAgentReview,
   TradingAgentRuleSet,
@@ -16,6 +17,8 @@ const DEFAULT_RULES: TradingAgentRuleSet = {
   allowOptions: false,
   watchlist: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA'],
 };
+
+const DEFAULT_ACCOUNT_SIZE = 100000;
 
 interface MarketInput {
   symbol: string;
@@ -83,6 +86,7 @@ function buildSignal(input: MarketInput, rules: TradingAgentRuleSet, accountSize
     action,
     confidence,
     generatedAt: new Date().toISOString(),
+    marketPrice: input.price,
     entry: action === 'HOLD' || action === 'AVOID' ? null : input.price,
     stop,
     target,
@@ -109,13 +113,15 @@ function buildSignal(input: MarketInput, rules: TradingAgentRuleSet, accountSize
   };
 }
 
-function buildPaperPositions(signals: TradingAgentSignal[]): TradingAgentPaperPosition[] {
+function buildPaperPositions(signals: TradingAgentSignal[], mode: TradingAgentRuleSet['mode']): TradingAgentPaperPosition[] {
+  if (mode !== 'auto_paper') return [];
+
   return signals
     .filter((signal) => signal.action === 'BUY' && signal.entry)
     .slice(0, 2)
     .map((signal, index) => {
       const entryPrice = signal.entry ?? 0;
-      const markPrice = parseFloat((entryPrice * (1 + (index + 1) * 0.006)).toFixed(2));
+      const markPrice = signal.marketPrice;
       const quantity = Math.max(1, Math.floor(signal.maxRiskDollars / Math.max(1, Math.abs(entryPrice - (signal.stop ?? entryPrice)))));
       return {
         id: `paper-${signal.symbol}-${index}`,
@@ -156,7 +162,7 @@ function buildReview(signals: TradingAgentSignal[], dataStatus: TradingAgentDash
       'Paper fills are simulated until a broker adapter is connected.',
     ],
     improvements: [
-      'Add saved user rule profiles and account-size settings.',
+      'Persist manual approvals and paper fills between sessions.',
       'Connect paper broker positions and fills.',
       'Blend Daily Options, Stock Screener, news, and journal history into the score.',
     ],
@@ -169,10 +175,18 @@ function buildReview(signals: TradingAgentSignal[], dataStatus: TradingAgentDash
 }
 
 export async function getTradingAgentDashboard(
-  overrides: Partial<TradingAgentRuleSet> = {},
+  overrides: TradingAgentDashboardRequest = {},
 ): Promise<TradingAgentDashboard> {
-  const rules: TradingAgentRuleSet = { ...DEFAULT_RULES, ...overrides, watchlist: overrides.watchlist ?? DEFAULT_RULES.watchlist };
-  const accountSize = 100000;
+  const { accountSize: requestedAccountSize, ...ruleOverrides } = overrides;
+  const rules: TradingAgentRuleSet = {
+    ...DEFAULT_RULES,
+    ...ruleOverrides,
+    watchlist: ruleOverrides.watchlist ?? DEFAULT_RULES.watchlist,
+  };
+  const accountSize =
+    typeof requestedAccountSize === 'number' && Number.isFinite(requestedAccountSize) && requestedAccountSize > 0
+      ? parseFloat(requestedAccountSize.toFixed(2))
+      : DEFAULT_ACCOUNT_SIZE;
   const warnings: string[] = [];
   let snapshots = new Map<string, MassiveTickerSnapshot>();
 
@@ -185,7 +199,7 @@ export async function getTradingAgentDashboard(
 
   const inputs = rules.watchlist.map((symbol) => toMarketInput(symbol, snapshots.get(symbol)));
   const signals = inputs.map((input) => buildSignal(input, rules, accountSize)).sort((a, b) => b.confidence - a.confidence);
-  const positions = buildPaperPositions(signals);
+  const positions = buildPaperPositions(signals, rules.mode);
   const dataStatus: TradingAgentDashboard['dataStatus'] = inputs.some((input) => input.dataSource === 'massive')
     ? 'massive_live'
     : 'fallback_demo';
@@ -193,11 +207,13 @@ export async function getTradingAgentDashboard(
   const dayPnl = positions.reduce((sum, position) => sum + position.unrealizedPnl, 0);
 
   if (rules.mode === 'signals_only') warnings.push('Agent is in signals-only mode. No paper orders are being submitted.');
+  if (rules.mode !== 'signals_only') warnings.push('Paper execution is still simulated until a broker adapter is connected.');
   if (dataStatus === 'fallback_demo') warnings.push('Configure MASSIVE_API_KEY for live market snapshots.');
 
   return {
     fetchedAt: new Date().toISOString(),
     nextReviewAt: nextOnePmCentralIso(),
+    accountSize,
     paperEquity: parseFloat((accountSize + dayPnl).toFixed(2)),
     dayPnl: parseFloat(dayPnl.toFixed(2)),
     mode: rules.mode,
