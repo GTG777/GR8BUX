@@ -43,3 +43,4 @@ coverage/
 # Local development
 .env.test.local
 .supabase/
+supabase/.temp/
