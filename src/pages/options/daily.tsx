@@ -3,6 +3,7 @@ import { Layout } from '@/components/Layout';
 
 const STORAGE_KEY = 'gr8bux_daily_options_config_v1';
 const RESULTS_KEY = 'gr8bux_daily_options_last_results_v1';
+const MAX_SERVERLESS_BATCH_SIZE = 5;
 
 type IVMode = 'iv_percentile' | 'iv_rank';
 type AfterHoursSpreadMode = 'disable' | 'relax';
@@ -127,7 +128,7 @@ const DEFAULT_CONFIG: DailyOptionsConfig = {
     tickers: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA'],
     includeWeeklies: true,
     excludeEarningsWithinDays: 7,
-    batchSize: 25,
+    batchSize: MAX_SERVERLESS_BATCH_SIZE,
   },
   data: {
     provider: 'placeholder',
@@ -282,6 +283,18 @@ function loadConfig(): DailyOptionsConfig {
 
 function saveConfig(config: DailyOptionsConfig) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+
+async function readApiJson<T>(response: Response, label: string): Promise<T> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    return (await response.json()) as T;
+  }
+
+  const text = await response.text().catch(() => '');
+  const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 180);
+  const status = [response.status, response.statusText].filter(Boolean).join(' ');
+  throw new Error(`${label} returned ${status || 'a non-JSON response'}${snippet ? `: ${snippet}` : ''}`);
 }
 
 function Section({ title, emoji, children }: { title: string; emoji: string; children: React.ReactNode }) {
@@ -508,7 +521,9 @@ export default function DailyOptionsPage() {
     if (config.afterHours.enabled && config.afterHours.spreadFilterMode === 'disable') {
       issues.push('After-hours mode disables spread filtering. Verify quotes before trading.');
     }
-    if (config.universe.batchSize > 50) issues.push('Batch size above 50 may slow down or fail.');
+    if (config.universe.batchSize > MAX_SERVERLESS_BATCH_SIZE) {
+      issues.push(`Batch size above ${MAX_SERVERLESS_BATCH_SIZE} may time out on the hosted scanner.`);
+    }
     return issues;
   }, [config]);
 
@@ -523,7 +538,7 @@ export default function DailyOptionsPage() {
       universe: {
         ...config.universe,
         excludeEarningsWithinDays: clampNumber(config.universe.excludeEarningsWithinDays, 0, 30),
-        batchSize: clampNumber(config.universe.batchSize, 5, 50),
+        batchSize: clampNumber(config.universe.batchSize, 1, MAX_SERVERLESS_BATCH_SIZE),
       },
       data: {
         ...config.data,
@@ -613,7 +628,10 @@ export default function DailyOptionsPage() {
       let tickersToScan: string[] = [];
       if (config.universe.mode === 'sp500') {
         const r = await fetch('/api/market/sp500');
-        const j = (await r.json()) as { success: boolean; tickers?: string[]; fetchedAt?: number; error?: string };
+        const j = await readApiJson<{ success: boolean; tickers?: string[]; fetchedAt?: number; error?: string }>(
+          r,
+          'S&P 500 list',
+        );
         if (!r.ok || !j.success || !j.tickers?.length) throw new Error(j.error ?? 'Failed to load S&P 500 list');
         tickersToScan = j.tickers;
         setSp500Info({ tickers: j.tickers, fetchedAt: j.fetchedAt ?? Date.now() });
@@ -624,7 +642,8 @@ export default function DailyOptionsPage() {
       if (tickersToScan.length === 0) throw new Error('No tickers to scan');
 
       // Run in batches to avoid timeouts.
-      const batchSize = clampNumber(config.universe.batchSize, 5, 50);
+      const requestedBatchSize = Math.max(1, config.universe.batchSize);
+      const batchSize = clampNumber(requestedBatchSize, 1, MAX_SERVERLESS_BATCH_SIZE);
       const totalBatches = Math.ceil(tickersToScan.length / batchSize);
       setScanProgress({ done: 0, total: totalBatches });
 
@@ -642,7 +661,7 @@ export default function DailyOptionsPage() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ config: batchConfig, accountSize, side: 'both' }),
         });
-        const data = (await resp.json()) as DailyScanResponse;
+        const data = await readApiJson<DailyScanResponse>(resp, 'Daily options scan');
         if (!resp.ok || !data?.success) {
           throw new Error((data as any)?.error ?? 'Scan failed');
         }
@@ -652,9 +671,25 @@ export default function DailyOptionsPage() {
         allWarnings.push(...(data.warnings ?? []));
       }
 
+      if (allErrors.length > 0) {
+        const firstError = allErrors[0];
+        if (allCandidates.length === 0) {
+          throw new Error(
+            `All scanned tickers failed. First failure: ${firstError.ticker}: ${firstError.error}`,
+          );
+        }
+        allWarnings.push(
+          `${allErrors.length} ticker${allErrors.length === 1 ? '' : 's'} failed during scan. First failure: ${firstError.ticker}: ${firstError.error}`,
+        );
+      }
+
       setScanProgress({ done: totalBatches, total: totalBatches });
       setScanAt(fetchedAt);
-      setScanWarnings(Array.from(new Set(allWarnings)));
+      const clientWarnings =
+        requestedBatchSize > MAX_SERVERLESS_BATCH_SIZE
+          ? [`Batch size capped at ${MAX_SERVERLESS_BATCH_SIZE} to avoid hosted scan timeouts.`]
+          : [];
+      setScanWarnings(Array.from(new Set([...clientWarnings, ...allWarnings])));
 
       // Dedupe in UI (serverless runtimes are stateless).
       const now = Date.now();
@@ -675,7 +710,7 @@ export default function DailyOptionsPage() {
       withDupes.sort((a, b) => b.score.total - a.score.total || a.ticker.localeCompare(b.ticker));
       const nextCandidates = withDupes.slice(0, 400);
       setCandidates(nextCandidates);
-      saveStoredResults({ fetchedAt, warnings: Array.from(new Set(allWarnings)), candidates: nextCandidates });
+      saveStoredResults({ fetchedAt, warnings: Array.from(new Set([...clientWarnings, ...allWarnings])), candidates: nextCandidates });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
       setScanErr(msg);
@@ -1052,10 +1087,10 @@ export default function DailyOptionsPage() {
 
               <NumberRow
                 label="Batch Size"
-                description="S&P 500 scans run in batches to avoid timeouts (max 50 per batch)."
+                description={`S&P 500 scans run in hosted batches to avoid timeouts (max ${MAX_SERVERLESS_BATCH_SIZE} per batch).`}
                 value={config.universe.batchSize}
-                min={5}
-                max={50}
+                min={1}
+                max={MAX_SERVERLESS_BATCH_SIZE}
                 step={1}
                 suffix="tickers"
                 onChange={(v) => setConfig((p) => ({ ...p, universe: { ...p.universe, batchSize: v } }))}

@@ -21,6 +21,8 @@ export type { StrategyInput } from './tradeStrategist';
 export { CoachAgent, getCoachAgent } from './coachAgent';
 export type { CoachInput, CoachResponse } from './coachAgent';
 
+export { getTradingAgentDashboard } from './tradingAgent';
+
 export { AIOrchestrator, getAIOrchestrator, resetOrchestratorInstance } from './orchestrator';
 export type { OrchestrationConfig, FullSetupData } from './orchestrator';
 

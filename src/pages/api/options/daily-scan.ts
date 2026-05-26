@@ -358,7 +358,7 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
   return { ticker, underlyingPrice, scored: scored.slice(0, config.liquidity.maxContractsPerTicker), ivMetricNote: 'IV metric uses within-chain percentile (not true historical IV percentile/rank).' };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function dailyScanHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   let body: DailyScanRequestBody | null = null;
@@ -500,4 +500,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     disclaimer:
       'Signals are probabilistic research outputs, not trade advice. No guaranteed profit. No automatic execution. Always validate liquidity and risk.',
   });
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    return await dailyScanHandler(req, res);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown scan error';
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, error: msg });
+    }
+  }
 }

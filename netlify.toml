@@ -15,6 +15,7 @@
   #   NEXT_PUBLIC_SUPABASE_ANON_KEY
   #   SUPABASE_SERVICE_ROLE_KEY   ← rotate this key immediately (was exposed on GitHub)
   #   ALPHAVANTAGE_API_KEY
+  #   MASSIVE_API_KEY
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
