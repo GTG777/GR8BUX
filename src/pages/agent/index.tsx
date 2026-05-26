@@ -1,17 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/Layout';
+import { getSupabaseClient } from '@/lib/supabase';
 import type { ApiResponse } from '@/types';
 import type {
   TradingAgentDashboard,
   TradingAgentDashboardRequest,
+  TradingAgentExecutionState,
   TradingAgentMode,
   TradingAgentPaperPosition,
+  TradingAgentPersistedStatus,
   TradingAgentReview,
   TradingAgentSignal,
 } from '@/types/tradingAgent';
 
 const STORAGE_KEY = 'gr8bux_trading_agent_preferences_v1';
-const EXECUTION_STORAGE_KEY = 'gr8bux_trading_agent_execution_v1';
 
 type AgentPreferencesForm = {
   accountSize: number;
@@ -22,24 +24,6 @@ type AgentPreferencesForm = {
   requireManualApproval: boolean;
   allowOptions: boolean;
   watchlistText: string;
-};
-
-type PersistedSignalStatus = 'approved' | 'rejected' | 'paper_filled';
-
-type PersistedPaperFill = {
-  id: string;
-  signalId: string;
-  symbol: string;
-  side: 'long' | 'short';
-  quantity: number;
-  entryPrice: number;
-  openedAt: string;
-  thesis: string;
-};
-
-type AgentExecutionState = {
-  statuses: Record<string, PersistedSignalStatus>;
-  fills: PersistedPaperFill[];
 };
 
 const DEFAULT_PREFERENCES: AgentPreferencesForm = {
@@ -53,9 +37,9 @@ const DEFAULT_PREFERENCES: AgentPreferencesForm = {
   watchlistText: 'SPY, QQQ, AAPL, MSFT, NVDA, AMD, TSLA',
 };
 
-const EMPTY_EXECUTION_STATE: AgentExecutionState = {
+const EMPTY_EXECUTION_STATE: TradingAgentExecutionState = {
   statuses: {},
-  fills: [],
+  positions: [],
 };
 
 function money(value: number) {
@@ -151,41 +135,13 @@ function loadPreferences(): AgentPreferencesForm {
   }
 }
 
-function sanitizeExecutionState(state: AgentExecutionState): AgentExecutionState {
-  return {
-    statuses: Object.fromEntries(
-      Object.entries(state.statuses).filter(([, status]) =>
-        status === 'approved' || status === 'rejected' || status === 'paper_filled',
-      ),
-    ),
-    fills: state.fills.filter(
-      (fill) =>
-        typeof fill.signalId === 'string' &&
-        typeof fill.symbol === 'string' &&
-        (fill.side === 'long' || fill.side === 'short') &&
-        Number.isFinite(fill.quantity) &&
-        fill.quantity > 0 &&
-        Number.isFinite(fill.entryPrice) &&
-        fill.entryPrice > 0,
-    ),
-  };
-}
-
-function loadExecutionState(): AgentExecutionState {
-  if (typeof window === 'undefined') return EMPTY_EXECUTION_STATE;
-
-  try {
-    const raw = localStorage.getItem(EXECUTION_STORAGE_KEY);
-    if (!raw) return EMPTY_EXECUTION_STATE;
-    return sanitizeExecutionState(JSON.parse(raw) as AgentExecutionState);
-  } catch {
-    return EMPTY_EXECUTION_STATE;
-  }
-}
-
-function saveExecutionState(state: AgentExecutionState) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(EXECUTION_STORAGE_KEY, JSON.stringify(state));
+async function getAuthHeaders() {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase is not configured');
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Sign in again to persist agent state.');
+  return { Authorization: `Bearer ${token}` };
 }
 
 function buildDashboardParams(request: TradingAgentDashboardRequest) {
@@ -205,6 +161,27 @@ async function fetchDashboardData(request: TradingAgentDashboardRequest) {
   const res = await fetch(`/api/agent/dashboard?${buildDashboardParams(request).toString()}`);
   const json = (await res.json()) as ApiResponse<TradingAgentDashboard>;
   if (!res.ok || !json.success || !json.data) throw new Error(json.error ?? 'Failed to load agent');
+  return json.data;
+}
+
+async function fetchExecutionState() {
+  const res = await fetch('/api/agent/execution', { headers: await getAuthHeaders() });
+  const json = (await res.json()) as ApiResponse<TradingAgentExecutionState>;
+  if (!res.ok || !json.success || !json.data) throw new Error(json.error ?? 'Failed to load execution state');
+  return json.data;
+}
+
+async function mutateExecutionState(body: Record<string, unknown>) {
+  const res = await fetch('/api/agent/execution', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(await getAuthHeaders()),
+    },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json()) as ApiResponse<TradingAgentExecutionState>;
+  if (!res.ok || !json.success || !json.data) throw new Error(json.error ?? 'Failed to update execution state');
   return json.data;
 }
 
@@ -237,8 +214,8 @@ function calculateFillQuantity(signal: TradingAgentSignal) {
   return Math.max(1, Math.floor(signal.maxRiskDollars / riskPerUnit));
 }
 
-function buildPositionFromFill(
-  fill: PersistedPaperFill,
+function buildMarkedPosition(
+  fill: TradingAgentPaperPosition,
   signalBySymbol: Map<string, TradingAgentSignal>,
 ): TradingAgentPaperPosition {
   const latestSignal = signalBySymbol.get(fill.symbol);
@@ -249,15 +226,9 @@ function buildPositionFromFill(
       : parseFloat(((fill.entryPrice - markPrice) * fill.quantity).toFixed(2));
 
   return {
-    id: fill.id,
-    symbol: fill.symbol,
-    side: fill.side,
-    quantity: fill.quantity,
-    entryPrice: fill.entryPrice,
+    ...fill,
     markPrice,
     unrealizedPnl,
-    openedAt: fill.openedAt,
-    thesis: fill.thesis,
   };
 }
 
@@ -362,19 +333,12 @@ function ToggleField({
 export default function TradingAgentPage() {
   const [dashboard, setDashboard] = useState<TradingAgentDashboard | null>(null);
   const [preferences, setPreferences] = useState<AgentPreferencesForm>(DEFAULT_PREFERENCES);
-  const [executionState, setExecutionState] = useState<AgentExecutionState>(EMPTY_EXECUTION_STATE);
+  const [executionState, setExecutionState] = useState<TradingAgentExecutionState>(EMPTY_EXECUTION_STATE);
   const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [runningReview, setRunningReview] = useState(false);
+  const [mutatingExecution, setMutatingExecution] = useState(false);
   const [error, setError] = useState('');
-
-  const persistExecutionState = (updater: (current: AgentExecutionState) => AgentExecutionState) => {
-    setExecutionState((current) => {
-      const next = sanitizeExecutionState(updater(current));
-      saveExecutionState(next);
-      return next;
-    });
-  };
 
   const loadDashboard = async (nextPreferences = preferences) => {
     const sanitized = sanitizePreferences(nextPreferences);
@@ -384,8 +348,12 @@ export default function TradingAgentPage() {
     setError('');
 
     try {
-      const nextDashboard = await fetchDashboardData(sanitized.request);
+      const [nextDashboard, nextExecutionState] = await Promise.all([
+        fetchDashboardData(sanitized.request),
+        fetchExecutionState().catch(() => EMPTY_EXECUTION_STATE),
+      ]);
       setDashboard(nextDashboard);
+      setExecutionState(nextExecutionState);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load agent');
     } finally {
@@ -403,7 +371,10 @@ export default function TradingAgentPage() {
     try {
       const res = await fetch('/api/agent/review-yesterday', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          ...(await getAuthHeaders().catch(() => ({}))),
+        },
         body: JSON.stringify(sanitized.request),
       });
       const json = (await res.json()) as ApiResponse<TradingAgentReview>;
@@ -424,7 +395,6 @@ export default function TradingAgentPage() {
   useEffect(() => {
     const nextPreferences = loadPreferences();
     setPreferences(nextPreferences);
-    setExecutionState(loadExecutionState());
     setInitialized(true);
     void (async () => {
       const sanitized = sanitizePreferences(nextPreferences);
@@ -434,8 +404,12 @@ export default function TradingAgentPage() {
       setError('');
 
       try {
-        const nextDashboard = await fetchDashboardData(sanitized.request);
+        const [nextDashboard, nextExecutionState] = await Promise.all([
+          fetchDashboardData(sanitized.request),
+          fetchExecutionState().catch(() => EMPTY_EXECUTION_STATE),
+        ]);
         setDashboard(nextDashboard);
+        setExecutionState(nextExecutionState);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load agent');
       } finally {
@@ -454,15 +428,13 @@ export default function TradingAgentPage() {
       };
     }
 
-    const fillBySignalId = new Map(executionState.fills.map((fill) => [fill.signalId, fill]));
     const signalBySymbol = new Map(dashboard.signals.map((signal) => [signal.symbol, signal]));
     const signals = dashboard.signals.map((signal) => {
-      const fill = fillBySignalId.get(signal.id);
-      const persistedStatus = fill ? 'paper_filled' : executionState.statuses[signal.id];
+      const persistedStatus = executionState.statuses[signal.id];
       return persistedStatus ? { ...signal, status: persistedStatus } : signal;
     });
 
-    const persistedPositions = executionState.fills.map((fill) => buildPositionFromFill(fill, signalBySymbol));
+    const persistedPositions = executionState.positions.map((position) => buildMarkedPosition(position, signalBySymbol));
     const positions =
       persistedPositions.length > 0 || dashboard.mode !== 'auto_paper'
         ? persistedPositions
@@ -484,64 +456,74 @@ export default function TradingAgentPage() {
 
   const watchlistCount = useMemo(() => parseWatchlistText(preferences.watchlistText).length, [preferences.watchlistText]);
   const openPositionCount = derived.positions.length;
-  const signalIdsWithFills = useMemo(() => new Set(executionState.fills.map((fill) => fill.signalId)), [executionState.fills]);
+  const signalIdsWithFills = useMemo(
+    () => new Set(executionState.positions.map((position) => position.signalId).filter(Boolean)),
+    [executionState.positions],
+  );
 
-  const approveSignal = (signalId: string) => {
-    persistExecutionState((current) => ({
-      ...current,
-      statuses: { ...current.statuses, [signalId]: 'approved' },
-    }));
+  const syncExecution = async (body: Record<string, unknown>) => {
+    setMutatingExecution(true);
+    setError('');
+    try {
+      const nextState = await mutateExecutionState(body);
+      setExecutionState(nextState);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update execution state');
+    } finally {
+      setMutatingExecution(false);
+    }
   };
 
-  const rejectSignal = (signalId: string) => {
-    persistExecutionState((current) => ({
-      ...current,
-      statuses: { ...current.statuses, [signalId]: 'rejected' },
-    }));
-  };
-
-  const resetSignal = (signalId: string) => {
-    persistExecutionState((current) => {
-      const nextStatuses = { ...current.statuses };
-      delete nextStatuses[signalId];
-      return {
-        ...current,
-        statuses: nextStatuses,
-      };
+  const approveSignal = (signal: TradingAgentSignal) =>
+    void syncExecution({
+      type: 'signal_status',
+      signalId: signal.id,
+      symbol: signal.symbol,
+      status: 'approved' satisfies Exclude<TradingAgentPersistedStatus, 'paper_filled'>,
     });
-  };
+
+  const rejectSignal = (signal: TradingAgentSignal) =>
+    void syncExecution({
+      type: 'signal_status',
+      signalId: signal.id,
+      symbol: signal.symbol,
+      status: 'rejected' satisfies Exclude<TradingAgentPersistedStatus, 'paper_filled'>,
+    });
+
+  const resetSignal = (signalId: string) =>
+    void syncExecution({
+      type: 'clear_signal',
+      signalId,
+    });
 
   const fillSignal = (signal: TradingAgentSignal) => {
     if (!signal.entry) return;
 
-    const quantity = calculateFillQuantity(signal);
-    const fill: PersistedPaperFill = {
-      id: `manual-${signal.id}`,
+    void syncExecution({
+      type: 'fill_position',
       signalId: signal.id,
       symbol: signal.symbol,
       side: signal.action === 'SELL' ? 'short' : 'long',
-      quantity,
+      quantity: calculateFillQuantity(signal),
       entryPrice: signal.entry,
-      openedAt: new Date().toISOString(),
+      stopPrice: signal.stop,
+      targetPrice: signal.target,
       thesis: signal.thesis,
-    };
-
-    persistExecutionState((current) => ({
-      fills: [...current.fills.filter((existing) => existing.signalId !== signal.id), fill],
-      statuses: { ...current.statuses, [signal.id]: 'paper_filled' },
-    }));
-  };
-
-  const clearFill = (signalId: string) => {
-    persistExecutionState((current) => {
-      const nextStatuses = { ...current.statuses };
-      delete nextStatuses[signalId];
-      return {
-        fills: current.fills.filter((fill) => fill.signalId !== signalId),
-        statuses: nextStatuses,
-      };
     });
   };
+
+  const clearFill = (signalId: string) =>
+    void syncExecution({
+      type: 'delete_position',
+      signalId,
+    });
+
+  const closeFill = (position: TradingAgentPaperPosition) =>
+    void syncExecution({
+      type: 'close_position',
+      signalId: position.signalId,
+      exitPrice: position.markPrice,
+    });
 
   return (
     <Layout title="AI Trading Agent">
@@ -584,7 +566,7 @@ export default function TradingAgentPage() {
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Controls</h2>
                 <p className="text-xs text-muted-foreground">
-                  Saved in this browser so the dashboard comes back with your preferred sizing and rules.
+                  Saved on this device so the dashboard comes back with your preferred sizing and rules.
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -615,7 +597,7 @@ export default function TradingAgentPage() {
                 />
               </Field>
 
-              <Field label="Mode" description="Manual paper now persists approvals and fills on this device between sessions.">
+              <Field label="Mode" description="Manual paper keeps approvals and fills on your account when you are signed in.">
                 <select
                   value={preferences.mode}
                   onChange={(event) => setPreferences((prev) => ({ ...prev, mode: event.target.value as TradingAgentMode }))}
@@ -804,7 +786,8 @@ export default function TradingAgentPage() {
                                 <div className="flex flex-wrap justify-end gap-2">
                                   {requiresApproval && signal.status !== 'approved' && signal.status !== 'paper_filled' && (
                                     <button
-                                      onClick={() => approveSignal(signal.id)}
+                                      onClick={() => approveSignal(signal)}
+                                      disabled={mutatingExecution}
                                       className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                                     >
                                       Approve
@@ -812,7 +795,8 @@ export default function TradingAgentPage() {
                                   )}
                                   {signal.status !== 'rejected' && signal.status !== 'paper_filled' && (
                                     <button
-                                      onClick={() => rejectSignal(signal.id)}
+                                      onClick={() => rejectSignal(signal)}
+                                      disabled={mutatingExecution}
                                       className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                                     >
                                       Reject
@@ -821,6 +805,7 @@ export default function TradingAgentPage() {
                                   {signal.status !== 'new' && signal.status !== 'watching' && signal.status !== 'paper_filled' && (
                                     <button
                                       onClick={() => resetSignal(signal.id)}
+                                      disabled={mutatingExecution}
                                       className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                                     >
                                       Reset
@@ -829,14 +814,15 @@ export default function TradingAgentPage() {
                                   {signal.status === 'paper_filled' ? (
                                     <button
                                       onClick={() => clearFill(signal.id)}
-                                      className="rounded-md bg-slate-700 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                                      disabled={mutatingExecution}
+                                      className="rounded-md bg-slate-700 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
                                     >
                                       Clear Fill
                                     </button>
                                   ) : (
                                     <button
                                       onClick={() => fillSignal(signal)}
-                                      disabled={!canFill}
+                                      disabled={!canFill || mutatingExecution}
                                       className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                       Paper Fill
@@ -872,7 +858,7 @@ export default function TradingAgentPage() {
                 <div className="border-b border-border px-4 py-3">
                   <h2 className="text-sm font-semibold text-foreground">Paper Positions</h2>
                   <p className="text-xs text-muted-foreground">
-                    Manual fills are stored in this browser and marked to market from the latest watchlist prices.
+                    Manual fills are stored with your account and marked to market from the latest watchlist prices.
                   </p>
                 </div>
                 <div className="divide-y divide-border">
@@ -880,7 +866,6 @@ export default function TradingAgentPage() {
                     <p className="px-4 py-4 text-sm text-muted-foreground">No paper positions recorded yet.</p>
                   ) : (
                     derived.positions.map((position) => {
-                      const fill = executionState.fills.find((item) => item.id === position.id);
                       return (
                         <div key={position.id} className="px-4 py-3">
                           <div className="flex items-center justify-between gap-3">
@@ -896,14 +881,26 @@ export default function TradingAgentPage() {
                               <p className={position.unrealizedPnl >= 0 ? 'text-sm font-semibold text-emerald-600' : 'text-sm font-semibold text-rose-600'}>
                                 {money(position.unrealizedPnl)}
                               </p>
-                              {fill && (
-                                <button
-                                  onClick={() => clearFill(fill.signalId)}
-                                  className="mt-2 rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
-                                >
-                                  Remove
-                                </button>
-                              )}
+                              <div className="mt-2 flex items-center justify-end gap-2">
+                                {position.signalId && (
+                                  <button
+                                    onClick={() => closeFill(position)}
+                                    disabled={mutatingExecution}
+                                    className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                                  >
+                                    Close
+                                  </button>
+                                )}
+                                {position.signalId && (
+                                  <button
+                                    onClick={() => clearFill(position.signalId!)}
+                                    disabled={mutatingExecution}
+                                    className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>

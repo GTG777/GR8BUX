@@ -2,6 +2,24 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import type { User } from '@supabase/supabase-js';
 import { getSupabaseClient } from './supabase';
 
+export async function getUserFromBearerToken(token: string): Promise<User | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
+
+export async function getOptionalAuthUser(req: NextApiRequest): Promise<User | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  return getUserFromBearerToken(authHeader.substring(7));
+}
+
 /**
  * Verifies the Bearer JWT in the Authorization header against Supabase.
  * Returns the authenticated user, or sends a 401/503 response and returns null.
@@ -19,19 +37,17 @@ export async function requireAuth(
     return null;
   }
 
-  const token = authHeader.substring(7);
-
   const supabase = getSupabaseClient();
   if (!supabase) {
     res.status(503).json({ success: false, error: 'Database not configured' });
     return null;
   }
 
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) {
+  const user = await getUserFromBearerToken(authHeader.substring(7));
+  if (!user) {
     res.status(401).json({ success: false, error: 'Invalid or expired token' });
     return null;
   }
 
-  return data.user;
+  return user;
 }

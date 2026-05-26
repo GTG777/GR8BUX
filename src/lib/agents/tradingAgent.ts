@@ -30,6 +30,12 @@ interface MarketInput {
   dataSource: 'massive' | 'fallback';
 }
 
+interface TradingAgentReviewContext {
+  signals: TradingAgentSignal[];
+  dataStatus: TradingAgentDashboard['dataStatus'];
+  recentPositions?: TradingAgentPaperPosition[];
+}
+
 function toMarketInput(symbol: string, snap?: MassiveTickerSnapshot): MarketInput {
   const fallbackBase = 90 + symbol.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 220;
   const fallbackMove = ((symbol.charCodeAt(0) % 7) - 3) / 100;
@@ -137,33 +143,82 @@ function buildPaperPositions(signals: TradingAgentSignal[], mode: TradingAgentRu
     });
 }
 
-function buildReview(signals: TradingAgentSignal[], dataStatus: TradingAgentDashboard['dataStatus']): TradingAgentReview {
+function money(value: number) {
+  return value.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+}
+
+function calculateRealizedPnl(position: TradingAgentPaperPosition) {
+  if (position.exitPrice == null) return 0;
+  return position.side === 'long'
+    ? parseFloat(((position.exitPrice - position.entryPrice) * position.quantity).toFixed(2))
+    : parseFloat(((position.entryPrice - position.exitPrice) * position.quantity).toFixed(2));
+}
+
+export function buildTradingAgentReview({
+  signals,
+  dataStatus,
+  recentPositions = [],
+}: TradingAgentReviewContext): TradingAgentReview {
   const buyCount = signals.filter((s) => s.action === 'BUY').length;
   const avoidCount = signals.filter((s) => s.action === 'AVOID').length;
   const actionableCount = signals.filter((s) => s.action === 'BUY' || s.action === 'SELL').length;
   const reviewDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const filledCount = recentPositions.length;
+  const closedPositions = recentPositions.filter((position) => position.status === 'closed' && position.exitPrice != null);
+  const winners = closedPositions.filter((position) => calculateRealizedPnl(position) > 0);
+  const losers = closedPositions.filter((position) => calculateRealizedPnl(position) < 0);
+  const realizedPnl = parseFloat(
+    closedPositions.reduce((sum, position) => sum + calculateRealizedPnl(position), 0).toFixed(2),
+  );
+  const usedTradeHistory = recentPositions.length > 0;
+
+  const summary = usedTradeHistory
+    ? `The agent logged ${filledCount} paper fill${filledCount === 1 ? '' : 's'} from the last review window, with ${closedPositions.length} closed and ${money(realizedPnl)} realized P/L.`
+    : actionableCount > 0
+      ? `The agent found ${actionableCount} actionable setup${actionableCount === 1 ? '' : 's'} and kept ${signals.length - actionableCount} ticker${signals.length - actionableCount === 1 ? '' : 's'} on watch.`
+      : 'The agent stayed mostly defensive because current rules did not find enough clean confluence.';
+
+  const grade: TradingAgentReview['grade'] =
+    usedTradeHistory && closedPositions.length > 0
+      ? realizedPnl >= 0
+        ? losers.length === 0
+          ? 'A'
+          : 'B'
+        : winners.length > losers.length
+          ? 'C'
+          : 'D'
+      : actionableCount > 0 && avoidCount <= 1
+        ? 'B'
+        : 'C';
 
   return {
     id: `review-${reviewDate}`,
     reviewForDate: reviewDate,
     createdAt: new Date().toISOString(),
-    grade: actionableCount > 0 && avoidCount <= 1 ? 'B' : 'C',
-    summary:
-      actionableCount > 0
-        ? `The agent found ${actionableCount} actionable setup${actionableCount === 1 ? '' : 's'} and kept ${signals.length - actionableCount} ticker${signals.length - actionableCount === 1 ? '' : 's'} on watch.`
-        : 'The agent stayed mostly defensive because current rules did not find enough clean confluence.',
+    grade,
+    summary,
     whatWentRight: [
       'Risk was capped before sizing any paper entry.',
-      buyCount > 0 ? 'Momentum candidates were separated from neutral watchlist names.' : 'The agent avoided forcing low-quality entries.',
+      usedTradeHistory
+        ? filledCount > 0
+          ? `The journal captured ${filledCount} real paper fill${filledCount === 1 ? '' : 's'} for review.`
+          : 'No paper fills were recorded, which kept the review cleanly separated from watchlist noise.'
+        : buyCount > 0
+          ? 'Momentum candidates were separated from neutral watchlist names.'
+          : 'The agent avoided forcing low-quality entries.',
       dataStatus === 'massive_live' ? 'Market data came from Massive snapshots.' : 'Fallback mode made the missing data dependency visible.',
     ],
     whatWentWrong: [
       'This version does not yet score news, earnings, or options-flow context.',
-      'Paper fills are simulated until a broker adapter is connected.',
+      usedTradeHistory && closedPositions.length > 0
+        ? losers.length > 0
+          ? `${losers.length} closed paper trade${losers.length === 1 ? '' : 's'} finished red and deserve a setup-quality review.`
+          : 'Closed paper trades are tracked, but the agent still lacks exit-adjustment tooling.'
+        : 'Paper fills are simulated until a broker adapter is connected.',
     ],
     improvements: [
-      'Persist manual approvals and paper fills between sessions.',
-      'Connect paper broker positions and fills.',
+      'Add stop and target edits for open paper positions.',
+      'Store review notes alongside each paper trade.',
       'Blend Daily Options, Stock Screener, news, and journal history into the score.',
     ],
     nextRulesToTest: [
@@ -203,7 +258,7 @@ export async function getTradingAgentDashboard(
   const dataStatus: TradingAgentDashboard['dataStatus'] = inputs.some((input) => input.dataSource === 'massive')
     ? 'massive_live'
     : 'fallback_demo';
-  const latestReview = buildReview(signals, dataStatus);
+  const latestReview = buildTradingAgentReview({ signals, dataStatus });
   const dayPnl = positions.reduce((sum, position) => sum + position.unrealizedPnl, 0);
 
   if (rules.mode === 'signals_only') warnings.push('Agent is in signals-only mode. No paper orders are being submitted.');

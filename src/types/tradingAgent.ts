@@ -1,6 +1,7 @@
 export type TradingAgentAction = 'BUY' | 'SELL' | 'HOLD' | 'AVOID';
 export type TradingAgentAssetType = 'stock' | 'option';
 export type TradingAgentMode = 'signals_only' | 'manual_paper' | 'auto_paper';
+export type TradingAgentPersistedStatus = 'approved' | 'rejected' | 'paper_filled';
 
 export interface TradingAgentRuleSet {
   mode: TradingAgentMode;
@@ -35,6 +36,7 @@ export interface TradingAgentSignal {
 
 export interface TradingAgentPaperPosition {
   id: string;
+  signalId?: string;
   symbol: string;
   side: 'long' | 'short';
   quantity: number;
@@ -42,6 +44,9 @@ export interface TradingAgentPaperPosition {
   markPrice: number;
   unrealizedPnl: number;
   openedAt: string;
+  closedAt?: string | null;
+  exitPrice?: number | null;
+  status?: 'open' | 'closed';
   thesis: string;
 }
 
@@ -59,6 +64,11 @@ export interface TradingAgentReview {
 
 export interface TradingAgentDashboardRequest extends Partial<TradingAgentRuleSet> {
   accountSize?: number;
+}
+
+export interface TradingAgentExecutionState {
+  statuses: Record<string, TradingAgentPersistedStatus>;
+  positions: TradingAgentPaperPosition[];
 }
 
 export interface TradingAgentDashboard {
