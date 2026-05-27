@@ -41,6 +41,7 @@ export default function AiraPage() {
   const [loadedSymbol, setLoadedSymbol] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [intervalOption, setIntervalOption] = useState('D');
   const { forecast, isLoading, error, analyzeForecast } = useKronosForecast();
 
   const parsedHistory = useMemo(() => {
@@ -63,7 +64,10 @@ export default function AiraPage() {
     setLoadedSymbol(null);
 
     try {
-      const response = await fetch(`/api/market/candles?symbol=${encodeURIComponent(cleanSymbol)}&range=compact`);
+      // choose endpoint params: use TV interval for intraday or daily range for 'D'
+      const urlBase = `/api/market/candles?symbol=${encodeURIComponent(cleanSymbol)}`;
+      const url = intervalOption && intervalOption !== 'D' ? `${urlBase}&interval=${encodeURIComponent(intervalOption)}` : `${urlBase}&range=compact`;
+      const response = await fetch(url);
       const payload = await response.json();
 
       if (!response.ok || !payload?.candles) {
@@ -124,7 +128,7 @@ export default function AiraPage() {
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
             <label className="block w-full">
               <span className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-100">Ticker symbol</span>
               <input
@@ -135,14 +139,30 @@ export default function AiraPage() {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </label>
-            <button
-              type="button"
-              onClick={fetchSymbolHistory}
-              disabled={loadingHistory || isLoading}
-              className="inline-flex h-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
-              {loadingHistory ? 'Fetching…' : 'Load history'}
-            </button>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-100">Interval</span>
+              <select
+                value={intervalOption}
+                onChange={(e) => setIntervalOption(e.target.value)}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              >
+                <option value="D">Daily (D)</option>
+                <option value="60">Hourly (60)</option>
+                <option value="240">4H (240)</option>
+              </select>
+            </label>
+
+            <div>
+              <button
+                type="button"
+                onClick={fetchSymbolHistory}
+                disabled={loadingHistory || isLoading || !symbol.trim()}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {loadingHistory ? 'Fetching…' : 'Load history'}
+              </button>
+            </div>
           </div>
 
           {historyError ? (
@@ -163,7 +183,7 @@ export default function AiraPage() {
               setHistoryJson(event.target.value);
               setLoadedSymbol(null);
             }}
-            className="h-[360px] w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            className="h-[320px] w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
 
