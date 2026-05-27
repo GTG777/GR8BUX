@@ -45,4 +45,3 @@ coverage/
 .supabase/
 supabase/.temp/
 .agents/superpowers
-kronos/
