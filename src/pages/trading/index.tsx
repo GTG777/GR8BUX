@@ -1013,7 +1013,7 @@ export default function TradingGoalPage() {
             </p>
             <div className="mt-4 space-y-4">
               <label className="block">
-                <span className="text-sm font-medium text-gray-700 dark:text-zinc-200">Account size</span>
+                <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-400 mb-2">Account size</span>
                 <input
                   type="number"
                   min={1000}
@@ -1024,7 +1024,7 @@ export default function TradingGoalPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-sm font-medium text-gray-700 dark:text-zinc-200">Risk per trade (%)</span>
+                <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-400 mb-2">Risk per trade (%)</span>
                 <input
                   type="number"
                   min={0.25}
@@ -1036,7 +1036,7 @@ export default function TradingGoalPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-sm font-medium text-gray-700 dark:text-zinc-200">Max capital allocation (%)</span>
+                <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-400 mb-2">Max capital allocation (%)</span>
                 <input
                   type="number"
                   min={5}
@@ -1048,7 +1048,7 @@ export default function TradingGoalPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-sm font-medium text-gray-700 dark:text-zinc-200">Goal horizon (days)</span>
+                <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-400 mb-2">Goal horizon (days)</span>
                 <input
                   type="number"
                   min={20}
@@ -1060,7 +1060,7 @@ export default function TradingGoalPage() {
                 />
               </label>
               <div>
-                <span className="text-sm font-medium text-gray-700 dark:text-zinc-200">Bias</span>
+                <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-zinc-400 mb-2">Bias</span>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {(['daily', 'swing'] as Horizon[]).map((value) => (
                     <button
