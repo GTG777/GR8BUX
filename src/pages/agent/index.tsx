@@ -715,7 +715,7 @@ export default function TradingAgentPage() {
                 <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Agent warnings</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {dashboard.warnings.map((warning) => (
-                    <span key={warning} className="rounded-md bg-white px-2 py-1 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                    <span key={warning} className="rounded-md bg-white px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
                       {warning}
                     </span>
                   ))}
@@ -788,7 +788,7 @@ export default function TradingAgentPage() {
                                     <button
                                       onClick={() => approveSignal(signal)}
                                       disabled={mutatingExecution}
-                                      className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                                      className="rounded-md border border-emerald-400 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-500/10 disabled:opacity-50"
                                     >
                                       Approve
                                     </button>
@@ -797,7 +797,7 @@ export default function TradingAgentPage() {
                                     <button
                                       onClick={() => rejectSignal(signal)}
                                       disabled={mutatingExecution}
-                                      className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                                      className="rounded-md border border-rose-400 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-600 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
                                     >
                                       Reject
                                     </button>
@@ -806,7 +806,7 @@ export default function TradingAgentPage() {
                                     <button
                                       onClick={() => resetSignal(signal.id)}
                                       disabled={mutatingExecution}
-                                      className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                                      className="rounded-md border border-zinc-400 px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-500 dark:text-zinc-300 dark:hover:bg-zinc-700/50 disabled:opacity-50"
                                     >
                                       Reset
                                     </button>
