@@ -28,7 +28,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/trades',    label: 'Trades',      icon: TradesIcon    },
       { href: '/analytics', label: 'Analytics',   icon: AnalyticsIcon },
       { href: '/agent',     label: 'AI Agent',    icon: AgentIcon     },
-      { href: '/aira',      label: 'AIRA',        icon: AiraIcon      },
       { href: '/trading',   label: '$1M Goal',    icon: GoalIcon, adminOnly: true },
       { href: '/coach',     label: 'Trade Coach', icon: CoachIcon     },
     ],
