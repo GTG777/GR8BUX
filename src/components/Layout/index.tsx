@@ -106,13 +106,7 @@ function AgentIcon() {
   );
 }
 
-function AiraIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l2.09 6.26L20 9l-4.91 3.74L16.18 20 12 16.91 7.82 20l1.09-7.26L4 9l5.91-.74L12 2z" />
-    </svg>
-  );
-}
+
 
 function FeedbackIcon() {
   return (
