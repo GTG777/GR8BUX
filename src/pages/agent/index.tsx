@@ -292,12 +292,12 @@ function Field({
 }) {
   return (
     <label className="block">
-      <div className="flex items-start justify-between gap-3">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_280px] sm:items-start">
         <div>
           <p className="text-sm font-medium text-foreground">{label}</p>
           <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         </div>
-        <div className="w-full max-w-[220px] shrink-0">{children}</div>
+        <div className="min-w-0">{children}</div>
       </div>
     </label>
   );
