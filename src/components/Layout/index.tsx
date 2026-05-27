@@ -28,6 +28,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/trades',    label: 'Trades',      icon: TradesIcon    },
       { href: '/analytics', label: 'Analytics',   icon: AnalyticsIcon },
       { href: '/agent',     label: 'AI Agent',    icon: AgentIcon     },
+      { href: '/aira',      label: 'AIRA',        icon: AiraIcon      },
       { href: '/trading',   label: '$1M Goal',    icon: GoalIcon, adminOnly: true },
       { href: '/coach',     label: 'Trade Coach', icon: CoachIcon     },
     ],
@@ -102,6 +103,14 @@ function AgentIcon() {
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v3m0 10v3M8 7h8a3 3 0 013 3v4a3 3 0 01-3 3H8a3 3 0 01-3-3v-4a3 3 0 013-3z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h.01M15 12h.01M9 16l2-2 2 2 3-4" />
+    </svg>
+  );
+}
+
+function AiraIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l2.09 6.26L20 9l-4.91 3.74L16.18 20 12 16.91 7.82 20l1.09-7.26L4 9l5.91-.74L12 2z" />
     </svg>
   );
 }
