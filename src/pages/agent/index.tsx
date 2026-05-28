@@ -188,7 +188,7 @@ async function mutateExecutionState(body: Record<string, unknown>) {
 function statusColor(action: TradingAgentSignal['action']) {
   if (action === 'BUY') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/30 dark:text-emerald-200';
   if (action === 'SELL') return 'bg-rose-100 text-rose-800 dark:bg-rose-500/30 dark:text-rose-200';
-  if (action === 'AVOID') return 'bg-amber-100 text-amber-800 dark:bg-amber-500/30 dark:text-amber-200';
+  if (action === 'AVOID') return 'bg-amber-100 text-amber-800 dark:bg-amber-800/60 dark:text-amber-200';
   return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200';
 }
 
@@ -196,7 +196,7 @@ function executionStatusColor(status: TradingAgentSignal['status']) {
   if (status === 'paper_filled') return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-500/30 dark:text-indigo-200';
   if (status === 'approved') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/30 dark:text-emerald-200';
   if (status === 'rejected') return 'bg-rose-100 text-rose-800 dark:bg-rose-500/30 dark:text-rose-200';
-  if (status === 'watching') return 'bg-amber-100 text-amber-800 dark:bg-amber-500/30 dark:text-amber-200';
+  if (status === 'watching') return 'bg-amber-100 text-amber-800 dark:bg-amber-800/60 dark:text-amber-200';
   return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200';
 }
 
