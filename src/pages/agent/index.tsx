@@ -186,18 +186,18 @@ async function mutateExecutionState(body: Record<string, unknown>) {
 }
 
 function statusColor(action: TradingAgentSignal['action']) {
-  if (action === 'BUY') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300';
-  if (action === 'SELL') return 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300';
-  if (action === 'AVOID') return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
-  return 'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300';
+  if (action === 'BUY') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/30 dark:text-emerald-200';
+  if (action === 'SELL') return 'bg-rose-100 text-rose-800 dark:bg-rose-500/30 dark:text-rose-200';
+  if (action === 'AVOID') return 'bg-amber-100 text-amber-800 dark:bg-amber-500/30 dark:text-amber-200';
+  return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200';
 }
 
 function executionStatusColor(status: TradingAgentSignal['status']) {
-  if (status === 'paper_filled') return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300';
-  if (status === 'approved') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300';
-  if (status === 'rejected') return 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300';
-  if (status === 'watching') return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
-  return 'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300';
+  if (status === 'paper_filled') return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-500/30 dark:text-indigo-200';
+  if (status === 'approved') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/30 dark:text-emerald-200';
+  if (status === 'rejected') return 'bg-rose-100 text-rose-800 dark:bg-rose-500/30 dark:text-rose-200';
+  if (status === 'watching') return 'bg-amber-100 text-amber-800 dark:bg-amber-500/30 dark:text-amber-200';
+  return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200';
 }
 
 function executionLabel(status: TradingAgentSignal['status']) {
@@ -711,11 +711,11 @@ export default function TradingAgentPage() {
             </div>
 
             {dashboard.warnings.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Agent warnings</p>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700/60 dark:bg-amber-950/40">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Agent warnings</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {dashboard.warnings.map((warning) => (
-                    <span key={warning} className="rounded-md bg-white px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                    <span key={warning} className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
                       {warning}
                     </span>
                   ))}
