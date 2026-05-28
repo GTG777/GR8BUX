@@ -20,6 +20,14 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+[functions."refresh-coach-context"]
+  # Every 30 min — pre-computes compact portfolio summaries for all users
+  schedule = "*/30 * * * *"
+
+[functions."nightly-coach-brief"]
+  # Nightly at midnight CT (05:00 UTC) — generates behavioral brief per user
+  schedule = "0 5 * * *"
+
 [functions."refresh-market-data"]
   # Every 15 min Mon-Fri 9AM-5PM ET (14:00-22:00 UTC)
   # Also nightly at 11 PM ET (04:00 UTC) to seed data before market open

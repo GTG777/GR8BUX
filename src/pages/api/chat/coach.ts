@@ -2,14 +2,16 @@
  * POST /api/chat/coach
  *
  * RAG-powered personal trading coach.
- * Retrieves semantically similar past trades via pgvector,
- * then uses OpenAI to give personalized, evidence-based coaching.
  *
- * Body:
- *   { query, currentTrade?, history? }
+ * Hot path (cache hit):
+ *   Reads pre-built compact portfolio summary from coach_context_cache.
+ *   Skips the full DB aggregation — saves ~400-500 tokens per message.
  *
- * Returns:
- *   { reply, similarTrades, patterns, suggestedActions }
+ * Fallback (cache miss / stale):
+ *   Falls back to live DB aggregation, same as before.
+ *
+ * Body:  { query, currentTrade?, history? }
+ * Returns: { reply, similarTrades, patterns, suggestedActions, usage }
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -17,6 +19,8 @@ import { requireAuth } from '@/lib/apiAuth';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { getCoachAgent } from '@/lib/agents/coachAgent';
 import type { CoachResponse, CoachInput, TradeSummary } from '@/lib/agents/coachAgent';
+
+const CACHE_MAX_AGE_MS = 45 * 60 * 1000; // 45 minutes
 
 interface ApiResponse {
   success: boolean;
@@ -42,15 +46,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ success: false, error: 'Query is required' });
   }
 
-  // Enforce safe history size (last 10 messages max)
   const safeHistory = (history ?? []).slice(-10);
+  const supabase = getSupabaseServiceRoleClient();
 
-  // ── Fetch aggregate portfolio stats directly from trades table ──────────────
-  // This gives the coach ground-truth context regardless of embedding status.
+  // ── Try cache first ──────────────────────────────────────────────────────────
+  let cachedSummary: string | undefined;
+  let behavioralBrief: string | undefined;
+
+  if (supabase) {
+    try {
+      const { data: cache } = await supabase
+        .from('coach_context_cache')
+        .select('summary_text, behavioral_brief, updated_at')
+        .eq('user_id', user.id)
+        .single();
+
+      if (cache) {
+        const age = Date.now() - new Date(cache.updated_at).getTime();
+        if (age < CACHE_MAX_AGE_MS) {
+          cachedSummary = cache.summary_text || undefined;
+          behavioralBrief = cache.behavioral_brief || undefined;
+        }
+      }
+    } catch {
+      // Non-fatal — fall through to live query
+    }
+  }
+
+  // ── Fallback: live DB aggregation (same as before) ───────────────────────────
   let tradeSummary: TradeSummary | undefined;
-  try {
-    const supabase = getSupabaseServiceRoleClient();
-    if (supabase) {
+
+  if (!cachedSummary && supabase) {
+    try {
       const { data: allTrades } = await supabase
         .from('trades')
         .select(`
@@ -65,15 +92,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         .order('entry_date', { ascending: false });
 
       if (allTrades && allTrades.length > 0) {
-        const closed = allTrades.filter((t: { status: string }) => t.status === 'closed');
-        const open = allTrades.filter((t: { status: string }) => t.status === 'open');
-        const wins = closed.filter((t: { pnl: number | null }) => (t.pnl ?? 0) > 0);
-        const losses = closed.filter((t: { pnl: number | null }) => (t.pnl ?? 0) < 0);
-        const totalPnl = closed.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0);
-        const avgWin = wins.length ? wins.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0) / wins.length : 0;
-        const avgLoss = losses.length ? losses.reduce((s: number, t: { pnl: number | null }) => s + (t.pnl ?? 0), 0) / losses.length : 0;
+        const closed = allTrades.filter((t: any) => t.status === 'closed');
+        const open = allTrades.filter((t: any) => t.status === 'open');
+        const wins = closed.filter((t: any) => (t.pnl ?? 0) > 0);
+        const losses = closed.filter((t: any) => (t.pnl ?? 0) < 0);
+        const totalPnl = closed.reduce((s: number, t: any) => s + (t.pnl ?? 0), 0);
+        const avgWin = wins.length ? wins.reduce((s: number, t: any) => s + (t.pnl ?? 0), 0) / wins.length : 0;
+        const avgLoss = losses.length ? losses.reduce((s: number, t: any) => s + (t.pnl ?? 0), 0) / losses.length : 0;
 
-        // Stats split by trade type (stock vs option)
         const byType: Record<string, { closed: number; wins: number; totalPnl: number; avgWin: number; avgLoss: number }> = {};
         for (const typ of ['stock', 'option']) {
           const tClosed = closed.filter((t: any) => t.type === typ);
@@ -88,34 +114,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           };
         }
 
-        // Open positions with leg detail
         const openPositions = (open as any[]).map((t) => {
           const legs = t.option_trades?.option_legs ?? [];
           const premiumAtRisk = legs
             .filter((l: any) => l.direction === 'long')
             .reduce((s: number, l: any) => s + (l.entry_price ?? 0) * (l.quantity ?? 0) * 100, 0);
           return {
-            symbol: t.symbol,
-            type: t.type,
-            entryDate: t.entry_date?.slice(0, 10),
+            symbol: t.symbol, type: t.type, entryDate: t.entry_date?.slice(0, 10),
             strategy: t.option_trades?.strategy ?? null,
             premiumAtRisk: premiumAtRisk > 0 ? premiumAtRisk : null,
             legs: legs.map((l: any) => ({
-              direction: l.direction,
-              type: l.type,
-              strike: l.strike_price,
-              expiry: l.expiration_date?.slice(0, 10),
-              qty: l.quantity,
-              entryPrice: l.entry_price,
+              direction: l.direction, type: l.type, strike: l.strike_price,
+              expiry: l.expiration_date?.slice(0, 10), qty: l.quantity, entryPrice: l.entry_price,
             })),
             stockQty: t.stock_trades?.quantity ?? null,
             stockEntryPrice: t.stock_trades?.entry_price ?? null,
           };
         });
 
-        // Aggregate by symbol
         const bySymbol: Record<string, { trades: number; pnl: number }> = {};
-        for (const t of allTrades as { symbol: string; pnl: number | null }[]) {
+        for (const t of allTrades as any[]) {
           if (!bySymbol[t.symbol]) bySymbol[t.symbol] = { trades: 0, pnl: 0 };
           bySymbol[t.symbol].trades++;
           bySymbol[t.symbol].pnl += t.pnl ?? 0;
@@ -126,51 +144,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           .map(([symbol, v]) => ({ symbol, ...v }));
 
         tradeSummary = {
-          totalTrades: allTrades.length,
-          closedTrades: closed.length,
-          openTrades: open.length,
-          winCount: wins.length,
-          lossCount: losses.length,
+          totalTrades: allTrades.length, closedTrades: closed.length, openTrades: open.length,
+          winCount: wins.length, lossCount: losses.length,
           winRate: closed.length > 0 ? Math.round((wins.length / closed.length) * 100) : 0,
-          totalPnl,
-          avgWin,
-          avgLoss,
-          byType,
-          openPositions,
-          topSymbols,
-          recentTrades: (allTrades.slice(0, 20) as any[]).map((t) => {
+          totalPnl, avgWin, avgLoss, byType, openPositions, topSymbols,
+          recentTrades: (allTrades.slice(0, 5) as any[]).map((t) => {
             const legs = t.option_trades?.option_legs ?? [];
-            const optionLegs = legs.map((l: any) => ({
-              type: l.type,            // 'call' | 'put'
-              direction: l.direction,  // 'long' | 'short'
-              strike: l.strike_price,
-              expiry: l.expiration_date?.slice(0, 10),
-              qty: l.quantity,
-              entryPrice: l.entry_price,
-              exitPrice: l.exit_price ?? null,
-            }));
             return {
-              symbol: t.symbol,
-              type: t.type,
-              status: t.status,
-              pnl: t.pnl,
-              entryDate: t.entry_date,
-              exitDate: t.exit_date,
-              tags: t.tags ?? [],
-              notes: t.notes ?? null,
-              planNotes: t.plan_notes ?? null,
+              symbol: t.symbol, type: t.type, status: t.status, pnl: t.pnl,
+              entryDate: t.entry_date, exitDate: t.exit_date, tags: t.tags ?? [],
+              notes: null, planNotes: null,
               strategy: t.option_trades?.strategy ?? null,
               stockQty: t.stock_trades?.quantity ?? null,
               stockEntryPrice: t.stock_trades?.entry_price ?? null,
               stockExitPrice: t.stock_trades?.exit_price ?? null,
-              optionLegs: optionLegs.length > 0 ? optionLegs : null,
+              optionLegs: legs.length > 0 ? legs.map((l: any) => ({
+                type: l.type, direction: l.direction, strike: l.strike_price,
+                expiry: l.expiration_date?.slice(0, 10), qty: l.quantity,
+                entryPrice: l.entry_price, exitPrice: l.exit_price ?? null,
+              })) : null,
             };
           }),
         };
       }
+    } catch {
+      // Non-fatal — coach proceeds without stats
     }
-  } catch {
-    // Non-fatal — coach proceeds without stats if DB query fails
+  }
+
+  // ── Load session summary for long conversations ──────────────────────────────
+  let historySummary: string | undefined;
+  if (supabase && safeHistory.length >= 8) {
+    try {
+      const { data: session } = await supabase
+        .from('coach_sessions')
+        .select('history_summary')
+        .eq('user_id', user.id)
+        .single();
+      historySummary = session?.history_summary || undefined;
+    } catch {
+      // Non-fatal
+    }
   }
 
   try {
@@ -179,6 +193,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       userId: user.id,
       userQuery: query.trim(),
       tradeSummary,
+      cachedSummary,
+      behavioralBrief,
+      historySummary,
       currentTrade: currentTrade as CoachInput['currentTrade'],
       history: safeHistory,
     });

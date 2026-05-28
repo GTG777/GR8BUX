@@ -69,7 +69,13 @@ export interface CoachInput {
   userId: string;
   /** The user's question or trade idea they want coached on */
   userQuery: string;
-  /** Aggregate stats from the trades table — always populated by the API */
+  /** Pre-built compact summary from coach_context_cache (preferred over tradeSummary) */
+  cachedSummary?: string;
+  /** Pre-generated nightly behavioral brief from coach_context_cache */
+  behavioralBrief?: string;
+  /** Compressed summary of long conversation histories (replaces full history when length >= 8) */
+  historySummary?: string;
+  /** Aggregate stats from the trades table — used only when cachedSummary is absent */
   tradeSummary?: TradeSummary;
   /** Current trade context (optional — enriches retrieval query) */
   currentTrade?: {
@@ -140,7 +146,7 @@ export class CoachAgent extends Agent {
       { role: 'user', content: userPrompt },
     ];
 
-    const { text: rawReply, usage } = await this.queryWithHistory(systemPrompt, messages);
+    const { text: rawReply, usage } = await this.queryWithHistory(systemPrompt, messages, input.historySummary);
 
     // ── Step 6: Parse structured response ─────────────────────────
     const { reply, suggestedActions } = this.parseReply(rawReply);
@@ -223,118 +229,70 @@ Format your response as JSON with exactly these fields:
   ): string {
     const parts: string[] = [];
 
-    // User's question
     parts.push(`## User Question\n${input.userQuery}`);
 
-    // Portfolio summary from direct DB query (always accurate, no embeddings needed)
-    if (input.tradeSummary) {
+    // ── Portfolio context: cached compact summary (preferred) ──────────────────
+    // The cron job pre-builds this every 30 min. ~100-150 tokens vs ~500-600.
+    if (input.cachedSummary) {
+      parts.push(`## Portfolio Summary\n${input.cachedSummary}`);
+    } else if (input.tradeSummary) {
+      // Fallback: live summary (cache miss). Compact format, 5 trades, no notes.
       const s = input.tradeSummary;
-      const topSymbolsText = s.topSymbols
-        .slice(0, 8)
-        .map((x) => `${x.symbol} (${x.trades} trades, P&L: $${x.pnl.toFixed(2)})`)
-        .join(', ');
-      const recentText = s.recentTrades
-        .slice(0, 15)
-        .map((t) => {
-          let line = `${t.symbol} ${t.type} ${t.status}`;
-          if (t.pnl != null) line += ` P&L:$${t.pnl.toFixed(2)}`;
-          line += ` entry:${t.entryDate.slice(0, 10)}`;
-          if (t.exitDate) line += ` exit:${t.exitDate.slice(0, 10)}`;
-          if (t.strategy) line += ` strategy:${t.strategy}`;
-          if (t.notes) line += ` | notes: ${t.notes.slice(0, 80)}`;
-          if (t.planNotes) line += ` | plan: ${t.planNotes.slice(0, 80)}`;
-          // Stock detail
-          if (t.type === 'stock' && t.stockQty != null) {
-            line += ` qty:${t.stockQty} @$${t.stockEntryPrice}`;
-            if (t.stockExitPrice != null) line += `→$${t.stockExitPrice}`;
-          }
-          // Option legs
-          if (t.optionLegs?.length) {
-            const legStrs = t.optionLegs.map((l) => {
-              let ls = `${l.direction} ${l.qty}x ${l.type} $${l.strike} exp:${l.expiry} @$${l.entryPrice}`;
-              if (l.exitPrice != null) {
-                ls += `→$${l.exitPrice}`;
-                const legPnl = l.direction === 'long'
-                  ? (l.exitPrice - l.entryPrice) * l.qty * 100
-                  : (l.entryPrice - l.exitPrice) * l.qty * 100;
-                ls += ` legP&L:$${legPnl.toFixed(2)}`;
-              } else if (t.status === 'open') {
-                ls += ` (open — premium paid: $${(l.entryPrice * l.qty * 100).toFixed(2)})`;
-              }
-              return ls;
-            });
-            line += ` [${legStrs.join('; ')}]`;
-          }
-          return line;
-        })
-        .join('\n  ');
-      parts.push(`## Portfolio Summary (live from database)
-Total Trades: ${s.totalTrades} (${s.closedTrades} closed, ${s.openTrades} open)
-Overall Win Rate: ${s.winRate}% (${s.winCount} wins / ${s.lossCount} losses on closed trades)
-Total Realized P&L: $${s.totalPnl.toFixed(2)}
-Avg Win: $${s.avgWin.toFixed(2)} | Avg Loss: $${s.avgLoss.toFixed(2)}
+      const fmt = (n: number) => (n >= 0 ? `+$${n.toFixed(0)}` : `-$${Math.abs(n).toFixed(0)}`);
+      const wr = s.winRate;
+      const typeLines = Object.entries(s.byType ?? {})
+        .filter(([, v]) => v.closed > 0)
+        .map(([typ, v]) => `${typ.toUpperCase()} ${v.closed}cl wr:${Math.round((v.wins / v.closed) * 100)}% pnl:${fmt(v.totalPnl)}`);
+      const topSyms = s.topSymbols.slice(0, 4).map((x) => `${x.symbol}(${x.trades}t ${fmt(x.pnl)})`);
+      const recentText = s.recentTrades.slice(0, 5).map((t) => {
+        let line = `${t.symbol} ${t.type} ${t.status}`;
+        if (t.pnl != null) line += ` ${fmt(t.pnl)}`;
+        line += ` [${t.entryDate.slice(0, 10)}]`;
+        if (t.optionLegs?.length) {
+          const l = t.optionLegs[0];
+          line += ` ${l.direction} ${l.qty}x $${l.strike}${l.type[0]}`;
+        }
+        return line;
+      });
 
-Performance by Type:
-${
-  Object.entries(s.byType ?? {})
-    .filter(([, v]) => v.closed > 0)
-    .map(([typ, v]) => {
-      const wr = v.closed > 0 ? Math.round((v.wins / v.closed) * 100) : 0;
-      return `  ${typ.toUpperCase()}: ${v.closed} closed trades, win rate ${wr}%, total P&L $${v.totalPnl.toFixed(2)}, avg win $${v.avgWin.toFixed(2)}, avg loss $${v.avgLoss.toFixed(2)}`;
-    })
-    .join('\n') || '  N/A'
-}
-
-Most Traded Symbols: ${topSymbolsText || 'N/A'}`);
-
-      // Open positions block
-      if (s.openPositions?.length > 0) {
-        const openLines = s.openPositions.map((p) => {
-          let line = `  ${p.symbol} ${p.type} — entered ${p.entryDate}`;
-          if (p.strategy) line += ` (${p.strategy})`;
-          if (p.type === 'stock' && p.stockQty != null) {
-            line += ` | ${p.stockQty} shares @ $${p.stockEntryPrice}`;
-          }
-          if (p.legs?.length) {
-            const legStrs = p.legs.map((l) =>
-              `${l.direction} ${l.qty}x ${l.type} $${l.strike} exp:${l.expiry} @$${l.entryPrice}`
-            );
-            line += ` | [${legStrs.join('; ')}]`;
-          }
-          if (p.premiumAtRisk != null) line += ` | premium at risk: $${p.premiumAtRisk.toFixed(2)}`;
-          return line;
-        }).join('\n');
-        parts.push(`## Open Positions (${s.openPositions.length} total)\n${openLines}`);
+      let summary = `stats: ${s.totalTrades}T ${s.closedTrades}cl ${s.openTrades}op | wr:${wr}% pnl:${fmt(s.totalPnl)} avgW:${fmt(s.avgWin)} avgL:${fmt(s.avgLoss)}`;
+      if (typeLines.length) summary += `\ntype: ${typeLines.join(' | ')}`;
+      if (topSyms.length) summary += `\ntop: ${topSyms.join(' ')}`;
+      if (s.openPositions?.length) {
+        const openStr = s.openPositions.slice(0, 3).map((p) => {
+          let o = `${p.symbol} ${p.type}`;
+          if (p.stockQty) o += ` ${p.stockQty}sh@$${p.stockEntryPrice}`;
+          if (p.legs?.length) o += ` ${p.legs[0].direction} ${p.legs[0].qty}x $${p.legs[0].strike}${p.legs[0].type[0]}`;
+          return o;
+        }).join(' | ');
+        summary += `\nopen(${s.openPositions.length}): ${openStr}`;
       }
-      parts.push(`## Recent Trades (with option leg detail):
-  ${recentText || 'N/A'}`);
+      summary += `\nrecent: ${recentText.join(' | ')}`;
+      parts.push(`## Portfolio Summary\n${summary}`);
     }
 
-    // Current trade context
     if (input.currentTrade) {
-      parts.push(`## Current Trade Context\n${JSON.stringify(input.currentTrade, null, 2)}`);
+      parts.push(`## Current Trade\n${JSON.stringify(input.currentTrade)}`);
     }
 
-    // Behavioral patterns from RAG results
-    if (similarTrades.length > 0) {
-      parts.push(`## Patterns from Semantically Similar Trades (${similarTrades.length} retrieved)
-Win Rate: ${patterns.winRate}%
-Avg Win: $${patterns.avgWin.toFixed(2)}
-Avg Loss: $${patterns.avgLoss.toFixed(2)}
-Top Setups: ${patterns.topSetups.join(', ') || 'N/A'}
-Risk Warnings: ${patterns.riskWarnings.join('; ') || 'None'}`);
+    // ── Behavioral brief: pre-generated nightly (preferred) or inline patterns ──
+    if (input.behavioralBrief) {
+      parts.push(`## Behavioral Analysis\n${input.behavioralBrief}`);
+    } else if (similarTrades.length > 0) {
+      const patternLine = `wr:${patterns.winRate}% avgW:$${patterns.avgWin.toFixed(0)} avgL:$${patterns.avgLoss.toFixed(0)} setups:${patterns.topSetups.join(',') || 'N/A'}${patterns.riskWarnings.length ? ` WARN:${patterns.riskWarnings.join(';')}` : ''}`;
+      parts.push(`## Patterns from Similar Trades\n${patternLine}`);
+    }
 
-      const tradeContext = similarTrades
+    // ── RAG: 4 trades × 150 chars (was 6 × 300) ───────────────────────────────
+    if (similarTrades.length > 0) {
+      const tradeContext = similarTrades.slice(0, 4)
         .map((t, i) =>
-          `Trade ${i + 1} (${Math.round(t.similarity * 100)}% similar):
-  Symbol: ${t.symbol} | Outcome: ${t.outcome} | P&L: $${t.pnl?.toFixed(2) ?? 'N/A'}
-  Setup: ${t.setup_type ?? 'untagged'} | Tags: ${t.tags?.join(', ') || 'none'}
-  Journal: ${t.embedded_text.substring(0, 300)}`
+          `T${i + 1}(${Math.round(t.similarity * 100)}%): ${t.symbol} ${t.outcome} P&L:$${t.pnl?.toFixed(0) ?? 'N/A'} setup:${t.setup_type ?? '?'} — ${t.embedded_text.substring(0, 150)}`
         )
-        .join('\n\n');
-      parts.push(`## Retrieved Similar Trades\n${tradeContext}`);
+        .join('\n');
+      parts.push(`## Similar Past Trades\n${tradeContext}`);
     } else {
-      parts.push(`## Retrieved Similar Trades\nSemantic search returned no results (embeddings may still be processing). Use the Portfolio Summary above as your primary data source.`);
+      parts.push(`## Similar Past Trades\nNone retrieved. Use portfolio summary as primary source.`);
     }
 
     return parts.join('\n\n');
@@ -342,20 +300,30 @@ Risk Warnings: ${patterns.riskWarnings.join('; ') || 'None'}`);
 
   private async queryWithHistory(
     systemPrompt: string,
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    historySummary?: string
   ): Promise<{ text: string; usage: CoachTokenUsage }> {
+    // When history is long and a rolling summary exists, prepend it and drop
+    // the full message array so we only send the current user turn.
+    let effectiveMessages = messages;
+    if (historySummary && messages.length >= 8) {
+      const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+      effectiveMessages = [
+        { role: 'user', content: `[Previous conversation summary: ${historySummary}]` },
+        { role: 'assistant', content: 'Understood. Continuing with context.' },
+        ...(lastUserMessage ? [lastUserMessage] : []),
+      ];
+    }
+
     const response = await generateText({
       model: this.model,
       maxOutputTokens: this.maxTokens,
       temperature: this.temperature,
       instructions: systemPrompt,
-      messages,
+      messages: effectiveMessages,
     });
 
-    return {
-      text: response.text,
-      usage: response.usage,
-    };
+    return { text: response.text, usage: response.usage };
   }
 
   private parseReply(raw: string): { reply: string; suggestedActions: string[] } {
