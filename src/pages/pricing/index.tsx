@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
+import { useAuthStore } from '@/store/authStore';
+import { usePlanStore } from '@/store/planStore';
+import { getSupabaseClient } from '@/lib/supabase';
 
-/* ── Types ───────────────────────────────────────────────────────── */
 type BillingCycle = 'monthly' | 'annual';
 
 interface PlanFeature { text: string; included: boolean; highlight?: boolean }
@@ -15,12 +17,12 @@ interface Plan {
   annual: number;
   description: string;
   cta: string;
-  ctaHref: string;
   color: string;
+  accentClass: string;
+  ctaClass: string;
   features: PlanFeature[];
 }
 
-/* ── Plan definitions ────────────────────────────────────────────── */
 const PLANS: Plan[] = [
   {
     id: 'free',
@@ -29,21 +31,41 @@ const PLANS: Plan[] = [
     annual: 0,
     description: 'For casual traders getting started',
     cta: 'Get Started Free',
-    ctaHref: '/auth/signup',
     color: 'border-gray-200 dark:border-zinc-700',
+    accentClass: 'text-gray-700 dark:text-zinc-300',
+    ctaClass: 'bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300',
     features: [
       { text: 'Trade Journal (up to 50 trades)', included: true },
       { text: 'Basic P&L tracking', included: true },
       { text: 'Watchlist (up to 10 symbols)', included: true },
       { text: 'News feed', included: true },
-      { text: 'Options Chain viewer', included: true },
       { text: 'Performance Analytics', included: false },
       { text: 'Stock Scanner', included: false },
-      { text: 'AI Market Assistant', included: false },
-      { text: 'LEAPS Coach', included: false },
+      { text: 'AI Coaches', included: false },
+      { text: 'LEAPS Advisor', included: false },
       { text: 'Earnings Calendar', included: false },
-      { text: 'Community Access', included: false },
-      { text: 'Priority support', included: false },
+    ],
+  },
+  {
+    id: 'starter',
+    name: 'Starter',
+    monthly: 12,
+    annual: 9,
+    description: 'For traders who want AI guidance',
+    cta: 'Start 7-Day Free Trial',
+    color: 'border-blue-400 dark:border-blue-600',
+    accentClass: 'text-blue-700 dark:text-blue-400',
+    ctaClass: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
+    features: [
+      { text: 'Unlimited trades', included: true, highlight: true },
+      { text: 'Full P&L Analytics', included: true },
+      { text: 'Watchlist (25 symbols)', included: true },
+      { text: 'Stock Scanner', included: true },
+      { text: 'Earnings Calendar', included: true },
+      { text: 'Trade Coach (30 msg/mo)', included: true, highlight: true },
+      { text: 'Stock + Options Coach (20 msg/mo ea)', included: true },
+      { text: 'LEAPS Advisor', included: false },
+      { text: 'Greeks Calculator', included: false },
     ],
   },
   {
@@ -54,74 +76,54 @@ const PLANS: Plan[] = [
     annual: 23,
     description: 'For active traders who want an edge',
     cta: 'Start 7-Day Free Trial',
-    ctaHref: '/auth/signup?plan=pro',
     color: 'border-indigo-500',
+    accentClass: 'text-indigo-700 dark:text-indigo-400',
+    ctaClass: 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm',
     features: [
-      { text: 'Unlimited trades', included: true, highlight: true },
-      { text: 'Full P&L Analytics + Equity Curve', included: true, highlight: true },
-      { text: 'Unlimited Watchlist', included: true },
-      { text: 'Stock Scanner (all signals)', included: true, highlight: true },
+      { text: 'Everything in Starter', included: true, highlight: true },
+      { text: 'Unlimited watchlist', included: true },
       { text: 'Options Chain + Strategy Builder', included: true },
-      { text: 'LEAPS Screener', included: true },
-      { text: 'Earnings Calendar', included: true },
-      { text: 'News feed (real-time)', included: true },
-      { text: 'Community Access', included: true },
-      { text: 'AI Market Assistant', included: false },
-      { text: 'LEAPS AI Assistant', included: false },
-      { text: 'Priority support', included: false },
+      { text: 'Trade Coach (200 msg/mo)', included: true, highlight: true },
+      { text: 'Stock + Options Coach (100 msg/mo ea)', included: true },
+      { text: 'LEAPS Advisor (50 queries/mo)', included: true, highlight: true },
+      { text: 'Greeks & Risk Manager', included: true },
+      { text: 'CSV Export', included: true },
+      { text: 'Insider Activity', included: false },
     ],
   },
   {
     id: 'elite',
     name: 'Elite',
-    monthly: 79,
-    annual: 63,
-    description: 'Full suite with AI-assisted insights',
+    monthly: 59,
+    annual: 47,
+    description: 'Unlimited AI coaching — no caps',
     cta: 'Start 7-Day Free Trial',
-    ctaHref: '/auth/signup?plan=elite',
     color: 'border-amber-500',
+    accentClass: 'text-amber-600 dark:text-amber-400',
+    ctaClass: 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm',
     features: [
       { text: 'Everything in Pro', included: true, highlight: true },
-      { text: 'AI Market Assistant (daily reports)', included: true, highlight: true },
-      { text: 'LEAPS AI Assistant', included: true, highlight: true },
-      { text: 'Greeks & Risk Manager', included: true, highlight: true },
-      { text: 'Custom alerts & notifications', included: true },
-      { text: 'Multi-account portfolio view', included: true },
-      { text: 'Options flow data', included: true },
-      { text: 'Insider activity tracking', included: true },
+      { text: 'Unlimited AI Coaches (all)', included: true, highlight: true },
+      { text: 'Unlimited LEAPS Advisor', included: true, highlight: true },
+      { text: 'Insider Activity tracking', included: true, highlight: true },
       { text: 'Sector rotation signals', included: true },
+      { text: 'Options flow data', included: true },
       { text: 'Advanced VWAP / Technical', included: true },
-      { text: 'CSV export', included: true },
+      { text: 'Multi-account portfolio view', included: true },
       { text: 'Priority support', included: true, highlight: true },
     ],
   },
 ];
 
-/* ── FAQ data ────────────────────────────────────────────────────── */
 const FAQ = [
-  {
-    q: 'Can I cancel at any time?',
-    a: 'Yes — cancel any time from your billing settings. You keep access through the end of your billing period.',
-  },
-  {
-    q: 'Is there a free trial?',
-    a: 'Pro and Elite plans both include a 7-day free trial. No credit card required to sign up.',
-  },
-  {
-    q: 'What payment methods do you accept?',
-    a: 'All major credit/debit cards (Visa, Mastercard, Amex, Discover) via Stripe. No crypto or PayPal at this time.',
-  },
-  {
-    q: 'Can I switch plans?',
-    a: 'Yes — upgrade or downgrade at any time. Upgrades are prorated immediately; downgrades take effect at your next billing date.',
-  },
-  {
-    q: 'Is my trade data safe?',
-    a: 'Your data is encrypted at rest and in transit. We never sell or share your trading data. You can export or delete it at any time.',
-  },
+  { q: 'Can I cancel at any time?', a: 'Yes — cancel any time from your billing settings. You keep access through the end of your billing period.' },
+  { q: 'Is there a free trial?', a: 'Starter, Pro, and Elite plans all include a 7-day free trial. No credit card required to sign up.' },
+  { q: 'What payment methods do you accept?', a: 'All major credit/debit cards (Visa, Mastercard, Amex, Discover) via Stripe. No crypto or PayPal at this time.' },
+  { q: 'Can I switch plans?', a: 'Yes — upgrade or downgrade at any time. Upgrades are prorated immediately; downgrades take effect at your next billing date.' },
+  { q: 'What happens when I hit my AI message limit?', a: 'You\'ll see a friendly notice and can upgrade to the next tier instantly. Your chat history is preserved.' },
+  { q: 'Is my trade data safe?', a: 'Your data is encrypted at rest and in transit. We never sell or share your trading data. You can export or delete it at any time.' },
 ];
 
-/* ── Check icon ─────────────────────────────────────────────────── */
 function CheckIcon({ on, highlight }: { on: boolean; highlight?: boolean }) {
   if (!on) return <span className="w-5 h-5 flex items-center justify-center text-gray-300 dark:text-zinc-700 text-lg shrink-0">–</span>;
   return (
@@ -131,13 +133,11 @@ function CheckIcon({ on, highlight }: { on: boolean; highlight?: boolean }) {
   );
 }
 
-/* ── FAQItem ─────────────────────────────────────────────────────── */
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border-b border-gray-100 dark:border-zinc-800">
-      <button onClick={() => setOpen(!open)}
-        className="w-full flex justify-between items-center py-4 text-left gap-4">
+      <button onClick={() => setOpen(!open)} className="w-full flex justify-between items-center py-4 text-left gap-4">
         <span className="font-semibold text-gray-800 dark:text-zinc-200 text-sm">{q}</span>
         <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -148,15 +148,58 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-/* ── Main page ───────────────────────────────────────────────────── */
 export default function PricingPage() {
   const [cycle, setCycle] = useState<BillingCycle>('annual');
+  const [loading, setLoading] = useState<string | null>(null);
+  const router = useRouter();
+  const { user, isAuthenticated } = useAuthStore();
+  const { planId: currentPlan } = usePlanStore();
+
+  const handleCTA = async (plan: Plan) => {
+    if (plan.id === 'free') {
+      if (isAuthenticated) { router.push('/dashboard'); return; }
+      router.push('/auth/signup');
+      return;
+    }
+    if (!isAuthenticated) {
+      router.push(`/auth/signup?plan=${plan.id}&cycle=${cycle}`);
+      return;
+    }
+    if (currentPlan === plan.id) {
+      router.push('/billing');
+      return;
+    }
+
+    setLoading(plan.id);
+    try {
+      const supabase = getSupabaseClient();
+      const { data: sessionData } = await supabase!.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) { router.push('/auth/signin'); return; }
+
+      const res = await fetch('/api/billing/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ planId: plan.id, cycle }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.url) {
+        window.location.href = json.data.url;
+      } else {
+        console.error('Checkout error:', json.error);
+      }
+    } catch (err) {
+      console.error('Checkout error:', err);
+    } finally {
+      setLoading(null);
+    }
+  };
 
   return (
     <Layout title="Pricing">
       <div className="max-w-7xl mx-auto pb-16 space-y-16">
 
-        {/* ── Hero ─────────────────────────────────────────────── */}
+        {/* Hero */}
         <div className="text-center pt-4">
           <span className="inline-block px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs font-bold rounded-full uppercase tracking-widest mb-4">
             Simple Pricing
@@ -167,8 +210,6 @@ export default function PricingPage() {
           <p className="mt-3 text-base text-gray-500 dark:text-zinc-400 max-w-xl mx-auto">
             Everything you need to journal, analyze, and improve your trading — in one platform.
           </p>
-
-          {/* Billing toggle */}
           <div className="mt-6 flex items-center justify-center gap-3">
             <span className={`text-sm font-semibold ${cycle === 'monthly' ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-zinc-500'}`}>Monthly</span>
             <button
@@ -183,18 +224,17 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* ── Plan cards ───────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Plan cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {PLANS.map((plan) => {
             const price = cycle === 'annual' ? plan.annual : plan.monthly;
             const isPopular = plan.badge === 'Most Popular';
-            const isElite = plan.id === 'elite';
+            const isCurrent = currentPlan === plan.id;
 
             return (
               <div key={plan.id}
                 className={`relative rounded-2xl border-2 ${plan.color} bg-white dark:bg-zinc-900 p-6 flex flex-col shadow-sm ${isPopular ? 'shadow-indigo-100 dark:shadow-indigo-900/20 shadow-lg' : ''}`}>
 
-                {/* Badge */}
                 {plan.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest whitespace-nowrap shadow">
@@ -203,17 +243,11 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                {/* Plan header */}
                 <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className={`text-xl font-extrabold ${isElite ? 'text-amber-600 dark:text-amber-400' : isPopular ? 'text-indigo-700 dark:text-indigo-400' : 'text-gray-900 dark:text-white'}`}>
-                      {plan.name}
-                    </h2>
-                  </div>
-                  <p className="text-xs text-gray-400 dark:text-zinc-500">{plan.description}</p>
+                  <h2 className={`text-xl font-extrabold ${plan.accentClass}`}>{plan.name}</h2>
+                  <p className="text-xs text-gray-400 dark:text-zinc-500 mt-0.5">{plan.description}</p>
                 </div>
 
-                {/* Price */}
                 <div className="mb-5">
                   {price === 0 ? (
                     <p className="text-4xl font-extrabold text-gray-900 dark:text-white">Free</p>
@@ -230,19 +264,18 @@ export default function PricingPage() {
                   )}
                 </div>
 
-                {/* CTA */}
-                <Link href={plan.ctaHref}
-                  className={`block text-center text-sm font-bold py-2.5 rounded-xl transition-colors mb-6 ${
-                    isPopular
-                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
-                      : isElite
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
-                      : 'bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300'
-                  }`}>
-                  {plan.cta}
-                </Link>
+                <button
+                  onClick={() => handleCTA(plan)}
+                  disabled={loading === plan.id}
+                  className={`block w-full text-center text-sm font-bold py-2.5 rounded-xl transition-colors mb-6 disabled:opacity-60 ${
+                    isCurrent
+                      ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 cursor-default'
+                      : plan.ctaClass
+                  }`}
+                >
+                  {loading === plan.id ? 'Redirecting…' : isCurrent ? '✓ Current Plan' : plan.cta}
+                </button>
 
-                {/* Features */}
                 <ul className="space-y-2.5 flex-1">
                   {plan.features.map((f, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -258,7 +291,7 @@ export default function PricingPage() {
           })}
         </div>
 
-        {/* ── Trust strip ──────────────────────────────────────── */}
+        {/* Trust strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
           {[
             { icon: '🔒', label: 'Bank-grade security', sub: '256-bit encryption' },
@@ -274,7 +307,7 @@ export default function PricingPage() {
           ))}
         </div>
 
-        {/* ── Feature comparison table ──────────────────────────── */}
+        {/* Feature comparison table */}
         <div>
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Full Feature Comparison</h2>
           <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-zinc-800">
@@ -283,40 +316,36 @@ export default function PricingPage() {
                 <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-zinc-800">
                   <th className="text-left py-3 px-4 font-semibold text-gray-500 dark:text-zinc-400">Feature</th>
                   {PLANS.map((p) => (
-                    <th key={p.id} className="text-center py-3 px-4 font-bold text-gray-700 dark:text-zinc-300">{p.name}</th>
+                    <th key={p.id} className={`text-center py-3 px-4 font-bold ${p.accentClass}`}>{p.name}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { feature: 'Trade Journal', free: 'Up to 50', pro: 'Unlimited', elite: 'Unlimited' },
-                  { feature: 'Watchlist', free: '10 symbols', pro: 'Unlimited', elite: 'Unlimited' },
-                  { feature: 'Performance Analytics', free: false, pro: true, elite: true },
-                  { feature: 'Stock Scanner', free: false, pro: 'All signals', elite: 'All signals' },
-                  { feature: 'Options Chain', free: 'View only', pro: 'Full + builder', elite: 'Full + builder' },
-                  { feature: 'LEAPS Screener', free: false, pro: true, elite: true },
-                  { feature: 'Earnings Calendar', free: false, pro: true, elite: true },
-                  { feature: 'AI Market Assistant', free: false, pro: false, elite: true },
-                  { feature: 'LEAPS AI Assistant', free: false, pro: false, elite: true },
-                  { feature: 'Greeks & Risk Manager', free: false, pro: false, elite: true },
-                  { feature: 'Sector Rotation', free: false, pro: false, elite: true },
-                  { feature: 'Insider Activity', free: false, pro: false, elite: true },
-                  { feature: 'CSV Export', free: false, pro: false, elite: true },
-                  { feature: 'Priority Support', free: false, pro: false, elite: true },
+                  { feature: 'Trade Journal',       free: '50 trades', starter: 'Unlimited', pro: 'Unlimited',       elite: 'Unlimited'  },
+                  { feature: 'Watchlist',            free: '10 symbols', starter: '25 symbols', pro: 'Unlimited',    elite: 'Unlimited'  },
+                  { feature: 'Performance Analytics', free: 'Basic',   starter: 'Full',      pro: 'Full',           elite: 'Full'       },
+                  { feature: 'Stock Scanner',        free: false,       starter: true,         pro: true,            elite: true         },
+                  { feature: 'Options Chain',        free: 'View only', starter: 'View only', pro: 'Full + builder', elite: 'Full + builder' },
+                  { feature: 'Earnings Calendar',    free: false,       starter: true,         pro: true,            elite: true         },
+                  { feature: 'Trade Coach',          free: false,       starter: '30 msg/mo',  pro: '200 msg/mo',    elite: 'Unlimited'  },
+                  { feature: 'Stock Coach',          free: false,       starter: '20 msg/mo',  pro: '100 msg/mo',    elite: 'Unlimited'  },
+                  { feature: 'Options Coach',        free: false,       starter: '20 msg/mo',  pro: '100 msg/mo',    elite: 'Unlimited'  },
+                  { feature: 'LEAPS Advisor',        free: false,       starter: false,         pro: '50/mo',         elite: 'Unlimited'  },
+                  { feature: 'Greeks & Risk Manager', free: false,      starter: false,         pro: true,            elite: true         },
+                  { feature: 'CSV Export',           free: false,       starter: false,         pro: true,            elite: true         },
+                  { feature: 'Insider Activity',     free: false,       starter: false,         pro: false,           elite: true         },
+                  { feature: 'Priority Support',     free: false,       starter: false,         pro: false,           elite: true         },
                 ].map((row, i) => (
                   <tr key={i} className="border-b border-gray-50 dark:border-zinc-800/50 hover:bg-gray-50/50 dark:hover:bg-zinc-800/20">
                     <td className="py-3 px-4 font-medium text-gray-700 dark:text-zinc-300">{row.feature}</td>
-                    {(['free', 'pro', 'elite'] as const).map((plan) => {
+                    {(['free', 'starter', 'pro', 'elite'] as const).map((plan) => {
                       const val = row[plan];
                       return (
                         <td key={plan} className="py-3 px-4 text-center">
-                          {val === true ? (
-                            <CheckIcon on={true} />
-                          ) : val === false ? (
-                            <span className="text-gray-300 dark:text-zinc-700">–</span>
-                          ) : (
-                            <span className="text-xs text-gray-600 dark:text-zinc-400 font-medium">{val}</span>
-                          )}
+                          {val === true  ? <CheckIcon on={true} /> :
+                           val === false ? <span className="text-gray-300 dark:text-zinc-700">–</span> :
+                           <span className="text-xs text-gray-600 dark:text-zinc-400 font-medium">{val}</span>}
                         </td>
                       );
                     })}
@@ -327,23 +356,25 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* ── FAQ ──────────────────────────────────────────────── */}
+        {/* FAQ */}
         <div className="max-w-2xl mx-auto">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Frequently Asked Questions</h2>
           {FAQ.map((item) => <FAQItem key={item.q} q={item.q} a={item.a} />)}
         </div>
 
-        {/* ── Bottom CTA ───────────────────────────────────────── */}
+        {/* Bottom CTA */}
         <div className="text-center rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 p-10">
           <h2 className="text-2xl font-extrabold text-white mb-2">Start your free trial today</h2>
           <p className="text-indigo-200 text-sm mb-6">No credit card required. Cancel anytime.</p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <Link href="/auth/signup?plan=pro"
-              className="px-8 py-3 bg-white text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 transition-colors shadow text-sm">
-              Try Pro Free →
-            </Link>
-            <Link href="/auth/signup"
-              className="px-8 py-3 bg-indigo-500/40 hover:bg-indigo-500/60 text-white font-semibold rounded-xl transition-colors text-sm border border-indigo-400/40">
+            <button
+              onClick={() => handleCTA(PLANS.find(p => p.id === 'pro')!)}
+              disabled={loading === 'pro'}
+              className="px-8 py-3 bg-white text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 transition-colors shadow text-sm disabled:opacity-60"
+            >
+              {loading === 'pro' ? 'Redirecting…' : 'Try Pro Free →'}
+            </button>
+            <Link href="/auth/signup" className="px-8 py-3 bg-indigo-500/40 hover:bg-indigo-500/60 text-white font-semibold rounded-xl transition-colors text-sm border border-indigo-400/40">
               Start with Free
             </Link>
           </div>

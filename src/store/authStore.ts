@@ -59,10 +59,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const result = await signUp(input);
-      if (result.success && result.user) {
+      if (result.success) {
         set({
-          user: result.user,
-          isAuthenticated: true,
+          user: result.user ?? null,
+          isAuthenticated: !!result.user,
           isLoading: false,
         });
         return true;

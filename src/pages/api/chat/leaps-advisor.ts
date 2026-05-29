@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { generateJson, generateText, getDefaultOpenAIFastModel } from '@/lib/openaiResponses';
+import { requireAuth } from '@/lib/apiAuth';
+import { requirePlanFeature, requireUsageQuota } from '@/lib/planGate';
+import { incrementUsage } from '@/lib/usageTracking';
 
 export interface ChatIntent {
   goalAmount: number;
@@ -67,6 +70,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
+  if (!await requirePlanFeature(req, res, user, 'leapsAdvisor')) return;
+  if (!await requireUsageQuota(req, res, user, 'leaps_queries')) return;
 
   const { message, history = [] } = req.body as {
     message: string;
@@ -307,6 +316,7 @@ Write a brief analysis: which ticker to prioritize and why, realistic capital re
     }
   }
 
+  incrementUsage(user.id, 'leaps_queries').catch(() => {});
   return res.status(200).json({
     intent,
     message: narrative,

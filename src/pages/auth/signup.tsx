@@ -5,6 +5,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import { Logo } from '@/components/Logo';
+import { getSupabaseClient } from '@/lib/supabase';
+import { PLAN_IDS, PLAN_DISPLAY } from '@/lib/planLimits';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -20,6 +22,7 @@ export default function SignUpPage() {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   // Sync dark mode from localStorage / system preference
   useEffect(() => {
@@ -93,6 +96,35 @@ export default function SignUpPage() {
     });
 
     if (success) {
+      const supabase = getSupabaseClient();
+      const { data: sessionData } = await supabase!.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      if (!token) {
+        // Email confirmation required — user not yet signed in
+        setAwaitingConfirmation(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      const intendedPlan = router.query.plan as string | undefined;
+      const intendedCycle = (router.query.cycle as string | undefined) ?? 'monthly';
+      if (intendedPlan && intendedPlan !== 'free' && (PLAN_IDS as readonly string[]).includes(intendedPlan)) {
+        try {
+          const res = await fetch('/api/billing/create-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ planId: intendedPlan, cycle: intendedCycle }),
+          });
+          const json = await res.json();
+          if (json.success && json.data?.url) {
+            window.location.href = json.data.url;
+            return;
+          }
+        } catch {
+          // Fallthrough to dashboard if Stripe redirect fails
+        }
+      }
       router.push('/dashboard');
     } else {
       setIsSubmitting(false);
@@ -153,6 +185,19 @@ export default function SignUpPage() {
         <div className="pointer-events-none absolute inset-0 bg-radial-fade" />
 
         <div className="relative w-full max-w-md">
+          {awaitingConfirmation ? (
+            <div className="rounded-2xl border border-border bg-card shadow-elevated p-8 text-center space-y-4">
+              <div className="flex justify-center">
+                <Logo size={52} iconOnly />
+              </div>
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Check your email</h1>
+              <p className="text-sm text-muted-foreground">
+                We sent a confirmation link to <strong>{formData.email}</strong>.<br />
+                Click the link in that email to activate your account.
+              </p>
+              <p className="text-xs text-muted-foreground">Didn&apos;t receive it? Check your spam folder.</p>
+            </div>
+          ) : (
           <div className="rounded-2xl border border-border bg-card shadow-elevated p-8 space-y-6">
 
             {/* Logo + heading */}
@@ -165,6 +210,15 @@ export default function SignUpPage() {
               </h1>
               <p className="text-sm text-muted-foreground">Join GR8BUX and start tracking your trades</p>
             </div>
+
+            {/* Plan intent banner */}
+            {router.query.plan && router.query.plan !== 'free' && (PLAN_IDS as readonly string[]).includes(router.query.plan as string) && (
+              <div className="rounded-lg border border-indigo-200 dark:border-indigo-700/50 bg-indigo-50 dark:bg-indigo-950/30 p-3 text-center">
+                <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                  You&apos;re signing up for <strong>{PLAN_DISPLAY[router.query.plan as keyof typeof PLAN_DISPLAY]?.name}</strong> — 7-day free trial included.
+                </p>
+              </div>
+            )}
 
             {/* Error */}
             {(formError || error) && (
@@ -272,6 +326,7 @@ export default function SignUpPage() {
               </Link>
             </p>
           </div>
+          )}
         </div>
       </main>
 

@@ -19,6 +19,8 @@ import { requireAuth } from '@/lib/apiAuth';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase';
 import { getCoachAgent } from '@/lib/agents/coachAgent';
 import type { CoachResponse, CoachInput, TradeSummary } from '@/lib/agents/coachAgent';
+import { requirePlanFeature, requireUsageQuota } from '@/lib/planGate';
+import { incrementUsage } from '@/lib/usageTracking';
 
 const CACHE_MAX_AGE_MS = 45 * 60 * 1000; // 45 minutes
 
@@ -35,6 +37,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const user = await requireAuth(req, res);
   if (!user) return;
+
+  if (!await requirePlanFeature(req, res, user, 'aiCoaches')) return;
+  if (!await requireUsageQuota(req, res, user, 'trade_coach_messages')) return;
 
   const { query, currentTrade, history } = req.body as {
     query?: string;
@@ -200,6 +205,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       history: safeHistory,
     });
 
+    incrementUsage(user.id, 'trade_coach_messages').catch(() => {});
     return res.status(200).json({ success: true, data: result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Coach agent error';

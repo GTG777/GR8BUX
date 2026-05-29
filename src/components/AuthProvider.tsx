@@ -2,6 +2,8 @@
 
 import React, { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { usePlanStore } from '@/store/planStore';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -12,7 +14,8 @@ interface AuthProviderProps {
  * Wrap your app with this component to enable authentication
  */
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { initializeAuth, isLoading } = useAuthStore();
+  const { initializeAuth, isLoading, isAuthenticated } = useAuthStore();
+  const { fetchPlan, reset: resetPlan } = usePlanStore();
 
   useEffect(() => {
     let mounted = true;
@@ -36,6 +39,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       mounted = false;
     };
   }, [initializeAuth]);
+
+  // Load plan data once auth is confirmed
+  useEffect(() => {
+    if (!isAuthenticated) {
+      resetPlan();
+      return;
+    }
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token;
+      if (token) fetchPlan(token);
+    });
+  }, [isAuthenticated, fetchPlan, resetPlan]);
 
   // Show loading state while initializing auth
   if (isLoading) {

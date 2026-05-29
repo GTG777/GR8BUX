@@ -20,6 +20,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireAuth } from '@/lib/apiAuth';
 import { generateText, getDefaultOpenAIModel, type ChatMessage } from '@/lib/openaiResponses';
+import { requirePlanFeature, requireUsageQuota } from '@/lib/planGate';
+import { incrementUsage } from '@/lib/usageTracking';
 
 /* ── Types ───────────────────────────────────────────────────────── */
 export interface OptionsContext {
@@ -130,6 +132,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const user = await requireAuth(req, res);
   if (!user) return;
 
+  if (!await requirePlanFeature(req, res, user, 'aiCoaches')) return;
+  if (!await requireUsageQuota(req, res, user, 'options_coach_messages')) return;
+
   const { symbol, optionsContext, tradeContext, query, history } = req.body as {
     symbol?: string;
     optionsContext?: OptionsContext;
@@ -159,6 +164,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       messages,
     });
 
+    incrementUsage(user.id, 'options_coach_messages').catch(() => {});
     return res.status(200).json({
       success: true,
       reply: response.text,

@@ -35,6 +35,7 @@ export async function signUp(input: SignUpInput): Promise<AuthResponse> {
         data: {
           display_name: input.displayName,
         },
+        emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : 'https://app.gr8bux.com'}/auth/callback`,
       },
     });
 

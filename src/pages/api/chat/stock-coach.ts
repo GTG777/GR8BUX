@@ -21,6 +21,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireAuth } from '@/lib/apiAuth';
 import { generateText, getDefaultOpenAIModel, type ChatMessage } from '@/lib/openaiResponses';
+import { requirePlanFeature, requireUsageQuota } from '@/lib/planGate';
+import { incrementUsage } from '@/lib/usageTracking';
 
 /* ── Types (mirrors stocks page) ─────────────────────────────────── */
 interface StockIndicators {
@@ -143,6 +145,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const user = await requireAuth(req, res);
   if (!user) return;
 
+  if (!await requirePlanFeature(req, res, user, 'aiCoaches')) return;
+  if (!await requireUsageQuota(req, res, user, 'stock_coach_messages')) return;
+
   const { symbol, indicators, setups, query, history } = req.body as {
     symbol?: string;
     indicators?: StockIndicators;
@@ -175,6 +180,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       messages,
     });
 
+    incrementUsage(user.id, 'stock_coach_messages').catch(() => {});
     return res.status(200).json({
       success: true,
       reply: response.text,
