@@ -277,7 +277,7 @@ async function processTicker(ticker: string, config: DailyOptionsConfig, side: D
   const { contracts: rawContracts, underlyingPrice: chainPrice } = await getOptionsChainPaged(
     ticker,
     { 'expiration_date.gte': today, sort: 'expiration_date' as const },
-    10,
+    4,
     6,
   );
 
@@ -389,7 +389,7 @@ async function dailyScanHandler(req: NextApiRequest, res: NextApiResponse) {
 
   // Simple concurrency limiter
   const results: Awaited<ReturnType<typeof processTicker>>[] = [];
-  const concurrency = 4;
+  const concurrency = 3;
   for (let i = 0; i < tickers.length; i += concurrency) {
     const chunk = tickers.slice(i, i + concurrency);
     const settled = await Promise.allSettled(chunk.map((t) => processTicker(t, config, side)));
