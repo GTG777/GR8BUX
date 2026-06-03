@@ -502,6 +502,8 @@ async function dailyScanHandler(req: NextApiRequest, res: NextApiResponse) {
   });
 }
 
+export const config = { maxDuration: 25 };
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     return await dailyScanHandler(req, res);

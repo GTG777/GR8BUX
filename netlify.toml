@@ -1,8 +1,5 @@
 # Netlify Configuration for Trading Journal App
 
-[functions]
-  timeout = 26
-
 [build]
   command = "npm run build"
   publish = ".next"
