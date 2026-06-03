@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import {
   ResponsiveContainer,
@@ -158,18 +158,183 @@ interface SetupMeta {
   warnings: string[];
 }
 
+/* ── Order legs table ───────────────────────────────────────────────── */
+
+interface LegMids { k1Mid: number; k2Mid: number; k3Mid: number }
+
+function LegsTable({ cfg, meta, legMids }: {
+  cfg: typeof DEFAULTS;
+  meta: SetupMeta | null;
+  legMids: LegMids;
+}) {
+  const bwbExpiry    = meta?.bwb.expiry;
+  const frontExpiry  = meta?.diagonal.frontExpiry;
+  const backExpiry   = meta?.diagonal.backExpiry;
+
+  const fmtDate = (d?: string) =>
+    d ? new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+
+  const hasCallMids = legMids.k1Mid > 0 || legMids.k2Mid > 0 || legMids.k3Mid > 0;
+
+  const bwbNet  = cfg.bwbCredit;                              // net credit per share
+  const diagNet = cfg.diagShortPrem - cfg.diagLongPrem;       // negative = net debit
+  const totalNet = bwbNet + diagNet;
+
+  const dollarImpact = (perShare: number, qty: number, side: 'buy' | 'sell') => {
+    const raw = perShare * qty * 100;
+    return side === 'sell' ? raw : -raw;
+  };
+
+  const FmtImpact = ({ val }: { val: number }) =>
+    val === 0
+      ? <span className="text-slate-400">—</span>
+      : val > 0
+        ? <span className="text-emerald-500 font-mono">+${val.toFixed(0)}</span>
+        : <span className="text-rose-500 font-mono">-${Math.abs(val).toFixed(0)}</span>;
+
+  const FmtPrem = ({ val }: { val: number }) =>
+    val === 0
+      ? <span className="text-slate-400">—</span>
+      : <span className="font-mono">${val.toFixed(2)}</span>;
+
+  const thCls = 'py-2 px-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider';
+  const tdCls = 'py-2 px-3 text-sm';
+
+  return (
+    <div className="mt-5 border-t border-slate-100 dark:border-slate-700 pt-5">
+      <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Order Legs</h3>
+      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800">
+            <tr>
+              <th className={thCls}>#</th>
+              <th className={thCls}>Action</th>
+              <th className={thCls}>Type</th>
+              <th className={thCls}>Strike</th>
+              <th className={thCls}>Expiry</th>
+              <th className={thCls}>Qty</th>
+              <th className={thCls}>Mid/share</th>
+              <th className={thCls}>$ Impact</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+            {/* ── BWB header row ── */}
+            <tr className="bg-indigo-50/50 dark:bg-indigo-900/10">
+              <td colSpan={8} className="py-1.5 px-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                Call Broken Wing Butterfly — {fmtDate(bwbExpiry)}
+              </td>
+            </tr>
+            <tr>
+              <td className={tdCls + ' text-slate-400'}>1</td>
+              <td className={tdCls + ' font-semibold text-emerald-600 dark:text-emerald-400'}>BUY</td>
+              <td className={tdCls}>Call</td>
+              <td className={tdCls + ' font-mono'}>${cfg.bwbK1}</td>
+              <td className={tdCls + ' text-slate-500'}>{fmtDate(bwbExpiry)}</td>
+              <td className={tdCls}>1×</td>
+              <td className={tdCls}><FmtPrem val={hasCallMids ? legMids.k1Mid : 0} /></td>
+              <td className={tdCls}><FmtImpact val={hasCallMids ? dollarImpact(legMids.k1Mid, 1, 'buy') : 0} /></td>
+            </tr>
+            <tr>
+              <td className={tdCls + ' text-slate-400'}>2</td>
+              <td className={tdCls + ' font-semibold text-rose-600 dark:text-rose-400'}>SELL</td>
+              <td className={tdCls}>Call</td>
+              <td className={tdCls + ' font-mono'}>${cfg.bwbK2}</td>
+              <td className={tdCls + ' text-slate-500'}>{fmtDate(bwbExpiry)}</td>
+              <td className={tdCls}>2×</td>
+              <td className={tdCls}><FmtPrem val={hasCallMids ? legMids.k2Mid : 0} /></td>
+              <td className={tdCls}><FmtImpact val={hasCallMids ? dollarImpact(legMids.k2Mid, 2, 'sell') : 0} /></td>
+            </tr>
+            <tr>
+              <td className={tdCls + ' text-slate-400'}>3</td>
+              <td className={tdCls + ' font-semibold text-emerald-600 dark:text-emerald-400'}>BUY</td>
+              <td className={tdCls}>Call</td>
+              <td className={tdCls + ' font-mono'}>${cfg.bwbK3}</td>
+              <td className={tdCls + ' text-slate-500'}>{fmtDate(bwbExpiry)}</td>
+              <td className={tdCls}>1×</td>
+              <td className={tdCls}><FmtPrem val={hasCallMids ? legMids.k3Mid : 0} /></td>
+              <td className={tdCls}><FmtImpact val={hasCallMids ? dollarImpact(legMids.k3Mid, 1, 'buy') : 0} /></td>
+            </tr>
+            <tr className="bg-slate-50 dark:bg-slate-800/60 font-semibold">
+              <td colSpan={7} className="py-2 px-3 text-xs text-slate-500 dark:text-slate-400 text-right">BWB Net (credit = collected)</td>
+              <td className="py-2 px-3">
+                <FmtImpact val={bwbNet * 100} />
+                <span className="ml-1 text-xs text-slate-400">{bwbNet >= 0 ? 'credit' : 'debit'}</span>
+              </td>
+            </tr>
+
+            {/* ── Diagonal header row ── */}
+            <tr className="bg-emerald-50/50 dark:bg-emerald-900/10">
+              <td colSpan={8} className="py-1.5 px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                Put Diagonal — {fmtDate(frontExpiry)} front / {fmtDate(backExpiry)} back
+              </td>
+            </tr>
+            <tr>
+              <td className={tdCls + ' text-slate-400'}>4</td>
+              <td className={tdCls + ' font-semibold text-rose-600 dark:text-rose-400'}>SELL</td>
+              <td className={tdCls}>Put</td>
+              <td className={tdCls + ' font-mono'}>${cfg.diagK4}</td>
+              <td className={tdCls + ' text-slate-500'}>{fmtDate(frontExpiry)}</td>
+              <td className={tdCls}>1×</td>
+              <td className={tdCls}><FmtPrem val={cfg.diagShortPrem} /></td>
+              <td className={tdCls}><FmtImpact val={dollarImpact(cfg.diagShortPrem, 1, 'sell')} /></td>
+            </tr>
+            <tr>
+              <td className={tdCls + ' text-slate-400'}>5</td>
+              <td className={tdCls + ' font-semibold text-emerald-600 dark:text-emerald-400'}>BUY</td>
+              <td className={tdCls}>Put</td>
+              <td className={tdCls + ' font-mono'}>${cfg.diagK5}</td>
+              <td className={tdCls + ' text-slate-500'}>{fmtDate(backExpiry)}</td>
+              <td className={tdCls}>1×</td>
+              <td className={tdCls}><FmtPrem val={cfg.diagLongPrem} /></td>
+              <td className={tdCls}><FmtImpact val={dollarImpact(cfg.diagLongPrem, 1, 'buy')} /></td>
+            </tr>
+            <tr className="bg-slate-50 dark:bg-slate-800/60 font-semibold">
+              <td colSpan={7} className="py-2 px-3 text-xs text-slate-500 dark:text-slate-400 text-right">Diagonal Net (usually a debit)</td>
+              <td className="py-2 px-3">
+                <FmtImpact val={diagNet * 100} />
+                <span className="ml-1 text-xs text-slate-400">{diagNet >= 0 ? 'credit' : 'debit'}</span>
+              </td>
+            </tr>
+
+            {/* ── Total net ── */}
+            <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800">
+              <td colSpan={7} className="py-3 px-3 font-bold text-slate-700 dark:text-slate-200 text-right">
+                TOTAL NET (per 1-spread)
+              </td>
+              <td className="py-3 px-3">
+                <span className={`text-base font-bold ${totalNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {totalNet >= 0 ? `+$${(totalNet * 100).toFixed(0)}` : `-$${(Math.abs(totalNet) * 100).toFixed(0)}`}
+                </span>
+                <span className={`ml-1 text-xs font-semibold ${totalNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {totalNet >= 0 ? 'CREDIT' : 'DEBIT'}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {!hasCallMids && (
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+          Individual call premiums shown after loading a ticker. BWB $ impact is derived from the Net Credit field.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ── Page ───────────────────────────────────────────────────────────── */
 
 export default function FlyagonalPage() {
   const [cfg, setCfg] = useState(DEFAULTS);
-  const [ticker, setTicker] = useState('');
+  const [ticker, setTicker] = useState('SPY');
   const [loadingSetup, setLoadingSetup] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [setupMeta, setSetupMeta] = useState<SetupMeta | null>(null);
+  const [legMids, setLegMids] = useState<LegMids>({ k1Mid: 0, k2Mid: 0, k3Mid: 0 });
   const tickerRef = useRef<HTMLInputElement>(null);
 
-  const loadSetup = useCallback(async () => {
-    const sym = ticker.trim().toUpperCase();
+  // Core fetch — takes the symbol as a param so it can be called on mount too
+  const loadSetupForSymbol = useCallback(async (sym: string) => {
     if (!sym) return;
     setLoadingSetup(true);
     setSetupError(null);
@@ -180,6 +345,7 @@ export default function FlyagonalPage() {
       if (!res.ok) throw new Error(data.error ?? 'Failed to load setup');
       const meta = data as SetupMeta;
       setSetupMeta(meta);
+      setLegMids({ k1Mid: meta.bwb.k1Mid, k2Mid: meta.bwb.k2Mid, k3Mid: meta.bwb.k3Mid });
       setCfg({
         underlying:    meta.price,
         bwbK1:         meta.bwb.k1,
@@ -196,7 +362,12 @@ export default function FlyagonalPage() {
     } finally {
       setLoadingSetup(false);
     }
-  }, [ticker]);
+  }, []);
+
+  // Auto-load SPY on first render
+  useEffect(() => { loadSetupForSymbol('SPY'); }, [loadSetupForSymbol]);
+
+  const loadSetup = useCallback(() => loadSetupForSymbol(ticker), [ticker, loadSetupForSymbol]);
 
   const set = (key: keyof typeof DEFAULTS) => (v: number) =>
     setCfg((prev) => ({ ...prev, [key]: v }));
@@ -467,6 +638,8 @@ export default function FlyagonalPage() {
                 </div>
               </div>
             </div>
+
+            <LegsTable cfg={cfg} meta={setupMeta} legMids={legMids} />
           </div>
         </div>
 
