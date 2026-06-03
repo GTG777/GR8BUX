@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { Layout } from '@/components/Layout';
 import {
   ResponsiveContainer,
@@ -147,10 +147,56 @@ function NumInput({ label, value, onChange, step = 1, min, max }: {
   );
 }
 
+/* ── Setup API response type ────────────────────────────────────────── */
+
+interface SetupMeta {
+  symbol: string;
+  price: number;
+  fetchedAt: number;
+  bwb: { expiry: string; dte: number; k1: number; k1Mid: number; k2: number; k2Mid: number; k3: number; k3Mid: number; netCredit: number; lowerWing: number; upperWing: number };
+  diagonal: { frontExpiry: string; backExpiry: string; frontDte: number; backDte: number; k4: number; shortPrem: number; k5: number; longPrem: number; netDebit: number };
+  warnings: string[];
+}
+
 /* ── Page ───────────────────────────────────────────────────────────── */
 
 export default function FlyagonalPage() {
   const [cfg, setCfg] = useState(DEFAULTS);
+  const [ticker, setTicker] = useState('');
+  const [loadingSetup, setLoadingSetup] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [setupMeta, setSetupMeta] = useState<SetupMeta | null>(null);
+  const tickerRef = useRef<HTMLInputElement>(null);
+
+  const loadSetup = useCallback(async () => {
+    const sym = ticker.trim().toUpperCase();
+    if (!sym) return;
+    setLoadingSetup(true);
+    setSetupError(null);
+    setSetupMeta(null);
+    try {
+      const res = await fetch(`/api/options/flyagonal-setup?symbol=${encodeURIComponent(sym)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to load setup');
+      const meta = data as SetupMeta;
+      setSetupMeta(meta);
+      setCfg({
+        underlying:    meta.price,
+        bwbK1:         meta.bwb.k1,
+        bwbK2:         meta.bwb.k2,
+        bwbK3:         meta.bwb.k3,
+        bwbCredit:     meta.bwb.netCredit,
+        diagK4:        meta.diagonal.k4,
+        diagK5:        meta.diagonal.k5,
+        diagShortPrem: meta.diagonal.shortPrem,
+        diagLongPrem:  meta.diagonal.longPrem,
+      });
+    } catch (e) {
+      setSetupError(e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setLoadingSetup(false);
+    }
+  }, [ticker]);
 
   const set = (key: keyof typeof DEFAULTS) => (v: number) =>
     setCfg((prev) => ({ ...prev, [key]: v }));
@@ -332,6 +378,72 @@ export default function FlyagonalPage() {
           {/* Setup inputs */}
           <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Customize Setup</h3>
+
+            {/* ── Ticker auto-fill ── */}
+            <div className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 p-4">
+              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Auto-fill from live options chain</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                Enter a ticker to fetch the current price and pull real bid/ask premiums. Strikes are placed per the strategy&apos;s rules — K1 just above market, diagonal ~3% below. Most accurate during market hours.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  ref={tickerRef}
+                  type="text"
+                  placeholder="SPY, QQQ, NVDA, SPX…"
+                  value={ticker}
+                  onChange={(e) => setTicker(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
+                  onKeyDown={(e) => e.key === 'Enter' && loadSetup()}
+                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  maxLength={10}
+                />
+                <button
+                  onClick={loadSetup}
+                  disabled={loadingSetup || !ticker.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  {loadingSetup ? (
+                    <span className="flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Loading…
+                    </span>
+                  ) : 'Load Setup'}
+                </button>
+              </div>
+
+              {setupError && (
+                <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{setupError}</p>
+              )}
+
+              {setupMeta && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+                    <span>
+                      <span className="font-medium">{setupMeta.symbol}</span> @ ${setupMeta.price.toFixed(2)}
+                      {' '}· fetched {new Date(setupMeta.fetchedAt).toLocaleTimeString()}
+                    </span>
+                    <span>
+                      BWB expiry <span className="font-medium">{setupMeta.bwb.expiry}</span> ({setupMeta.bwb.dte} DTE)
+                      · wings {setupMeta.bwb.lowerWing}/{setupMeta.bwb.upperWing} pts
+                    </span>
+                    <span>
+                      Diagonal front <span className="font-medium">{setupMeta.diagonal.frontExpiry}</span> ({setupMeta.diagonal.frontDte} DTE)
+                      → back <span className="font-medium">{setupMeta.diagonal.backExpiry}</span> ({setupMeta.diagonal.backDte} DTE)
+                    </span>
+                  </div>
+                  {setupMeta.warnings.length > 0 && (
+                    <div className="space-y-1">
+                      {setupMeta.warnings.map((w, i) => (
+                        <p key={i} className="text-xs text-amber-600 dark:text-amber-400">⚠ {w}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
               <NumInput label="Underlying price" value={cfg.underlying} onChange={set('underlying')} step={1} min={1} />
             </div>
