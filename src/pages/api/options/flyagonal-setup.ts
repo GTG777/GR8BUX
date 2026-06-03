@@ -8,6 +8,12 @@ import {
 
 export const config = { maxDuration: 25 };
 
+function addCalendarDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 function mid(c: MassiveOptionContract): number {
   const mp = c.last_quote?.midpoint;
   if (mp && mp > 0) return parseFloat(mp.toFixed(2));
@@ -39,7 +45,6 @@ function nearestStrike(
   target: number,
 ): MassiveOptionContract | null {
   if (!contracts.length) return null;
-  // Prefer liquid contracts; fall back to any if none have quotes
   const pool = contracts.filter(hasLiquidity).length > 0
     ? contracts.filter(hasLiquidity)
     : contracts;
@@ -66,64 +71,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const today = todayDateStr();
 
-    // ── 2. Discover expiry dates via call chain (fetch 8 expirations so we
-    //       have enough headroom to find both a front ~9 DTE and back ~17 DTE) ──
+    // ── 2. Discover expiry dates ─────────────────────────────────────
+    // Start 5 days out to skip very-short-dated options. Use 12 pages /
+    // 25-expiry cap so daily-expiry symbols (SPY, QQQ) reach 17 DTE.
+    // Each page holds ~250 contracts; SPY has ~150 call strikes per expiry,
+    // so 1–2 expirations per page → 12 pages covers ~20 expirations (~3 weeks).
     const { contracts: calls } = await getOptionsChainPaged(
       symbol,
       {
         contract_type: 'call',
-        'expiration_date.gte': today,
+        'expiration_date.gte': addCalendarDays(today, 5),
         sort: 'expiration_date',
         order: 'asc',
         limit: 250,
       },
-      6,
-      8,
+      12,
+      25,
     );
 
     const callExpiries = [...new Set(calls.map((c) => c.details.expiration_date))].sort();
     if (!callExpiries.length) {
       return res.status(404).json({
-        error: `No options chain found for ${symbol}. Use a more liquid underlying (SPY, QQQ, SPX, NVDA, etc.)`,
+        error: `No options chain found for ${symbol}. Use a liquid underlying (SPY, QQQ, SPX, NVDA, etc.)`,
       });
     }
 
-    // Front ~9 DTE
+    // Front ~9 DTE, back ~17 DTE — back must be strictly after front
     const frontExpiry = closestToTarget(callExpiries, 9);
     if (!frontExpiry) {
       return res.status(404).json({ error: 'Could not find a suitable front-month expiry' });
     }
 
-    // Back ~17 DTE — must be STRICTLY after frontExpiry to avoid conflicting date filters
     const laterExpiries = callExpiries.filter((e) => e > frontExpiry);
     const backExpiry = closestToTarget(laterExpiries, 17) ?? laterExpiries[laterExpiries.length - 1];
 
     if (!backExpiry) {
       return res.status(404).json({
-        error: `Only one expiry found near ${frontExpiry}. Try a symbol with weekly options (SPY, QQQ, NVDA) or wait until closer to expiry.`,
+        error: `Only one expiry found (${frontExpiry}). Try a symbol with weekly options, or check back closer to expiry.`,
       });
     }
 
-    // ── 3. BWB call strikes (all from front expiry) ─────────────────
+    // ── 3. BWB call strikes — already in `calls`, filter to front expiry ──
     const frontCalls = calls.filter((c) => c.details.expiration_date === frontExpiry);
 
-    // Placement rules from strategy:
-    // K1 = lowest long call, just above current price (0.3-0.5% above)
-    // K2 = center short calls, about 1× wing-width above K1
-    // K3 = upper long call, 1.2× wing-width above K2 (broken wing — wider upside)
-    const wingPts = Math.max(1, parseFloat((price * 0.009).toFixed(0)));
+    // K1 just above market, K2 ~1 wing-width above, K3 wider upper wing (broken wing)
+    const wingPts = Math.max(1, Math.round(price * 0.009));
     const k1Target = price + wingPts * 0.4;
     const k2Target = price + wingPts * 1.4;
-    const k3Target = price + wingPts * 1.4 + wingPts * 1.2;
+    const k3Target = k2Target + wingPts * 1.2;
 
     const k1c = nearestStrike(frontCalls, k1Target);
     const k2c = nearestStrike(frontCalls, k2Target);
     const k3c = nearestStrike(frontCalls, k3Target);
 
     if (!k1c || !k2c || !k3c) {
-      return res.status(404).json({
-        error: 'Not enough call strikes for the BWB. Check symbol liquidity.',
-      });
+      return res.status(404).json({ error: 'Not enough call strikes for BWB. Check symbol liquidity.' });
     }
 
     const k1 = k1c.details.strike_price;
@@ -134,61 +136,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const k3Mid = mid(k3c);
     const netCredit = parseFloat((k2Mid * 2 - k1Mid - k3Mid).toFixed(2));
 
-    // ── 4. Put diagonal (front + back expiry) ───────────────────────
-    // Never use gte+lte together — Massive errors if gte >= lte. Use stopAtExpirations=2
-    // starting from frontExpiry so we collect front- and back-month puts naturally.
-    const { contracts: puts } = await getOptionsChainPaged(
-      symbol,
-      {
-        contract_type: 'put',
-        'expiration_date.gte': frontExpiry,
-        sort: 'expiration_date',
-        order: 'asc',
-        limit: 250,
-      },
-      4,
-      2,
-    );
+    // ── 4. Put diagonal — fetch front and back month puts separately ──
+    // Never use gte+lte on the same request (Massive rejects it when they
+    // conflict). Instead make two targeted fetches, each stopping at 1 expiry.
+    const k4Target = price * 0.97;
 
-    // Short put: ~3% below market (strategy rule)
-    const k4Target   = price * 0.97;
-    const frontPuts  = puts.filter((c) => c.details.expiration_date === frontExpiry);
-    const backPuts   = puts.filter((c) => c.details.expiration_date === backExpiry);
+    const [{ contracts: frontPutContracts }, { contracts: backPutContracts }] = await Promise.all([
+      getOptionsChainPaged(
+        symbol,
+        { contract_type: 'put', 'expiration_date.gte': frontExpiry, sort: 'expiration_date', order: 'asc', limit: 250 },
+        2, 1,
+      ),
+      getOptionsChainPaged(
+        symbol,
+        { contract_type: 'put', 'expiration_date.gte': backExpiry, sort: 'expiration_date', order: 'asc', limit: 250 },
+        2, 1,
+      ),
+    ]);
 
-    const shortPutC = nearestStrike(frontPuts, k4Target);
-    const longPutC  = nearestStrike(backPuts.length ? backPuts : frontPuts, k4Target);
+    const shortPutC = nearestStrike(frontPutContracts, k4Target);
+    const longPutC  = nearestStrike(backPutContracts, k4Target);
 
     if (!shortPutC || !longPutC) {
-      return res.status(404).json({
-        error: 'Not enough put strikes for the diagonal. Check symbol liquidity.',
-      });
+      return res.status(404).json({ error: 'Not enough put strikes for diagonal. Check symbol liquidity.' });
     }
 
-    const k4       = shortPutC.details.strike_price;
-    const k5       = longPutC.details.strike_price;
+    const k4        = shortPutC.details.strike_price;
+    const k5        = longPutC.details.strike_price;
     const shortPrem = mid(shortPutC);
     const longPrem  = mid(longPutC);
 
     // ── 5. Warnings ──────────────────────────────────────────────────
-    const warnings: string[] = [];
     const frontDTE = daysUntil(frontExpiry);
     const backDTE  = daysUntil(backExpiry);
+    const warnings: string[] = [];
 
     if (frontDTE < 6 || frontDTE > 12) {
-      warnings.push(`Front expiry is ${frontDTE} DTE — ideal range is 8–10 DTE. Consider waiting for a closer expiry.`);
+      warnings.push(`Front expiry is ${frontDTE} DTE — ideal range is 8–10 DTE.`);
     }
-    if (backDTE < frontDTE + 5) {
-      warnings.push('Back-month expiry is close to front — time spread may be too narrow for the diagonal.');
+    if (backDTE - frontDTE < 5) {
+      warnings.push(`Back expiry is only ${backDTE - frontDTE} day(s) after front — time spread may be too narrow.`);
     }
     if (netCredit < 0) {
-      warnings.push('BWB entered for a debit — consider adjusting strikes or checking liquidity.');
+      warnings.push('BWB entered for a debit — consider adjusting strikes or verifying liquidity.');
     }
     if (k2 - k1 >= k3 - k2) {
-      warnings.push('Upper wing is not wider than lower wing — not a true broken wing. Widen K3.');
+      warnings.push('Upper wing is not wider than lower — not a true broken wing. Manually widen K3.');
     }
-    const zeroQuote = [k1Mid, k2Mid, k3Mid, shortPrem, longPrem].filter((p) => p === 0);
-    if (zeroQuote.length > 0) {
-      warnings.push('Some premiums are $0 — market may be closed or options illiquid. Verify before trading.');
+    if ([k1Mid, k2Mid, k3Mid, shortPrem, longPrem].some((p) => p === 0)) {
+      warnings.push('Some premiums are $0 — market may be closed. Reload during trading hours for real quotes.');
     }
 
     return res.status(200).json({
