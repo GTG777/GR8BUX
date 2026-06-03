@@ -162,10 +162,12 @@ interface SetupMeta {
 
 interface LegMids { k1Mid: number; k2Mid: number; k3Mid: number }
 
-function LegsTable({ cfg, meta, legMids }: {
+function LegsTable({ cfg, meta, legMids, onRefresh, refreshing }: {
   cfg: typeof DEFAULTS;
   meta: SetupMeta | null;
   legMids: LegMids;
+  onRefresh: () => void;
+  refreshing: boolean;
 }) {
   const bwbExpiry    = meta?.bwb.expiry;
   const frontExpiry  = meta?.diagonal.frontExpiry;
@@ -202,7 +204,20 @@ function LegsTable({ cfg, meta, legMids }: {
 
   return (
     <div className="mt-5 border-t border-slate-100 dark:border-slate-700 pt-5">
-      <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Order Legs</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Order Legs</h3>
+        <button
+          onClick={onRefresh}
+          disabled={refreshing || !meta}
+          title={!meta ? 'Load a ticker first to enable refresh' : 'Fetch live premiums for current strikes'}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {refreshing ? 'Fetching…' : 'Refresh Premiums'}
+        </button>
+      </div>
       <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-800">
@@ -331,6 +346,7 @@ export default function FlyagonalPage() {
   const [setupError, setSetupError] = useState<string | null>(null);
   const [setupMeta, setSetupMeta] = useState<SetupMeta | null>(null);
   const [legMids, setLegMids] = useState<LegMids>({ k1Mid: 0, k2Mid: 0, k3Mid: 0 });
+  const [refreshingPremiums, setRefreshingPremiums] = useState(false);
   const tickerRef = useRef<HTMLInputElement>(null);
 
   // Core fetch — takes the symbol as a param so it can be called on mount too
@@ -368,6 +384,38 @@ export default function FlyagonalPage() {
   useEffect(() => { loadSetupForSymbol('SPY'); }, [loadSetupForSymbol]);
 
   const loadSetup = useCallback(() => loadSetupForSymbol(ticker), [ticker, loadSetupForSymbol]);
+
+  // Refresh premiums for the CURRENT strikes without resetting them
+  const refreshPremiums = useCallback(async () => {
+    if (!setupMeta) { loadSetupForSymbol(ticker); return; }
+    setRefreshingPremiums(true);
+    try {
+      const params = new URLSearchParams({
+        symbol: ticker,
+        frontExpiry: setupMeta.diagonal.frontExpiry,
+        backExpiry:  setupMeta.diagonal.backExpiry,
+        k1: cfg.bwbK1.toString(),
+        k2: cfg.bwbK2.toString(),
+        k3: cfg.bwbK3.toString(),
+        k4: cfg.diagK4.toString(),
+        k5: cfg.diagK5.toString(),
+      });
+      const res  = await fetch(`/api/options/flyagonal-premiums?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Refresh failed');
+      setLegMids({ k1Mid: data.k1Mid, k2Mid: data.k2Mid, k3Mid: data.k3Mid });
+      setCfg((prev) => ({
+        ...prev,
+        bwbCredit:     data.netCredit,
+        diagShortPrem: data.shortPrem,
+        diagLongPrem:  data.longPrem,
+      }));
+    } catch {
+      // silently ignore — stale premiums stay visible
+    } finally {
+      setRefreshingPremiums(false);
+    }
+  }, [setupMeta, ticker, cfg.bwbK1, cfg.bwbK2, cfg.bwbK3, cfg.diagK4, cfg.diagK5, loadSetupForSymbol]);
 
   const set = (key: keyof typeof DEFAULTS) => (v: number) =>
     setCfg((prev) => ({ ...prev, [key]: v }));
@@ -639,7 +687,7 @@ export default function FlyagonalPage() {
               </div>
             </div>
 
-            <LegsTable cfg={cfg} meta={setupMeta} legMids={legMids} />
+            <LegsTable cfg={cfg} meta={setupMeta} legMids={legMids} onRefresh={refreshPremiums} refreshing={refreshingPremiums} />
           </div>
         </div>
 
