@@ -66,7 +66,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const today = todayDateStr();
 
-    // ── 2. Discover expiry dates via call chain (stop at 4 expirations) ──
+    // ── 2. Discover expiry dates via call chain (fetch 8 expirations so we
+    //       have enough headroom to find both a front ~9 DTE and back ~17 DTE) ──
     const { contracts: calls } = await getOptionsChainPaged(
       symbol,
       {
@@ -76,8 +77,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         order: 'asc',
         limit: 250,
       },
-      4,
-      4,
+      6,
+      8,
     );
 
     const callExpiries = [...new Set(calls.map((c) => c.details.expiration_date))].sort();
@@ -87,13 +88,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Front ~9 DTE, back ~17 DTE
+    // Front ~9 DTE
     const frontExpiry = closestToTarget(callExpiries, 9);
-    const backExpiry  = closestToTarget(callExpiries.filter((e) => e !== frontExpiry), 17)
-      ?? callExpiries[callExpiries.length - 1];
-
     if (!frontExpiry) {
       return res.status(404).json({ error: 'Could not find a suitable front-month expiry' });
+    }
+
+    // Back ~17 DTE — must be STRICTLY after frontExpiry to avoid conflicting date filters
+    const laterExpiries = callExpiries.filter((e) => e > frontExpiry);
+    const backExpiry = closestToTarget(laterExpiries, 17) ?? laterExpiries[laterExpiries.length - 1];
+
+    if (!backExpiry) {
+      return res.status(404).json({
+        error: `Only one expiry found near ${frontExpiry}. Try a symbol with weekly options (SPY, QQQ, NVDA) or wait until closer to expiry.`,
+      });
     }
 
     // ── 3. BWB call strikes (all from front expiry) ─────────────────
@@ -127,12 +135,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const netCredit = parseFloat((k2Mid * 2 - k1Mid - k3Mid).toFixed(2));
 
     // ── 4. Put diagonal (front + back expiry) ───────────────────────
+    // Never use gte+lte together — Massive errors if gte >= lte. Use stopAtExpirations=2
+    // starting from frontExpiry so we collect front- and back-month puts naturally.
     const { contracts: puts } = await getOptionsChainPaged(
       symbol,
       {
         contract_type: 'put',
         'expiration_date.gte': frontExpiry,
-        'expiration_date.lte': backExpiry,
         sort: 'expiration_date',
         order: 'asc',
         limit: 250,
