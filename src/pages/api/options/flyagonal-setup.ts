@@ -20,7 +20,13 @@ function mid(c: MassiveOptionContract): number {
   const ask = c.last_quote?.ask ?? 0;
   if (bid > 0 && ask > 0) return parseFloat(((bid + ask) / 2).toFixed(2));
   if (bid > 0) return parseFloat(bid.toFixed(2));
-  return parseFloat((c.last_trade?.price ?? 0).toFixed(2));
+  const lastTrade = c.last_trade?.price ?? 0;
+  if (lastTrade > 0) return parseFloat(lastTrade.toFixed(2));
+  // Our data plan doesn't include options quotes/trades — fall back to the
+  // day aggregate's latest price, which is populated regardless of plan tier.
+  const dayClose = c.day?.close ?? 0;
+  if (dayClose > 0) return parseFloat(dayClose.toFixed(2));
+  return parseFloat((c.day?.vwap ?? 0).toFixed(2));
 }
 
 function hasLiquidity(c: MassiveOptionContract): boolean {
@@ -186,7 +192,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       warnings.push('Upper wing is not wider than lower — not a true broken wing. Manually widen K3.');
     }
     if ([k1Mid, k2Mid, k3Mid, shortPrem, longPrem].some((p) => p === 0)) {
-      warnings.push('Some premiums are $0 — market may be closed. Reload during trading hours for real quotes.');
+      warnings.push('Some premiums are $0 — no trade data yet for these strikes (illiquid, newly listed, or market closed with no prior session).');
     }
 
     return res.status(200).json({

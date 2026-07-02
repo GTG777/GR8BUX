@@ -319,12 +319,18 @@ function LegsTable({ cfg, meta, legMids, onRefresh, refreshing }: {
                 TOTAL NET (per 1-spread)
               </td>
               <td className="py-3 px-3">
-                <span className={`text-base font-bold ${totalNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {totalNet >= 0 ? `+$${(totalNet * 100).toFixed(0)}` : `-$${(Math.abs(totalNet) * 100).toFixed(0)}`}
-                </span>
-                <span className={`ml-1 text-xs font-semibold ${totalNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {totalNet >= 0 ? 'CREDIT' : 'DEBIT'}
-                </span>
+                {totalNet === 0 ? (
+                  <span className="text-slate-400">—</span>
+                ) : (
+                  <>
+                    <span className={`text-base font-bold ${totalNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {totalNet >= 0 ? `+$${(totalNet * 100).toFixed(0)}` : `-$${(Math.abs(totalNet) * 100).toFixed(0)}`}
+                    </span>
+                    <span className={`ml-1 text-xs font-semibold ${totalNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {totalNet >= 0 ? 'CREDIT' : 'DEBIT'}
+                    </span>
+                  </>
+                )}
               </td>
             </tr>
           </tbody>

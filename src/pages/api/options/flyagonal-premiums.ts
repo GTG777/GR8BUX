@@ -10,7 +10,13 @@ function mid(c: MassiveOptionContract): number {
   const ask = c.last_quote?.ask ?? 0;
   if (bid > 0 && ask > 0) return parseFloat(((bid + ask) / 2).toFixed(2));
   if (bid > 0) return parseFloat(bid.toFixed(2));
-  return parseFloat((c.last_trade?.price ?? 0).toFixed(2));
+  const lastTrade = c.last_trade?.price ?? 0;
+  if (lastTrade > 0) return parseFloat(lastTrade.toFixed(2));
+  // Our data plan doesn't include options quotes/trades — fall back to the
+  // day aggregate's latest price, which is populated regardless of plan tier.
+  const dayClose = c.day?.close ?? 0;
+  if (dayClose > 0) return parseFloat(dayClose.toFixed(2));
+  return parseFloat((c.day?.vwap ?? 0).toFixed(2));
 }
 
 function nearestStrike(
@@ -96,7 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       k1Mid, k2Mid, k3Mid, netCredit,
       shortPrem, longPrem,
       fetchedAt: Date.now(),
-      warning: anyZero ? 'Some premiums are $0 — market may be closed or strikes are illiquid. Verify before trading.' : null,
+      warning: anyZero ? 'Some premiums are $0 — no trade data for these strikes yet. Verify before trading.' : null,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
