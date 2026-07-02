@@ -9,9 +9,8 @@ import {
 export const config = { maxDuration: 25 };
 
 function addCalendarDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  const ms = new Date(dateStr + 'T00:00:00Z').getTime() + n * 86_400_000;
+  return new Date(ms).toISOString().slice(0, 10);
 }
 
 function mid(c: MassiveOptionContract): number {
@@ -154,8 +153,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ),
     ]);
 
-    const shortPutC = nearestStrike(frontPutContracts, k4Target);
-    const longPutC  = nearestStrike(backPutContracts, k4Target);
+    const frontPuts = frontPutContracts.filter((c) => c.details.expiration_date === frontExpiry);
+    const backPuts  = backPutContracts.filter((c) => c.details.expiration_date === backExpiry);
+
+    const shortPutC = nearestStrike(frontPuts, k4Target);
+    const longPutC  = nearestStrike(backPuts, k4Target);
 
     if (!shortPutC || !longPutC) {
       return res.status(404).json({ error: 'Not enough put strikes for diagonal. Check symbol liquidity.' });

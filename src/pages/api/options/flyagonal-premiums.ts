@@ -74,12 +74,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ]);
 
     const frontCalls = calls.filter((c) => c.details.expiration_date === frontExpiry);
+    const filteredFrontPuts = frontPuts.filter((c) => c.details.expiration_date === frontExpiry);
+    const filteredBackPuts  = backPuts.filter((c) => c.details.expiration_date === backExpiry);
 
     const k1c = nearestStrike(frontCalls, k1);
     const k2c = nearestStrike(frontCalls, k2);
     const k3c = nearestStrike(frontCalls, k3);
-    const k4c = nearestStrike(frontPuts, k4);
-    const k5c = nearestStrike(backPuts, k5);
+    const k4c = nearestStrike(filteredFrontPuts, k4);
+    const k5c = nearestStrike(filteredBackPuts, k5);
 
     const k1Mid   = k1c ? mid(k1c) : 0;
     const k2Mid   = k2c ? mid(k2c) : 0;
@@ -88,13 +90,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const shortPrem = k4c ? mid(k4c) : 0;
     const longPrem  = k5c ? mid(k5c) : 0;
 
-    const allZero = [k1Mid, k2Mid, k3Mid, shortPrem, longPrem].every((p) => p === 0);
+    const anyZero = [k1Mid, k2Mid, k3Mid, shortPrem, longPrem].some((p) => p === 0);
 
     return res.status(200).json({
       k1Mid, k2Mid, k3Mid, netCredit,
       shortPrem, longPrem,
       fetchedAt: Date.now(),
-      warning: allZero ? 'All premiums are $0 — market may be closed. Try again during trading hours.' : null,
+      warning: anyZero ? 'Some premiums are $0 — market may be closed or strikes are illiquid. Verify before trading.' : null,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';

@@ -61,10 +61,11 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Research',
     emoji: '🔬',
     items: [
-      { href: '/earnings',  label: 'Earnings Calendar', icon: EarningsIcon  },
-      { href: '/news',      label: 'News',              icon: NewsIcon      },
-      { href: '/crypto',    label: 'Crypto',            icon: CryptoIcon    },
-      { href: '/community', label: 'Community',         icon: CommunityIcon },
+      { href: '/earnings',              label: 'Earnings Calendar', icon: EarningsIcon    },
+      { href: '/news',                  label: 'News',              icon: NewsIcon        },
+      { href: '/research/smart-money',  label: 'Smart Money',       icon: SmartMoneyIcon  },
+      { href: '/crypto',                label: 'Crypto',            icon: CryptoIcon      },
+      { href: '/community',             label: 'Community',         icon: CommunityIcon   },
     ],
   },
   {
@@ -325,6 +326,15 @@ function CommunityIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+    </svg>
+  );
+}
+
+function SmartMoneyIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      <circle cx="19" cy="5" r="3" fill="currentColor" strokeWidth={0} />
     </svg>
   );
 }

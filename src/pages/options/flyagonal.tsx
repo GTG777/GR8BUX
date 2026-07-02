@@ -158,6 +158,20 @@ interface SetupMeta {
   warnings: string[];
 }
 
+/* ── Leg table cell formatters ──────────────────────────────────────── */
+
+function FmtImpact({ val }: { val: number }) {
+  if (val === 0) return <span className="text-slate-400">—</span>;
+  return val > 0
+    ? <span className="text-emerald-500 font-mono">+${val.toFixed(0)}</span>
+    : <span className="text-rose-500 font-mono">-${Math.abs(val).toFixed(0)}</span>;
+}
+
+function FmtPrem({ val }: { val: number }) {
+  if (val === 0) return <span className="text-slate-400">—</span>;
+  return <span className="font-mono">${val.toFixed(2)}</span>;
+}
+
 /* ── Order legs table ───────────────────────────────────────────────── */
 
 interface LegMids { k1Mid: number; k2Mid: number; k3Mid: number }
@@ -186,18 +200,6 @@ function LegsTable({ cfg, meta, legMids, onRefresh, refreshing }: {
     const raw = perShare * qty * 100;
     return side === 'sell' ? raw : -raw;
   };
-
-  const FmtImpact = ({ val }: { val: number }) =>
-    val === 0
-      ? <span className="text-slate-400">—</span>
-      : val > 0
-        ? <span className="text-emerald-500 font-mono">+${val.toFixed(0)}</span>
-        : <span className="text-rose-500 font-mono">-${Math.abs(val).toFixed(0)}</span>;
-
-  const FmtPrem = ({ val }: { val: number }) =>
-    val === 0
-      ? <span className="text-slate-400">—</span>
-      : <span className="font-mono">${val.toFixed(2)}</span>;
 
   const thCls = 'py-2 px-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider';
   const tdCls = 'py-2 px-3 text-sm';
@@ -391,7 +393,7 @@ export default function FlyagonalPage() {
     setRefreshingPremiums(true);
     try {
       const params = new URLSearchParams({
-        symbol: ticker,
+        symbol: setupMeta.symbol,
         frontExpiry: setupMeta.diagonal.frontExpiry,
         backExpiry:  setupMeta.diagonal.backExpiry,
         k1: cfg.bwbK1.toString(),
@@ -410,8 +412,8 @@ export default function FlyagonalPage() {
         diagShortPrem: data.shortPrem,
         diagLongPrem:  data.longPrem,
       }));
-    } catch {
-      // silently ignore — stale premiums stay visible
+    } catch (e) {
+      setSetupError(e instanceof Error ? e.message : 'Premium refresh failed');
     } finally {
       setRefreshingPremiums(false);
     }
