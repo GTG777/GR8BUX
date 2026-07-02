@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import { Layout } from '@/components/Layout';
 import type { InsiderFiling, InsiderTradesResponse } from '@/pages/api/research/insider-trades';
+import type { FilingDetail } from '@/pages/api/research/insider-filing';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const FEATURED_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'META', 'AMZN', 'TSLA', 'GOOGL', 'PLTR', 'COIN', 'AMD'];
 
 const DATE_RANGES = [
-  { label: '7d',  days: 7 },
+  { label: '7d',  days: 7  },
   { label: '14d', days: 14 },
   { label: '30d', days: 30 },
   { label: '60d', days: 60 },
@@ -16,12 +17,13 @@ const DATE_RANGES = [
 
 type Tab = 'insider' | 'congress';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Formatters ────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
   if (!iso) return '—';
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  });
 }
 
 function daysAgo(iso: string) {
@@ -32,34 +34,145 @@ function daysAgo(iso: string) {
   return `${diff}d ago`;
 }
 
+function fmtShares(n: number): string {
+  if (!n) return '—';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toLocaleString();
+}
+
+function fmtValue(n: number): string {
+  if (!n) return '—';
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
+}
+
+// ── Shimmer ───────────────────────────────────────────────────────────────────
+
+function Shimmer({ w = 60 }: { w?: number }) {
+  return (
+    <div
+      className="h-3.5 rounded animate-pulse bg-gray-200 dark:bg-zinc-700 inline-block"
+      style={{ width: w }}
+    />
+  );
+}
+
+// ── Action badge ──────────────────────────────────────────────────────────────
+
+function ActionBadge({ action }: { action: FilingDetail['dominantAction'] }) {
+  const map = {
+    BUY:   'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400',
+    SELL:  'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400',
+    MIXED: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400',
+    NONE:  'bg-gray-100 dark:bg-zinc-700/50 text-gray-500 dark:text-zinc-400',
+  };
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold whitespace-nowrap ${map[action]}`}>
+      {action === 'NONE' ? 'N/A' : action}
+    </span>
+  );
+}
+
 // ── Filing row ────────────────────────────────────────────────────────────────
 
-function FilingRow({ filing, idx }: { filing: InsiderFiling; idx: number }) {
+interface FilingRowProps {
+  filing: InsiderFiling;
+  detail: FilingDetail | null | undefined; // undefined = still loading
+  idx: number;
+}
+
+function FilingRow({ filing, detail, idx }: FilingRowProps) {
+  const loading = detail === undefined;
+
+  const buyShares = detail?.totalBuyShares ?? 0;
+  const sellShares = detail?.totalSellShares ?? 0;
+  const buyValue = detail?.totalBuyValue ?? 0;
+  const sellValue = detail?.totalSellValue ?? 0;
+  const dominantShares = detail?.dominantAction === 'BUY' ? buyShares
+    : detail?.dominantAction === 'SELL' ? sellShares
+    : buyShares + sellShares;
+  const dominantValue = detail?.dominantAction === 'BUY' ? buyValue
+    : detail?.dominantAction === 'SELL' ? sellValue
+    : buyValue + sellValue;
+
   return (
-    <tr className={`border-b border-gray-100 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/40 dark:bg-zinc-900/40'}`}>
-      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-zinc-100 max-w-[220px]">
-        <div className="truncate" title={filing.reporterName}>
-          {filing.reporterName}
+    <tr
+      className={`border-b border-gray-100 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors ${
+        idx % 2 === 0 ? '' : 'bg-gray-50/40 dark:bg-zinc-900/40'
+      }`}
+    >
+      {/* Insider */}
+      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-zinc-100 max-w-[180px]">
+        <div className="truncate" title={detail?.reporterName || filing.reporterName}>
+          {detail?.reporterName || filing.reporterName}
         </div>
+        {loading ? (
+          <Shimmer w={70} />
+        ) : detail?.role ? (
+          <div className="text-[11px] text-gray-400 dark:text-zinc-500 mt-0.5 truncate">
+            {detail.role}
+          </div>
+        ) : null}
       </td>
-      <td className="px-4 py-3 text-sm text-gray-600 dark:text-zinc-400 whitespace-nowrap">
+
+      {/* Ticker */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {loading ? (
+          <Shimmer w={36} />
+        ) : detail?.ticker ? (
+          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
+            {detail.ticker}
+          </span>
+        ) : (
+          <span className="text-[11px] text-gray-400 dark:text-zinc-600">—</span>
+        )}
+      </td>
+
+      {/* Action */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {loading ? <Shimmer w={44} /> : detail ? <ActionBadge action={detail.dominantAction} /> : <span className="text-xs text-gray-400">—</span>}
+      </td>
+
+      {/* Shares */}
+      <td className="px-4 py-3 text-sm text-right whitespace-nowrap hidden md:table-cell">
+        {loading ? <Shimmer w={48} /> : (
+          <span className="text-gray-700 dark:text-zinc-300 font-mono text-xs">
+            {fmtShares(dominantShares)}
+          </span>
+        )}
+      </td>
+
+      {/* Value */}
+      <td className="px-4 py-3 text-sm text-right whitespace-nowrap hidden md:table-cell">
+        {loading ? <Shimmer w={56} /> : (
+          <span className={`font-semibold text-xs ${
+            detail?.dominantAction === 'BUY'
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : detail?.dominantAction === 'SELL'
+              ? 'text-red-500 dark:text-red-400'
+              : 'text-gray-600 dark:text-zinc-400'
+          }`}>
+            {fmtValue(dominantValue)}
+          </span>
+        )}
+      </td>
+
+      {/* Filed */}
+      <td className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-400 whitespace-nowrap hidden sm:table-cell">
         <span title={fmtDate(filing.filedDate)}>{daysAgo(filing.filedDate)}</span>
       </td>
-      <td className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-500 whitespace-nowrap hidden sm:table-cell">
-        {fmtDate(filing.periodDate)}
-      </td>
-      <td className="px-4 py-3 whitespace-nowrap">
-        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
-          {filing.formType}
-        </span>
-      </td>
+
+      {/* Links */}
       <td className="px-4 py-3 whitespace-nowrap text-right">
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-1.5">
           <a
             href={filing.filingIndexUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors font-medium"
+            className="text-xs px-2 py-1 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors font-medium"
           >
             Filing
           </a>
@@ -67,7 +180,7 @@ function FilingRow({ filing, idx }: { filing: InsiderFiling; idx: number }) {
             href={filing.edgarUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-zinc-700/50 text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors font-medium"
+            className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-zinc-700/50 text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors font-medium"
           >
             EDGAR
           </a>
@@ -82,8 +195,8 @@ function FilingRow({ filing, idx }: { filing: InsiderFiling; idx: number }) {
 function SkeletonRow() {
   return (
     <tr className="border-b border-gray-100 dark:border-zinc-800">
-      {[220, 60, 80, 40, 100].map((w, i) => (
-        <td key={i} className={`px-4 py-3 ${i === 2 ? 'hidden sm:table-cell' : ''}`}>
+      {[160, 40, 44, 48, 56, 50, 80].map((w, i) => (
+        <td key={i} className={`px-4 py-3 ${[3, 4].includes(i) ? 'hidden md:table-cell' : i === 5 ? 'hidden sm:table-cell' : ''}`}>
           <div className="h-4 bg-gray-200 dark:bg-zinc-700 rounded animate-pulse" style={{ width: w }} />
         </td>
       ))}
@@ -101,9 +214,7 @@ function CongressTab() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
-        Congressional Trades
-      </h3>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">Congressional Trades</h3>
       <p className="max-w-sm text-sm text-gray-500 dark:text-zinc-400 leading-relaxed">
         Track STOCK Act disclosures from members of Congress. Connect a{' '}
         <span className="font-medium text-amber-600 dark:text-amber-400">Quiver Quant API key</span>{' '}
@@ -141,11 +252,17 @@ export default function SmartMoneyPage() {
   const [data, setData] = useState<InsiderTradesResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Keyed by accessionNumber: undefined = loading, null = failed, FilingDetail = success
+  const [enriched, setEnriched] = useState<Record<string, FilingDetail | null>>({});
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enrichAbortRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async (q: string, d: number) => {
     setLoading(true);
     setError(null);
+    setEnriched({});
     try {
       const params = new URLSearchParams({ days: String(d) });
       if (q) params.set('q', q);
@@ -160,18 +277,58 @@ export default function SmartMoneyPage() {
     }
   }, []);
 
-  // Initial load
+  // Lazy-enrich filings in batches of 8
+  useEffect(() => {
+    const filings = data?.filings ?? [];
+    if (!filings.length) return;
+
+    enrichAbortRef.current?.abort();
+    const controller = new AbortController();
+    enrichAbortRef.current = controller;
+
+    const BATCH = 8;
+
+    (async () => {
+      for (let i = 0; i < filings.length; i += BATCH) {
+        if (controller.signal.aborted) break;
+        const batch = filings.slice(i, i + BATCH);
+
+        await Promise.all(
+          batch.map(async (f) => {
+            if (!f.accessionNumber || !f.entityId) return;
+            try {
+              const params = new URLSearchParams({ acc: f.accessionNumber, cik: f.entityId });
+              const res = await fetch(`/api/research/insider-filing?${params}`, {
+                signal: controller.signal,
+              });
+              const detail: FilingDetail | null = res.ok ? await res.json() : null;
+              if (!controller.signal.aborted) {
+                setEnriched(prev => ({ ...prev, [f.accessionNumber]: detail }));
+              }
+            } catch {
+              if (!controller.signal.aborted) {
+                setEnriched(prev => ({ ...prev, [f.accessionNumber]: null }));
+              }
+            }
+          })
+        );
+      }
+    })();
+
+    return () => controller.abort();
+  }, [data]);
+
   useEffect(() => {
     fetchData(query, days);
-  }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced search
   const handleInputChange = (val: string) => {
     setInputValue(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setQuery(val.trim().toUpperCase());
-      fetchData(val.trim().toUpperCase(), days);
+      const upper = val.trim().toUpperCase();
+      setQuery(upper);
+      fetchData(upper, days);
     }, 400);
   };
 
@@ -188,6 +345,12 @@ export default function SmartMoneyPage() {
 
   const filings = data?.filings ?? [];
 
+  // Summary stats from enriched data
+  const enrichedValues = Object.values(enriched).filter(Boolean) as FilingDetail[];
+  const buyCount = enrichedValues.filter(d => d.dominantAction === 'BUY').length;
+  const sellCount = enrichedValues.filter(d => d.dominantAction === 'SELL').length;
+  const totalValue = enrichedValues.reduce((s, d) => s + d.totalBuyValue + d.totalSellValue, 0);
+
   return (
     <Layout title="Smart Money">
       <Head>
@@ -197,25 +360,33 @@ export default function SmartMoneyPage() {
       <div className="max-w-5xl mx-auto space-y-6">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
-              <span className="text-2xl">💰</span> Smart Money
+              <span>💰</span> Smart Money
             </h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-zinc-400">
-              SEC Form 4 insider trades &amp; congressional disclosures via EDGAR
+              SEC Form 4 insider trades via EDGAR — buy/sell signals parsed from filing XML
             </p>
           </div>
-          {data && (
-            <div className="flex items-center gap-4 text-sm">
-              <div className="text-center">
-                <p className="font-bold text-lg text-gray-900 dark:text-zinc-100">{data.total.toLocaleString()}</p>
-                <p className="text-xs text-gray-400 dark:text-zinc-500">Total filings</p>
+
+          {/* Stat pills */}
+          {enrichedValues.length > 0 && (
+            <div className="flex gap-3 text-center shrink-0">
+              <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
+                <p className="font-bold text-emerald-700 dark:text-emerald-400 text-lg">{buyCount}</p>
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-500">Buys</p>
               </div>
-              <div className="text-center">
-                <p className="font-bold text-lg text-gray-900 dark:text-zinc-100">{filings.length}</p>
-                <p className="text-xs text-gray-400 dark:text-zinc-500">Shown</p>
+              <div className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
+                <p className="font-bold text-red-600 dark:text-red-400 text-lg">{sellCount}</p>
+                <p className="text-[11px] text-red-500 dark:text-red-500">Sells</p>
               </div>
+              {totalValue > 0 && (
+                <div className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700">
+                  <p className="font-bold text-gray-900 dark:text-zinc-100 text-lg">{fmtValue(totalValue)}</p>
+                  <p className="text-[11px] text-gray-400 dark:text-zinc-500">Total</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -245,7 +416,6 @@ export default function SmartMoneyPage() {
           <>
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* Search */}
               <div className="relative flex-1 max-w-sm">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -254,12 +424,11 @@ export default function SmartMoneyPage() {
                   type="text"
                   value={inputValue}
                   onChange={e => handleInputChange(e.target.value)}
-                  placeholder="Search ticker or company…"
+                  placeholder="Ticker or company (e.g. AAPL, Nvidia)…"
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                 />
               </div>
 
-              {/* Date range */}
               <div className="flex gap-1 p-1 bg-gray-100 dark:bg-zinc-800 rounded-xl self-start">
                 {DATE_RANGES.map(({ label, days: d }) => (
                   <button
@@ -276,7 +445,6 @@ export default function SmartMoneyPage() {
                 ))}
               </div>
 
-              {/* Refresh */}
               <button
                 onClick={() => fetchData(query, days)}
                 disabled={loading}
@@ -315,19 +483,19 @@ export default function SmartMoneyPage() {
               )}
             </div>
 
-            {/* Context banner for search */}
+            {/* Context banner */}
             {query && data && (
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 text-sm">
                 <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="text-blue-700 dark:text-blue-300">
-                  Showing Form 4 filings mentioning <strong>{data.query}</strong> — reporter name is the insider, not the company.
+                  Searching Form 4s mentioning <strong>{data.query}</strong> — reporter name is the insider, not the company.
+                  Ticker + action columns fill in as XML is parsed.
                 </span>
               </div>
             )}
 
-            {/* Error state */}
             {error && (
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-sm text-red-700 dark:text-red-400">
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -343,21 +511,13 @@ export default function SmartMoneyPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-zinc-700/60 bg-gray-50/80 dark:bg-zinc-800/80">
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">
-                        Insider (Reporter)
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">
-                        Filed
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide hidden sm:table-cell">
-                        Period
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">
-                        Form
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">
-                        Links
-                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Insider</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Ticker</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Action</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide hidden md:table-cell">Shares</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide hidden md:table-cell">Value</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide hidden sm:table-cell">Filed</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Links</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -366,23 +526,34 @@ export default function SmartMoneyPage() {
                       : filings.length === 0
                       ? (
                         <tr>
-                          <td colSpan={5} className="px-4 py-16 text-center text-sm text-gray-400 dark:text-zinc-500">
+                          <td colSpan={7} className="px-4 py-16 text-center text-sm text-gray-400 dark:text-zinc-500">
                             {error ? 'Error loading data' : 'No filings found for this period'}
                           </td>
                         </tr>
                       )
-                      : filings.map((f, i) => <FilingRow key={f.accessionNumber} filing={f} idx={i} />)
+                      : filings.map((f, i) => (
+                        <FilingRow
+                          key={f.accessionNumber}
+                          filing={f}
+                          detail={enriched[f.accessionNumber]}
+                          idx={i}
+                        />
+                      ))
                     }
                   </tbody>
                 </table>
               </div>
 
-              {/* Footer */}
               {!loading && filings.length > 0 && (
                 <div className="px-4 py-3 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between text-xs text-gray-400 dark:text-zinc-500">
                   <span>
-                    Showing {filings.length.toLocaleString()} of {(data?.total ?? 0).toLocaleString()} filings
-                    {query ? ` matching "${data?.query}"` : ''} in the last {days}d
+                    {filings.length.toLocaleString()} of {(data?.total ?? 0).toLocaleString()} filings
+                    {query ? ` · "${data?.query}"` : ''} · last {days}d
+                    {enrichedValues.length < filings.length && (
+                      <span className="ml-2 text-blue-400 dark:text-blue-500">
+                        · parsing {filings.length - enrichedValues.length} filing{filings.length - enrichedValues.length !== 1 ? 's' : ''}…
+                      </span>
+                    )}
                   </span>
                   <a
                     href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&dateb=&owner=include&count=40"
@@ -396,13 +567,12 @@ export default function SmartMoneyPage() {
               )}
             </div>
 
-            {/* Data source note */}
             <p className="text-xs text-gray-400 dark:text-zinc-600 text-center">
               Data sourced from{' '}
               <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-zinc-400">
                 SEC EDGAR
-              </a>{' '}
-              · Updated every 15 minutes · Not financial advice
+              </a>
+              {' '}· List cached 15 min · Filing XML cached 24h · Not financial advice
             </p>
           </>
         )}
