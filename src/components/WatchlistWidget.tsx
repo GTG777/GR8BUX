@@ -8,6 +8,18 @@ interface QuoteData {
   high: number;
   low: number;
   volume: number;
+  marketOpen: boolean;
+}
+
+function StaleBadge() {
+  return (
+    <span
+      title="Live intraday data isn't available right now — this is the most recent session's closing price, not a live quote."
+      className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700"
+    >
+      Last Close
+    </span>
+  );
 }
 
 const DEFAULT_WATCHLIST = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'];
@@ -128,6 +140,7 @@ export const WatchlistWidget: React.FC = () => {
                       ${q.price.toFixed(2)}
                     </span>
                   )}
+                  {q && !q.marketOpen && <StaleBadge />}
                 </div>
                 {q ? (
                   <div className="flex gap-3 text-xs mt-1">

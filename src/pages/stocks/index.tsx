@@ -35,6 +35,7 @@ interface Candle {
 
 interface Indicators {
   price: number;
+  asOfDate: string; // date of the candle `price` was read from — daily bars, never live
   prevClose: number;
   changePct: number;
   ema20: number;
@@ -252,6 +253,7 @@ function computeIndicators(candles: Candle[]): Indicators {
   const volumes = candles.map(c => c.volume);
 
   const price     = closes.at(-1)!;
+  const asOfDate  = candles.at(-1)!.date; // daily bars only — this is a completed session's close, not a live quote
   const prevClose = closes.at(-2) ?? price;
   const changePct = parseFloat(((price - prevClose) / prevClose * 100).toFixed(2));
 
@@ -280,7 +282,7 @@ function computeIndicators(candles: Candle[]): Indicators {
   const obvSlope  = calcOBVSlope(candles);
 
   return {
-    price, prevClose, changePct,
+    price, asOfDate, prevClose, changePct,
     ema20, ema50, ema200, tsi, tsiSignal, atr14,
     bbUpper: bb.upper, bbMiddle: bb.middle, bbLower: bb.lower,
     ...macd, hv20, volumeRatio, high20, low20, trendScore,
@@ -982,6 +984,10 @@ function SetupProjectionChart({
   /* ATR volatility cone — forward projection */
   const atr       = indicators.atr14;
   const lastClose = indicators.price;
+  // Daily bars only — this is the last completed session's close, not a live
+  // quote. Label it honestly instead of "Now".
+  const lastCloseLabel = new Date(indicators.asOfDate + 'T12:00:00Z')
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const projPoints: ProjPoint[] = Array.from({ length: PROJ }, (_, i) => ({
     label:  `+${i + 1}d`,
     close:  null,
@@ -1075,7 +1081,7 @@ function SetupProjectionChart({
 
           {/* ── Current price — RIGHT ── */}
           <ReferenceLine y={lastClose} stroke="#374151" strokeWidth={1} strokeDasharray="4 2"
-            label={lbl(`Now  $${lastClose.toFixed(2)}`, '#374151', true)} />
+            label={lbl(`As of ${lastCloseLabel}  $${lastClose.toFixed(2)}`, '#374151', true)} />
 
           {/* ── EMA dynamic S/R — LEFT (outside) ── */}
           <ReferenceLine y={indicators.ema20} stroke="#10b981" strokeWidth={1.5} strokeDasharray="6 3"

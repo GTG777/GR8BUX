@@ -121,6 +121,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!price) {
       return res.status(404).json({ error: `No price data for ${symbol}` });
     }
+    // True only when today's live/delayed session data actually populated —
+    // otherwise `price` above silently fell back to the prior session's close.
+    const priceIsLive = !!(snap.day?.c || snap.day?.vw);
 
     const today = todayDateStr();
 
@@ -248,6 +251,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       symbol,
       price: parseFloat(price.toFixed(2)),
+      priceIsLive,
       fetchedAt: Date.now(),
       bwb: {
         expiry: frontExpiry,

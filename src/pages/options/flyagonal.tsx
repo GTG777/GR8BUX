@@ -152,6 +152,7 @@ function NumInput({ label, value, onChange, step = 1, min, max }: {
 interface SetupMeta {
   symbol: string;
   price: number;
+  priceIsLive: boolean;
   fetchedAt: number;
   bwb: { expiry: string; dte: number; k1: number; k1Mid: number; k2: number; k2Mid: number; k3: number; k3Mid: number; netCredit: number; lowerWing: number; upperWing: number };
   diagonal: { frontExpiry: string; backExpiry: string; frontDte: number; backDte: number; k4: number; shortPrem: number; k5: number; longPrem: number; netDebit: number };
@@ -680,9 +681,17 @@ export default function FlyagonalPage() {
               {setupMeta && (
                 <div className="mt-3 space-y-1.5">
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-                    <span>
+                    <span className="inline-flex items-center gap-1.5">
                       <span className="font-medium">{setupMeta.symbol}</span> @ ${setupMeta.price.toFixed(2)}
                       {' '}· fetched {new Date(setupMeta.fetchedAt).toLocaleTimeString()}
+                      {!setupMeta.priceIsLive && (
+                        <span
+                          title="Live/delayed intraday data isn't available right now — this is the most recent session's closing price, not a live quote."
+                          className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                        >
+                          Last Close
+                        </span>
+                      )}
                     </span>
                     <span>
                       BWB expiry <span className="font-medium">{setupMeta.bwb.expiry}</span> ({setupMeta.bwb.dte} DTE)

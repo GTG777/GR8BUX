@@ -26,6 +26,7 @@ export interface OptionContract {
 export interface OptionsChainResponse {
   symbol: string;
   underlyingPrice: number;
+  underlyingPriceIsLive: boolean;
   expirations: string[];     // available YYYY-MM-DD dates (from fetched data)
   contracts: OptionContract[];
   fetchedAt: number;
@@ -103,14 +104,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       /* stopAtExpirations */ dateParam ? undefined : 6,
     );
 
-    // Fallback: fetch spot price from stock snapshot if chain didn't include it
+    // Fallback: fetch spot price from stock snapshot if chain didn't include it.
+    // chainPrice comes from the options feed's embedded underlying price; the
+    // stock-snapshot fallback can silently be yesterday's close if today's
+    // session data isn't populated (see quote.ts's marketOpen flag for the
+    // same issue on the stocks side) — track that so the UI can flag it.
     let underlyingPrice = chainPrice;
+    let underlyingPriceIsLive = !!chainPrice;
     if (!underlyingPrice) {
       try {
         const snap = await getStockSnapshot(symbol);
         underlyingPrice = snap.day?.c ?? snap.prevDay?.c ?? 0;
+        underlyingPriceIsLive = !!snap.day?.c;
       } catch {
         underlyingPrice = 0;
+        underlyingPriceIsLive = false;
       }
     }
 
@@ -134,6 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const payload: OptionsChainResponse = {
       symbol,
       underlyingPrice,
+      underlyingPriceIsLive,
       expirations,
       contracts,
       fetchedAt: Date.now(),

@@ -39,6 +39,7 @@ export interface LeapsContract {
 export interface LeapsChainResponse {
   symbol: string;
   underlyingPrice: number;
+  underlyingPriceIsLive: boolean;
   hv20: number | null;
   rsi: number | null;
   leapsExpirations: string[];
@@ -189,20 +190,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       hvRsiPromise,
     ]);
 
-    // Fallback: if chain didn't include underlying price, fetch it from stock snapshot
+    // Fallback: if chain didn't include underlying price, fetch it from stock snapshot.
+    // Track liveness so the UI can flag a stale (prior-close) price honestly.
     let underlyingPrice = chainPrice;
+    let underlyingPriceIsLive = !!chainPrice;
     if (!underlyingPrice) {
       try {
         const snap = await getStockSnapshot(symbol);
         underlyingPrice = snap.day?.c ?? snap.prevDay?.c ?? 0;
+        underlyingPriceIsLive = !!snap.day?.c;
       } catch {
         underlyingPrice = 0;
+        underlyingPriceIsLive = false;
       }
     }
 
     if (!rawContracts.length) {
       const payload: LeapsChainResponse = {
-        symbol, underlyingPrice: 0, hv20: null, rsi: null,
+        symbol, underlyingPrice: 0, underlyingPriceIsLive, hv20: null, rsi: null,
         leapsExpirations: [], contracts: [], fetchedAt: Date.now(),
         upstreamError: `No LEAPS options data found for ${symbol}`,
       };
@@ -229,6 +234,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const payload: LeapsChainResponse = {
       symbol,
       underlyingPrice,
+      underlyingPriceIsLive,
       hv20,
       rsi,
       leapsExpirations,
@@ -241,7 +247,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     const payload: LeapsChainResponse = {
-      symbol, underlyingPrice: 0, hv20: null, rsi: null,
+      symbol, underlyingPrice: 0, underlyingPriceIsLive: false, hv20: null, rsi: null,
       leapsExpirations: [], contracts: [], fetchedAt: Date.now(),
       upstreamError: `Massive upstream error: ${msg}`,
     };

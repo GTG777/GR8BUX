@@ -40,6 +40,7 @@ interface Spread {
 
 interface MarketData {
   price: number;
+  priceIsLive: boolean;
   hv10: number;
   hv20: number;
   hv30: number;
@@ -689,7 +690,7 @@ function BiasBar({ md, chainIV, ivr, pcRatio, vwap }: { md: MarketData; chainIV:
 }
 
 /* ── Options Analytics Panel ────────────────────────────────────── */
-function OptionsAnalyticsPanel({ oa, spot, symbol }: { oa: OptionsAnalytics; spot: number; symbol: string }) {
+function OptionsAnalyticsPanel({ oa, spot, spotIsLive, symbol }: { oa: OptionsAnalytics; spot: number; spotIsLive: boolean; symbol: string }) {
   const ivrColor = oa.ivr === null ? 'text-gray-400'
     : oa.ivr >= 70 ? 'text-red-600'
     : oa.ivr >= 40 ? 'text-amber-600'
@@ -756,6 +757,14 @@ function OptionsAnalyticsPanel({ oa, spot, symbol }: { oa: OptionsAnalytics; spo
             <span className={`ml-2 font-semibold ${maxPainDiff > 0 ? 'text-green-600' : 'text-red-600'}`}>
               ({maxPainDiff > 0 ? '+' : ''}{maxPainDiff.toFixed(1)}% from spot)
             </span>
+            {!spotIsLive && (
+              <span
+                title="Live/delayed intraday data isn't available right now — this is the most recent session's closing price, not a live quote."
+                className="ml-2 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700"
+              >
+                Last Close
+              </span>
+            )}
           </p>
           <p className="text-xs text-gray-500 pt-1">
             {Math.abs(maxPainDiff) < 1
@@ -1270,13 +1279,16 @@ export default function ScannerPage() {
       setScanEmaArrays({ ema20: calcEMAFull(closes, 20), ema50: calcEMAFull(closes, 50) });
 
       const price = chain.underlyingPrice || closes.at(-1)!;
+      // Live only if we actually used the chain's own live-flagged price —
+      // the closes.at(-1) fallback is always a historical daily close.
+      const priceIsLive = !!chain.underlyingPrice && chain.underlyingPriceIsLive;
       const hv10  = calcHV(closes, 10);
       const hv20  = calcHV(closes, 20);
       const hv30  = calcHV(closes, 30);
       const ema20 = calcEMA(closes, 20);
       const pct   = (price - ema20) / ema20 * 100;
       const bias: Bias = pct > 1 ? 'bullish' : pct < -1 ? 'bearish' : 'neutral';
-      setMarketData({ price, hv10, hv20, hv30, ema20, bias });
+      setMarketData({ price, priceIsLive, hv10, hv20, hv30, ema20, bias });
 
       if (!chain.contracts?.length)
         throw new Error('No options contracts returned — market may be closed or symbol has no listed options');
@@ -1414,7 +1426,7 @@ export default function ScannerPage() {
 
         {/* ── Options Analytics ── */}
         {!loading && optionsAnalytics && marketData && (
-          <OptionsAnalyticsPanel oa={optionsAnalytics} spot={marketData.price} symbol={symbol} />
+          <OptionsAnalyticsPanel oa={optionsAnalytics} spot={marketData.price} spotIsLive={marketData.priceIsLive} symbol={symbol} />
         )}
 
         {/* ── Screener Controls ── */}

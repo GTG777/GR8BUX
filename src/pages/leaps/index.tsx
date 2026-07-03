@@ -923,6 +923,14 @@ export default function LeapsPage() {
               <div className="flex flex-wrap gap-4 text-sm">
                 <span className="font-bold text-gray-800 dark:text-white">{chainData.symbol}</span>
                 <span className="text-indigo-700 dark:text-indigo-400 font-bold">${chainData.underlyingPrice.toFixed(2)}</span>
+                {!chainData.underlyingPriceIsLive && (
+                  <span
+                    title="Live/delayed intraday data isn't available right now — this is the most recent session's closing price, not a live quote."
+                    className="self-center text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700"
+                  >
+                    Last Close
+                  </span>
+                )}
                 {chainData.hv20 !== null && <span className="text-gray-500 dark:text-zinc-400">HV20: <strong>{chainData.hv20}%</strong></span>}
                 <span className="text-gray-400 dark:text-zinc-600 text-xs">{chainContracts.length} contracts shown</span>
               </div>
