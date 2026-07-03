@@ -356,6 +356,11 @@ export default function FlyagonalPage() {
   const [legMids, setLegMids] = useState<LegMids>({ k1Mid: 0, k2Mid: 0, k3Mid: 0 });
   const [refreshingPremiums, setRefreshingPremiums] = useState(false);
   const tickerRef = useRef<HTMLInputElement>(null);
+  // Tracks which strikes premiums were last fetched for, so the debounced
+  // auto-refresh effect only fires when the user actually edits a strike
+  // (not on every render, and not right after a fetch snaps the values).
+  const lastFetchedStrikesRef = useRef<{ k1: number; k2: number; k3: number; k4: number; k5: number } | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Core fetch — takes the symbol as a param so it can be called on mount too
   const loadSetupForSymbol = useCallback(async (sym: string) => {
@@ -381,6 +386,10 @@ export default function FlyagonalPage() {
         diagShortPrem: meta.diagonal.shortPrem,
         diagLongPrem:  meta.diagonal.longPrem,
       });
+      lastFetchedStrikesRef.current = {
+        k1: meta.bwb.k1, k2: meta.bwb.k2, k3: meta.bwb.k3,
+        k4: meta.diagonal.k4, k5: meta.diagonal.k5,
+      };
     } catch (e) {
       setSetupError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -414,16 +423,40 @@ export default function FlyagonalPage() {
       setLegMids({ k1Mid: data.k1Mid, k2Mid: data.k2Mid, k3Mid: data.k3Mid });
       setCfg((prev) => ({
         ...prev,
+        // Snap the displayed strikes to whatever actually exists on the
+        // chain — the user may have typed a value that isn't a listed strike.
+        bwbK1: data.k1, bwbK2: data.k2, bwbK3: data.k3,
+        diagK4: data.k4, diagK5: data.k5,
         bwbCredit:     data.netCredit,
         diagShortPrem: data.shortPrem,
         diagLongPrem:  data.longPrem,
       }));
+      lastFetchedStrikesRef.current = { k1: data.k1, k2: data.k2, k3: data.k3, k4: data.k4, k5: data.k5 };
     } catch (e) {
       setSetupError(e instanceof Error ? e.message : 'Premium refresh failed');
     } finally {
       setRefreshingPremiums(false);
     }
   }, [setupMeta, ticker, cfg.bwbK1, cfg.bwbK2, cfg.bwbK3, cfg.diagK4, cfg.diagK5, loadSetupForSymbol]);
+
+  // Auto-refresh premiums (debounced) whenever the user edits a strike by
+  // hand, so the Order Legs table and net debit/credit stay in sync with
+  // whatever K1–K5 currently show instead of going stale until a manual click.
+  useEffect(() => {
+    if (!setupMeta) return;
+    const last = lastFetchedStrikesRef.current;
+    const changed = !last
+      || last.k1 !== cfg.bwbK1 || last.k2 !== cfg.bwbK2 || last.k3 !== cfg.bwbK3
+      || last.k4 !== cfg.diagK4 || last.k5 !== cfg.diagK5;
+    if (!changed) return;
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => { refreshPremiums(); }, 600);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [cfg.bwbK1, cfg.bwbK2, cfg.bwbK3, cfg.diagK4, cfg.diagK5, setupMeta, refreshPremiums]);
 
   const set = (key: keyof typeof DEFAULTS) => (v: number) =>
     setCfg((prev) => ({ ...prev, [key]: v }));
@@ -670,6 +703,12 @@ export default function FlyagonalPage() {
                 </div>
               )}
             </div>
+
+            {setupMeta && (
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+                Tip: adjust K1–K5 below to explore max profit — live premiums and the Order Legs table auto-refresh a moment after you stop typing.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
               <NumInput label="Underlying price" value={cfg.underlying} onChange={set('underlying')} step={1} min={1} />

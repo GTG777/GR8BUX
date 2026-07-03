@@ -89,16 +89,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const k4c = nearestStrike(filteredFrontPuts, k4);
     const k5c = nearestStrike(filteredBackPuts, k5);
 
-    const k1Mid   = k1c ? mid(k1c) : 0;
-    const k2Mid   = k2c ? mid(k2c) : 0;
-    const k3Mid   = k3c ? mid(k3c) : 0;
+    if (!k1c || !k2c || !k3c || !k4c || !k5c) {
+      return res.status(404).json({ error: 'No matching strikes found for one or more legs. Check symbol liquidity.' });
+    }
+
+    const k1Mid   = mid(k1c);
+    const k2Mid   = mid(k2c);
+    const k3Mid   = mid(k3c);
     const netCredit = parseFloat((k2Mid * 2 - k1Mid - k3Mid).toFixed(2));
-    const shortPrem = k4c ? mid(k4c) : 0;
-    const longPrem  = k5c ? mid(k5c) : 0;
+    const shortPrem = mid(k4c);
+    const longPrem  = mid(k5c);
 
     const anyZero = [k1Mid, k2Mid, k3Mid, shortPrem, longPrem].some((p) => p === 0);
 
     return res.status(200).json({
+      // Snapped to the nearest strike actually listed on the chain — may
+      // differ from the requested k1–k5 if those exact strikes don't exist.
+      k1: k1c.details.strike_price, k2: k2c.details.strike_price, k3: k3c.details.strike_price,
+      k4: k4c.details.strike_price, k5: k5c.details.strike_price,
       k1Mid, k2Mid, k3Mid, netCredit,
       shortPrem, longPrem,
       fetchedAt: Date.now(),
