@@ -58,6 +58,54 @@ function nearestStrike(
   );
 }
 
+interface BwbCandidate {
+  k1c: MassiveOptionContract;
+  k2c: MassiveOptionContract;
+  k3c: MassiveOptionContract;
+  netCredit: number;
+  tailRisk: number; // $/share max loss above K3 (upperWing - lowerWing - netCredit)
+}
+
+// A plain ~1.2x wing ratio placed just above market reliably prices as a
+// debit (option prices are most convex near the money, which is exactly
+// where a symmetric-ish butterfly is most expensive). Search a small grid
+// of K1 placements and wing ratios against live premiums for the
+// combination closest to (or at) a net credit — the shape that keeps the
+// flat/down scenarios profitable — while capping how much extra upside
+// tail risk the search is allowed to take on for that credit.
+function pickBwbStrikes(frontCalls: MassiveOptionContract[], price: number, wingPts: number): BwbCandidate[] {
+  const k1Offsets = [0.4, 0.8, 1.2, 1.6, 2.0];
+  const wingRatios = [
+    { lowerMult: 1.0, upperMult: 1.2 }, // original baseline, near-symmetric
+    { lowerMult: 0.8, upperMult: 1.4 },
+    { lowerMult: 0.7, upperMult: 1.6 },
+  ];
+
+  const candidates: BwbCandidate[] = [];
+  for (const k1Offset of k1Offsets) {
+    const k1c = nearestStrike(frontCalls, price + wingPts * k1Offset);
+    if (!k1c) continue;
+    const k1Mid = mid(k1c);
+
+    for (const { lowerMult, upperMult } of wingRatios) {
+      const k2c = nearestStrike(frontCalls, k1c.details.strike_price + wingPts * lowerMult);
+      if (!k2c || k2c.details.strike_price <= k1c.details.strike_price) continue;
+
+      const k3c = nearestStrike(frontCalls, k2c.details.strike_price + wingPts * upperMult);
+      if (!k3c || k3c.details.strike_price <= k2c.details.strike_price) continue;
+
+      const lowerWing = k2c.details.strike_price - k1c.details.strike_price;
+      const upperWing = k3c.details.strike_price - k2c.details.strike_price;
+      if (upperWing <= lowerWing) continue; // must stay a true broken wing
+
+      const netCredit = parseFloat((mid(k2c) * 2 - k1Mid - mid(k3c)).toFixed(2));
+      const tailRisk = upperWing - lowerWing - netCredit;
+      candidates.push({ k1c, k2c, k3c, netCredit, tailRisk });
+    }
+  }
+  return candidates;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -119,27 +167,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // ── 3. BWB call strikes — already in `calls`, filter to front expiry ──
     const frontCalls = calls.filter((c) => c.details.expiration_date === frontExpiry);
 
-    // K1 just above market, K2 ~1 wing-width above, K3 wider upper wing (broken wing)
+    // K1 just above market, K2/K3 searched against live premiums for the
+    // best available net credit (see pickBwbStrikes for why).
     const wingPts = Math.max(1, Math.round(price * 0.009));
-    const k1Target = price + wingPts * 0.4;
-    const k2Target = price + wingPts * 1.4;
-    const k3Target = k2Target + wingPts * 1.2;
+    const bwbCandidates = pickBwbStrikes(frontCalls, price, wingPts);
 
-    const k1c = nearestStrike(frontCalls, k1Target);
-    const k2c = nearestStrike(frontCalls, k2Target);
-    const k3c = nearestStrike(frontCalls, k3Target);
-
-    if (!k1c || !k2c || !k3c) {
+    if (!bwbCandidates.length) {
       return res.status(404).json({ error: 'Not enough call strikes for BWB. Check symbol liquidity.' });
     }
 
+    // Prefer candidates that don't blow up the upside tail risk chasing a
+    // credit; fall back to the full set if every candidate exceeds the cap.
+    const maxReasonableTailRisk = wingPts * 0.6;
+    const withinRiskCap = bwbCandidates.filter((c) => c.tailRisk <= maxReasonableTailRisk);
+    const bwbPool = withinRiskCap.length ? withinRiskCap : bwbCandidates;
+    const bestBwb = bwbPool.reduce((a, b) => (b.netCredit > a.netCredit ? b : a));
+
+    const { k1c, k2c, k3c, netCredit } = bestBwb;
     const k1 = k1c.details.strike_price;
     const k2 = k2c.details.strike_price;
     const k3 = k3c.details.strike_price;
     const k1Mid = mid(k1c);
     const k2Mid = mid(k2c);
     const k3Mid = mid(k3c);
-    const netCredit = parseFloat((k2Mid * 2 - k1Mid - k3Mid).toFixed(2));
 
     // ── 4. Put diagonal — fetch front and back month puts separately ──
     // Never use gte+lte on the same request (Massive rejects it when they
